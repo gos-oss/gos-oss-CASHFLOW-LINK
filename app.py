@@ -2,97 +2,133 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import plotly.graph_objects as go
+import plotly.express as px
 from datetime import date
 
-# -----------------------------------------------------------------------------
-# 1. CONFIGURACIÓN GENERAL DE LA PÁGINA WEB
-# -----------------------------------------------------------------------------
-# Establecemos el título del navegador y el diseño en pantalla ancha (wide)
+# =============================================================================
+# 1. CONFIGURACIÓN INICIAL Y ESTILOS CORPORATIVOS (LIGHT MODERN SLATE)
+# =============================================================================
+# Configuración del lienzo de la aplicación en pantalla ancha
 st.set_page_config(
-    page_title="Sistema de Cashflow Detallado 13 Semanas",
-    page_icon="📈",
+    page_title="Executive Cashflow & Rubro Analytics",
+    page_icon="🏢",
     layout="wide"
 )
 
-st.title("💼 Cashflow Detallado por Concepto & Dashboard Ejecutivo")
-st.caption("Proyección matricial de flujo de caja detallada por rubro y semana, con formato condicional de probabilidad.")
+# Inyección de CSS personalizado para estética corporativa limpia y profesional
+st.markdown("""
+    <style>
+    /* Fondo general de la aplicación */
+    .main {
+        background-color: #F8FAFC;
+    }
+    
+    /* Estilos de tipografía para títulos principales */
+    .title-text {
+        font-family: 'Inter', -apple-system, sans-serif;
+        color: #0F172A;
+        font-weight: 700;
+        font-size: 2.1rem;
+        margin-bottom: 2px;
+    }
+    .subtitle-text {
+        font-family: 'Inter', -apple-system, sans-serif;
+        color: #475569;
+        font-size: 0.95rem;
+        margin-bottom: 20px;
+    }
+    
+    /* Tarjetas de Indicadores Clave (KPIs) */
+    .kpi-card {
+        background-color: #FFFFFF;
+        border-radius: 8px;
+        padding: 16px 20px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    .kpi-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .kpi-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #0F172A;
+        margin-top: 4px;
+    }
+    .kpi-value-alert {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #DC2626;
+        margin-top: 4px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------------
-# 2. MEMORIA DE SESIÓN (SESSION STATE)
-# -----------------------------------------------------------------------------
-# Inicializamos el estado para almacenar los conceptos dinámicos ingresados
+# Encabezado principal
+st.markdown('<p class="title-text">🏢 Executive Cashflow & Rubro Analytics</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle-text">Plataforma de análisis de liquidez, simulación con probabilidad y composición de egresos por rubro.</p>', unsafe_allow_html=True)
+
+# Inicializar estado de sesión en memoria para los conceptos simulados
 if "conceptos_adicionales" not in st.session_state:
     st.session_state.conceptos_adicionales = []
 
-# -----------------------------------------------------------------------------
-# 3. FUNCIÓN DE FORMATO DE COLOR SEGÚN PROBABILIDAD
-# -----------------------------------------------------------------------------
-def obtener_color_probabilidad(prob):
-    """
-    Retorna el código de color CSS de acuerdo al nivel de probabilidad:
-    - Probabilidad >= 80%: Verde claro
-    - Probabilidad entre 40% y 79%: Amarillo suave
-    - Probabilidad <= 39%: Rojo claro
-    """
-    if prob >= 80:
-        return "#d4edda", "#155724"  # Fondo verde, texto verde oscuro
-    elif prob >= 40:
-        return "#fff3cd", "#856404"  # Fondo amarillo, texto marrón
-    else:
-        return "#f8d7da", "#721c24"  # Fondo rojo, texto rojo oscuro
-
-# -----------------------------------------------------------------------------
-# 4. BARRA LATERAL (SIDEBAR): CARGA DE EXCEL Y NUEVOS CONCEPTOS
-# -----------------------------------------------------------------------------
-st.sidebar.header("📁 Carga de Archivos")
-uploaded_file = st.sidebar.file_uploader("Sube tu archivo de Flujo Corto (.xlsx)", type=["xlsx"])
+# =============================================================================
+# 2. PANEL LATERAL (SIDEBAR): CARGA Y SIMULACIÓN
+# =============================================================================
+st.sidebar.title("⚙️ Panel de Control")
+uploaded_file = st.sidebar.file_uploader("Cargar Archivo Excel (.xlsx)", type=["xlsx"])
 
 st.sidebar.divider()
-st.sidebar.header("➕ Cargar Concepto Dinámico")
+st.sidebar.subheader("➕ Simular Nuevo Concepto")
 
-with st.sidebar.form("form_concepto_detallado", clear_on_submit=True):
-    concepto_desc = st.text_input("Descripción / Rubro", placeholder="Ej: Avance de Obra X")
-    rubro_destino = st.selectbox("Categoría / Rubro Destino", [
+# Formulario para agregar egresos o ingresos dinámicos
+with st.sidebar.form("form_simulacion_completo", clear_on_submit=True):
+    concepto_desc = st.text_input("Descripción / Cliente", placeholder="Ej. Cobranza Cliente X")
+    rubro_destino = st.selectbox("Rubro Específico", [
         "Cupos Neuquén", "Cupos Boulevard", "Cupos #300", "Cobranzas y Cuotas", "Ventas Nuevas", "Otros Ingresos",
         "Cheques Emitidos", "Préstamos", "Sueldos y Cargas Sociales", "Quincena Obra", "Proveedores/Materiales",
         "Contratistas", "Impuestos/Planes de Pago", "Tarjetas/Seguros/Mensuales", "Terrenos/Estructura/TDYS"
     ])
-    tipo_mov = st.selectbox("Tipo", ["Ingreso", "Egreso"])
-    semana_destino = st.selectbox("Semana de Impacto", [f"Semana {i}" for i in range(1, 14)])
-    monto_base = st.number_input("Monto en ARS ($)", min_value=0.0, value=100000.0, step=50000.0)
+    tipo_mov = st.selectbox("Tipo de Movimiento", ["Ingreso", "Egreso"])
+    semana_destino = st.selectbox("Semana Objetivo", [f"Semana {i}" for i in range(1, 14)])
+    monto_base = st.number_input("Monto Bruto ARS ($)", min_value=0.0, value=200000.0, step=50000.0)
     probabilidad = st.slider("Probabilidad de Ocurrencia (%)", min_value=0, max_value=100, value=80, step=5)
     
-    bg_c, text_c = obtener_color_probabilidad(probabilidad)
+    # Indicador de alerta según rango de probabilidad
     if probabilidad >= 80:
-        st.markdown("🟢 **Nivel de Probabilidad Alto (Verde)**")
+        st.markdown("🟢 **Probabilidad Alta (Ponderación Verde)**")
     elif probabilidad >= 40:
-        st.markdown("🟡 **Nivel de Probabilidad Medio (Amarillo)**")
+        st.markdown("🟡 **Probabilidad Media (Ponderación Amarilla)**")
     else:
-        st.markdown("🔴 **Nivel de Probabilidad Bajo (Rojo)**")
+        st.markdown("🔴 **Probabilidad Baja (Ponderación Roja)**")
         
-    btn_guardar = st.form_submit_button("Agregar al Cashflow Detallado")
+    btn_simular = st.form_submit_button("Inyectar al Modelo")
 
-if btn_guardar:
-    if concepto_desc.strip() != "":
-        st.session_state.conceptos_adicionales.append({
-            "Descripción": concepto_desc,
-            "Rubro": rubro_destino,
-            "Tipo": tipo_mov,
-            "Semana": semana_destino,
-            "Monto Base": monto_base,
-            "Probabilidad": probabilidad,
-            "Monto Ponderado": monto_base * (probabilidad / 100.0)
-        })
-        st.sidebar.success(f"¡'{concepto_desc}' registrado en {semana_destino}!")
+if btn_simular and concepto_desc.strip() != "":
+    st.session_state.conceptos_adicionales.append({
+        "Descripción": concepto_desc,
+        "Rubro": rubro_destino,
+        "Tipo": tipo_mov,
+        "Semana": semana_destino,
+        "Monto Base": monto_base,
+        "Probabilidad": probabilidad,
+        "Monto Ponderado": monto_base * (probabilidad / 100.0)
+    })
+    st.sidebar.success(f"Concepto '{concepto_desc}' inyectado a {semana_destino}")
 
-# -----------------------------------------------------------------------------
-# 5. PROCESAMIENTO Y MATRIZ DETALLADA DE CASHFLOW
-# -----------------------------------------------------------------------------
+# =============================================================================
+# 3. PROCESAMIENTO CÁLCULOS Y MATRICES (13 SEMANAS)
+# =============================================================================
 if uploaded_file is not None:
     try:
         excel_file = pd.ExcelFile(uploaded_file)
         sheet_names = excel_file.sheet_names
         
+        # Detección automática de la pestaña 'Cash corto'
         target_sheet = None
         for name in sheet_names:
             if name.strip().lower() == "cash corto":
@@ -100,9 +136,8 @@ if uploaded_file is not None:
                 break
         
         if target_sheet is None:
-            target_sheet = st.sidebar.selectbox("Selecciona la pestaña:", sheet_names)
-            
-        # Nombres de las 13 semanas para las columnas laterales
+            target_sheet = st.sidebar.selectbox("Selecciona la pestaña de origen:", sheet_names)
+
         semanas = [f"Semana {i}" for i in range(1, 14)]
         dates_cf = [
             "10/08-14/08", "17/08-21/08", "24/08-28/08", "31/08-04/09", 
@@ -110,7 +145,7 @@ if uploaded_file is not None:
             "05/10-09/10", "12/10-16/10", "19/10-23/10", "26/10-30/10", "02/11-06/11"
         ]
 
-        # Datos base de Ingresos por concepto (Filas)
+        # Matriz base de rubros de Ingreso
         matriz_ingresos = {
             "Cupos Neuquén": [120928815, 0, 0, 0, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000],
             "Cupos Boulevard": [60192280, 0, 0, 0, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070],
@@ -120,7 +155,7 @@ if uploaded_file is not None:
             "Otros Ingresos": [244089200, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         }
 
-        # Datos base de Egresos por concepto (Filas)
+        # Matriz base de rubros de Egreso
         matriz_egresos = {
             "Cheques Emitidos": [36572660, 22217060, 22786970, 11619145, 11619145, 11619145, 11619145, 11619145, 3177478, 3177478, 3177478, 3177478, 3177478],
             "Préstamos": [59706512, 0, 150089, 15128650, 15128650, 15128650, 15128650, 15128650, 15161950, 15161950, 15161950, 15161950, 15161950],
@@ -133,130 +168,175 @@ if uploaded_file is not None:
             "Terrenos/Estructura/TDYS": [18503570, 41725254, 76605000, 29016120, 29016120, 29016120, 29016120, 29016120, 15266120, 15266120, 15266120, 15266120, 15266120]
         }
 
-        # Sumar los conceptos adicionales dinámicos a la matriz
+        # Inyectar conceptos simulados ponderados
         for item in st.session_state.conceptos_adicionales:
             idx_sem = semanas.index(item["Semana"])
             rubro = item["Rubro"]
-            monto_ponderado = item["Monto Ponderado"]
-            
+            monto_p = item["Monto Ponderado"]
             if item["Tipo"] == "Ingreso" and rubro in matriz_ingresos:
-                matriz_ingresos[rubro][idx_sem] += monto_ponderado
+                matriz_ingresos[rubro][idx_sem] += monto_p
             elif item["Tipo"] == "Egreso" and rubro in matriz_egresos:
-                matriz_egresos[rubro][idx_sem] += monto_ponderado
+                matriz_egresos[rubro][idx_sem] += monto_p
 
-        # Cálculo de Totales por Semana (Columnas)
-        totales_ingresos_sem = [sum(matriz_ingresos[r][i] for r in matriz_ingresos) for i in range(13)]
-        totales_egresos_sem = [sum(matriz_egresos[r][i] for r in matriz_egresos) for i in range(13)]
+        # Consolidación de totales
+        totales_ing = [sum(matriz_ingresos[r][i] for r in matriz_ingresos) for i in range(13)]
+        totales_egr = [sum(matriz_egresos[r][i] for r in matriz_egresos) for i in range(13)]
         
         saldo_inicial = 19249680
-        flujo_neto_sem = [ing - egr for ing, egr in zip(totales_ingresos_sem, totales_egresos_sem)]
+        flujo_neto = [ing - egr for ing, egr in zip(totales_ing, totales_egr)]
         
-        saldo_acumulado_sem = []
+        saldo_acumulado = []
         saldo_act = saldo_inicial
-        for fn in flujo_neto_sem:
+        for fn in flujo_neto:
             saldo_act += fn
-            saldo_acumulado_sem.append(saldo_act)
+            saldo_acumulado.append(saldo_act)
 
-        # ---------------------------------------------------------------------
-        # CONSTRUCCIÓN DE LA TABLA MATRICIAL DETALLADA (ESTILO EXCEL)
-        # ---------------------------------------------------------------------
-        filas_matriz = []
-
-        # Fila Saldo Inicial
-        filas_matriz.append(["Saldo Inicial Caja/Bancos"] + [saldo_inicial] + [0]*12 + [saldo_inicial])
-
-        # Subtítulo Ingresos
-        for rubro, valores in matriz_ingresos.items():
-            tot_rubro = sum(valores)
-            filas_matriz.append([f"  (+) {rubro}"] + valores + [tot_rubro])
-
-        # Fila Total Ingresos
-        filas_matriz.append(["TOTAL INGRESOS"] + totales_ingresos_sem + [sum(totales_ingresos_sem)])
-
-        # Subtítulo Egresos
-        for rubro, valores in matriz_egresos.items():
-            tot_rubro = sum(valores)
-            filas_matriz.append([f"  (-) {rubro}"] + valores + [tot_rubro])
-
-        # Fila Total Egresos
-        filas_matriz.append(["TOTAL EGRESOS"] + totales_egresos_sem + [sum(totales_egresos_sem)])
-
-        # Filas de Resumen
-        filas_matriz.append(["FLUJO NETO DEL PERIODO"] + flujo_neto_sem + [sum(flujo_neto_sem)])
-        filas_matriz.append(["SALDO ACUMULADO FINAL"] + saldo_acumulado_sem + [saldo_acumulado_sem[-1]])
-
-        columnas_matriz = ["Concepto / Rubro"] + semanas + ["Total 13 Wks"]
-        df_detallado = pd.DataFrame(filas_matriz, columns=columnas_matriz)
-
-        # Formatear números a moneda
-        df_detallado_fmt = df_detallado.copy()
-        for col in semanas + ["Total 13 Wks"]:
-            df_detallado_fmt[col] = df_detallado_fmt[col].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
-
-        # ---------------------------------------------------------------------
-        # 6. PESTAÑAS DE LA APLICACIÓN
-        # ---------------------------------------------------------------------
-        tab_cash, tab_dashboard, tab_conceptos = st.tabs([
-            "💰 Cash flow Detallado (Matriz Excel)", 
-            "📊 Dashboard Ejecutivo", 
-            "📝 Conceptos Simulados"
+        # =====================================================================
+        # 4. PESTAÑAS PRINCIPALES DE NAVEGACIÓN
+        # =====================================================================
+        tab_dash, tab_influencia, tab_matriz, tab_sim = st.tabs([
+            "📊 Executive Dashboard", 
+            "🍩 Influencia por Rubro (Dona)", 
+            "📋 Matriz Detallada (Excel)", 
+            "📝 Escenarios Simulados"
         ])
 
-        # PESTAÑA 1: CASH FLOW DETALLADO POR CONCEPTO
-        with tab_cash:
-            st.subheader("💵 Matriz Detallada por Concepto y Semana")
-            st.caption("Visualización lateral completa de rubros de ingresos, egresos y saldos acumulados.")
+        # ---------------------------------------------------------------------
+        # PESTAÑA 1: EXECUTIVE DASHBOARD
+        # ---------------------------------------------------------------------
+        with tab_dash:
+            defic_max = min(saldo_acumulado)
             
-            st.dataframe(df_detallado_fmt, use_container_width=True, height=600)
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                st.markdown(f'''
+                    <div class="kpi-card">
+                        <div class="kpi-title">Disponibilidad Inicial</div>
+                        <div class="kpi-value">${saldo_inicial:,.0f}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+            with c2:
+                st.markdown('''
+                    <div class="kpi-card">
+                        <div class="kpi-title">Runway Operativo</div>
+                        <div class="kpi-value">2.6 Días</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+            with c3:
+                st.markdown('''
+                    <div class="kpi-card">
+                        <div class="kpi-title">Iliquidez Crítica</div>
+                        <div class="kpi-value-alert">14/08/2026</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+            with c4:
+                st.markdown(f'''
+                    <div class="kpi-card">
+                        <div class="kpi-title">Déficit Máximo</div>
+                        <div class="kpi-value-alert">${defic_max:,.0f}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
 
-        # PESTAÑA 2: DASHBOARD EJECUTIVO
-        with tab_dashboard:
-            st.subheader("🎯 Indicadores Clave de Liquidez (KPIs)")
-            
-            defic_max = min(saldo_acumulado_sem)
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Saldo Inicial Disponible", f"${saldo_inicial:,.0f}")
-            col2.metric("Días de Caja (Runway)", "2.6 Días")
-            col3.metric("Fecha Crítica (Déficit)", "14/08/2026 (Semana 1)")
-            col4.metric("Déficit Máximo Acumulado", f"${defic_max:,.0f}")
-            
             st.divider()
 
-            st.subheader("📉 Curva de Proyección de Saldo Acumulado")
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=semanas, 
-                y=saldo_acumulado_sem, 
-                mode='lines+markers',
-                name='Saldo Acumulado',
-                line=dict(color='#1F4E79', width=3),
-                marker=dict(size=8)
+            st.subheader("📈 Trayectoria de Liquidez Acumulada")
+            fig_tray = go.Figure()
+            fig_tray.add_trace(go.Scatter(
+                x=semanas, y=saldo_acumulado, mode='lines+markers', name='Saldo Acumulado',
+                fill='tozeroy', fillcolor='rgba(30, 58, 138, 0.08)',
+                line=dict(color='#1E3A8A', width=3), marker=dict(size=7)
             ))
-            fig.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Límite de Liquidez ($0)")
-            
-            fig.update_layout(
-                xaxis_title="Semanas Proyectadas",
-                yaxis_title="Monto en ARS",
-                height=400,
-                margin=dict(l=20, r=20, t=30, b=20)
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            fig_tray.add_hline(y=0, line_dash="dash", line_color="#DC2626", annotation_text="Límite $0")
+            fig_tray.update_layout(template="plotly_white", height=380, margin=dict(l=20, r=20, t=20, b=20))
+            st.plotly_chart(fig_tray, use_container_width=True)
 
-        # PESTAÑA 3: CONCEPTOS SIMULADOS
-        with tab_conceptos:
-            st.subheader("📝 Conceptos Adicionales Registrados")
-            if len(st.session_state.conceptos_adicionales) > 0:
-                df_c = pd.DataFrame(st.session_state.conceptos_adicionales)
-                st.dataframe(df_c, use_container_width=True)
+        # ---------------------------------------------------------------------
+        # PESTAÑA 2: INFLUENCIA Y GRÁFICO DE DONA (DONUT CHART)
+        # ---------------------------------------------------------------------
+        with tab_influencia:
+            st.subheader("🍩 Composición y Peso Relativo por Rubro de Egreso")
+            st.caption("Visualización del porcentaje de participación de cada concepto sobre los egresos totales de las 13 semanas.")
+
+            col_dona, col_stack = st.columns([1, 1])
+
+            with col_dona:
+                st.markdown("**Distribución Total Acumulada (Gráfico de Dona)**")
+                totales_por_rubro = {rubro: sum(montos) for rubro, montos in matriz_egresos.items()}
+                df_dona = pd.DataFrame(list(totales_por_rubro.items()), columns=['Rubro', 'Total ARS'])
                 
-                if st.button("Limpiar todos los conceptos adicionales"):
+                # Gráfico de Dona con hole=0.5
+                fig_dona = px.pie(
+                    df_dona, 
+                    values='Total ARS', 
+                    names='Rubro',
+                    hole=0.5,
+                    color_discrete_sequence=px.colors.qualitative.Prism,
+                    template="plotly_white"
+                )
+                fig_dona.update_traces(
+                    textposition='inside',
+                    textinfo='percent+label',
+                    marker=dict(line=dict(color='#FFFFFF', width=2))
+                )
+                fig_dona.update_layout(
+                    height=450,
+                    showlegend=False,
+                    margin=dict(l=10, r=10, t=20, b=10)
+                )
+                st.plotly_chart(fig_dona, use_container_width=True)
+
+            with col_stack:
+                st.markdown("**Composición Semanal Apilada ($)**")
+                df_egr_stack = pd.DataFrame(matriz_egresos, index=semanas).reset_index().rename(columns={'index': 'Semana'})
+                df_egr_melted = df_egr_stack.melt(id_vars=['Semana'], var_name='Rubro', value_name='Monto (ARS)')
+
+                fig_stack = px.bar(
+                    df_egr_melted, x='Semana', y='Monto (ARS)', color='Rubro',
+                    color_discrete_sequence=px.colors.qualitative.Prism,
+                    template="plotly_white"
+                )
+                fig_stack.update_layout(height=450, margin=dict(l=10, r=10, t=20, b=10), showlegend=False)
+                st.plotly_chart(fig_stack, use_container_width=True)
+
+        # ---------------------------------------------------------------------
+        # PESTAÑA 3: MATRIZ DETALLADA EXCEL
+        # ---------------------------------------------------------------------
+        with tab_matriz:
+            st.subheader("📋 Matriz Completa de Flujo de Caja Lateral")
+            
+            filas = []
+            filas.append(["Saldo Inicial"] + [saldo_inicial] + [0]*12 + [saldo_inicial])
+            for r, vals in matriz_ingresos.items():
+                filas.append([f"  (+) {r}"] + vals + [sum(vals)])
+            filas.append(["TOTAL INGRESOS"] + totales_ing + [sum(totales_ing)])
+            for r, vals in matriz_egresos.items():
+                filas.append([f"  (-) {r}"] + vals + [sum(vals)])
+            filas.append(["TOTAL EGRESOS"] + totales_egr + [sum(totales_egr)])
+            filas.append(["FLUJO NETO"] + flujo_neto + [sum(flujo_neto)])
+            filas.append(["SALDO ACUMULADO"] + saldo_acumulado + [saldo_acumulado[-1]])
+
+            df_detallado = pd.DataFrame(filas, columns=["Concepto / Rubro"] + semanas + ["Total 13 Wks"])
+            for col in semanas + ["Total 13 Wks"]:
+                df_detallado[col] = df_detallado[col].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
+
+            st.dataframe(df_detallado, use_container_width=True, height=600)
+
+        # ---------------------------------------------------------------------
+        # PESTAÑA 4: ESCENARIOS SIMULADOS
+        # ---------------------------------------------------------------------
+        with tab_sim:
+            st.subheader("📝 Registro de Modificaciones de Flujo")
+            if len(st.session_state.conceptos_adicionales) > 0:
+                df_sim = pd.DataFrame(st.session_state.conceptos_adicionales)
+                st.dataframe(df_sim, use_container_width=True)
+                if st.button("🗑️ Restablecer Simulación"):
                     st.session_state.conceptos_adicionales = []
                     st.rerun()
             else:
-                st.info("No hay conceptos adicionales agregados.")
+                st.info("No hay conceptos simulados adicionales agregados.")
 
     except Exception as e:
-        st.error(f"Error al procesar el archivo: {e}")
+        st.error(f"Error procesando el modelo: {e}")
 
 else:
-    st.info("👈 Por favor, sube tu archivo '2026.08.10 FF corto.xlsx' en el panel lateral para desplegar la matriz detallada.")
+    st.info("👈 Por favor, carga tu archivo '2026.08.10 FF corto.xlsx' en la barra lateral para desplegar la suite ejecutiva.")
