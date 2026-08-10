@@ -2,60 +2,112 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import plotly.express as px
 from datetime import datetime, timedelta, date
 from supabase import create_client, Client
 
 # =============================================================================
-# 1. CONFIGURACIÓN E INTERFAZ FITONIST DARK GLASSMORPHISM
+# 1. CONFIGURACIÓN E INTERFAZ DARK EXECUTIVE PREMIUM (SIN BLOQUES BLANCOS)
 # =============================================================================
 st.set_page_config(
-    page_title="Fitonist Cashflow Ejecutivo & Supabase",
-    page_icon="⚡",
+    page_title="Cashflow Link | Dashboard Ejecutivo",
+    page_icon="💼",
     layout="wide",
-    initial_sidebar_state="expanded" # Fuerza la apertura inicial de la barra lateral si existe
+    initial_sidebar_state="collapsed"
 )
 
-# Estilos CSS Fitonist UI con alto contraste y soporte para controles principales
+# Inyección de CSS avanzado para estilizar TODOS los componentes nativos de Streamlit
 st.markdown("""
     <style>
     /* Fondo principal de la aplicación */
     .stApp { 
-        background-color: #0D0E12; 
-        color: #F8FAFC; 
+        background-color: #0F1117; 
+        color: #F1F5F9; 
+        font-family: 'Inter', -apple-system, sans-serif;
     }
     
-    /* Tipografía del encabezado principal */
+    /* Encabezado sin la marca fitonist */
     .brand-title { 
-        font-family: 'Inter', sans-serif; 
         color: #FFFFFF; 
         font-weight: 800; 
-        font-size: 2.2rem; 
+        font-size: 2.0rem; 
+        letter-spacing: -0.5px;
     }
     .brand-subtitle { 
-        font-family: 'Inter', sans-serif; 
         color: #94A3B8; 
         font-size: 0.9rem; 
         margin-bottom: 20px; 
     }
     
-    /* Tarjetas KPI Dark Glassmorphism */
+    /* ESTILIZADO DE CAMPOS DE ENTRADA (MANDAR A OSCURO CADA BLOQUE BLANCO) */
+    /* Cargador de archivos Excel */
+    [data-testid="stFileUploader"] {
+        background-color: #181B22 !important;
+        border: 1px solid #2D323E !important;
+        border-radius: 12px !important;
+        padding: 10px !important;
+    }
+    [data-testid="stFileUploader"] section {
+        background-color: #181B22 !important;
+    }
+    [data-testid="stFileUploader"] * {
+        color: #E2E8F0 !important;
+    }
+    
+    /* Entradas de fecha y texto */
+    div[data-baseweb="input"] {
+        background-color: #181B22 !important;
+        border: 1px solid #2D323E !important;
+        border-radius: 8px !important;
+        color: #FFFFFF !important;
+    }
+    div[data-baseweb="input"] input {
+        color: #FFFFFF !important;
+        background-color: #181B22 !important;
+    }
+    
+    /* Listas desplegables y Selects */
+    div[data-baseweb="select"] > div {
+        background-color: #181B22 !important;
+        border: 1px solid #2D323E !important;
+        color: #FFFFFF !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Bloques expandibles (Expander) en tono oscuro */
+    .streamlit-expanderHeader {
+        background-color: #181B22 !important;
+        border-radius: 10px !important;
+        color: #FFFFFF !important;
+        border: 1px solid #2D323E !important;
+        font-weight: 600 !important;
+    }
+    .streamlit-expanderContent {
+        background-color: #13151C !important;
+        border: 1px solid #2D323E !important;
+        border-top: none !important;
+        border-bottom-left-radius: 10px !important;
+        border-bottom-right-radius: 10px !important;
+    }
+
+    /* Tarjetas de Indicadores Clave (KPIs) estilo Dark Glass */
     .dark-kpi-card { 
-        background: #14151B; 
-        border: 1px solid #22242D; 
-        border-radius: 16px; 
-        padding: 20px; 
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        background: #181B22; 
+        border: 1px solid #2D323E; 
+        border-radius: 14px; 
+        padding: 18px 20px; 
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     }
     .kpi-label { 
-        font-size: 0.8rem; 
+        font-size: 0.78rem; 
         font-weight: 600; 
         color: #94A3B8; 
         text-transform: uppercase; 
         letter-spacing: 0.5px;
     }
     .kpi-num { 
-        font-size: 1.8rem; 
+        font-size: 1.75rem; 
         font-weight: 700; 
         color: #FFFFFF; 
         margin-top: 6px; 
@@ -66,54 +118,61 @@ st.markdown("""
     
     /* Insignias de porcentaje */
     .badge-green { 
-        background-color: rgba(74, 222, 128, 0.15); 
+        background-color: rgba(34, 197, 94, 0.15); 
         color: #4ADE80; 
         font-size: 0.75rem; 
         font-weight: 700;
-        padding: 4px 10px; 
+        padding: 3px 10px; 
         border-radius: 20px; 
-        border: 1px solid rgba(74, 222, 128, 0.3);
+        border: 1px solid rgba(34, 197, 94, 0.3);
     }
     .badge-red { 
-        background-color: rgba(248, 113, 113, 0.15); 
+        background-color: rgba(239, 68, 68, 0.15); 
         color: #F87171; 
         font-size: 0.75rem; 
         font-weight: 700;
-        padding: 4px 10px; 
+        padding: 3px 10px; 
         border-radius: 20px; 
-        border: 1px solid rgba(248, 113, 113, 0.3);
+        border: 1px solid rgba(239, 68, 68, 0.3);
     }
     
-    /* Alto contraste en pestañas superiores */
+    /* DISEÑO DE PESTAÑAS (TABS) CORPORATIVAS */
     .stTabs [data-baseweb="tab-list"] { 
-        gap: 10px; 
-        background-color: #14151B; 
-        padding: 8px; 
-        border-radius: 30px; 
-        border: 1px solid #22242D; 
+        gap: 8px; 
+        background-color: #181B22; 
+        padding: 6px; 
+        border-radius: 25px; 
+        border: 1px solid #2D323E; 
         width: fit-content;
         margin-bottom: 25px;
     }
     .stTabs [data-baseweb="tab"] { 
-        height: 40px; 
+        height: 38px; 
         border-radius: 20px; 
-        color: #F1F5F9 !important;
+        color: #CBD5E1 !important; /* TEXTO GRIS CLARO BIEN VISIBLE */
         font-weight: 600; 
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         border: none !important;
-        padding: 0px 22px;
+        padding: 0px 20px;
     }
     .stTabs [aria-selected="true"] { 
-        background-color: #FFFFFF !important; 
-        color: #0D0E12 !important; 
-        font-weight: 800 !important;
+        background-color: #3B82F6 !important; /* AZUL CORPORATIVO DESTACADO */
+        color: #FFFFFF !important; 
+        font-weight: 700 !important;
+    }
+    
+    /* Tablas de datos en modo oscuro */
+    .stDataFrame {
+        border-radius: 10px;
+        border: 1px solid #2D323E;
+        overflow: hidden;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Encabezado principal
-st.markdown('<p class="brand-title">⚡ fitonist <span style="font-size:1rem; font-weight:400; color:#94A3B8;">| Cashflow Ejecutivo & Supabase</span></p>', unsafe_allow_html=True)
-st.markdown('<p class="brand-subtitle">Plataforma corporativa de análisis de liquidez y proyección a 13 semanas.</p>', unsafe_allow_html=True)
+# Encabezado principal corporativo
+st.markdown('<p class="brand-title">💼 CASHFLOW LINK <span style="font-size:1.1rem; font-weight:400; color:#94A3B8;">| Dashboard Ejecutivo & Liquidez</span></p>', unsafe_allow_html=True)
+st.markdown('<p class="brand-subtitle">Sistema corporativo de análisis de flujo de caja y proyección a 13 semanas.</p>', unsafe_allow_html=True)
 
 # =============================================================================
 # 2. CONEXIÓN SEGURA A SUPABASE
@@ -152,27 +211,27 @@ def guardar_snapshot_diario(fecha_corte, matriz_ing, matriz_egr):
                 registros.append({"fecha_corte": str(fecha_corte), "rubro": r, "tipo": "Egreso", "monto_ars": float(sum(vals))})
             
             supabase.table("cashflow_historico").upsert(registros).execute()
-            st.toast("✅ Foto diaria guardada exitosamente en Supabase", icon="💾")
+            st.toast("✅ Snapshot diario registrado en Supabase", icon="💾")
         except Exception:
             pass
 
 # =============================================================================
-# 4. CONTROLES PRINCIPALES EN PANTALLA (REEMPLAZO DE BARRA LATERAL)
+# 4. CONTROLES PRINCIPALES ESTILIZADOS EN MODO OSCURO
 # =============================================================================
-with st.expander("⚙️ **PANEL DE CONFIGURACIÓN Y CARGA DE DATOS**", expanded=True):
-    col_corta1, col_corta2 = st.columns([1, 1])
+with st.expander("⚙️ **CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO**", expanded=True):
+    col_corta1, col_corta2 = st.columns([2, 1])
     
     with col_corta1:
-        uploaded_file = st.file_uploader("Cargar Archivo Diario (.xlsx)", type=["xlsx"])
+        uploaded_file = st.file_uploader("Cargar Archivo Excel (.xlsx)", type=["xlsx"])
     
     with col_corta2:
-        fecha_corte = st.date_input("Fecha Inicio Proyección", value=date(2026, 8, 11))
+        fecha_corte = st.date_input("Fecha Inicio de Proyección", value=date(2026, 8, 11))
 
 semanas_dinamicas = generar_periodos_semanales(fecha_corte, 13)
 
-# Formulario de simulación de conceptos dentro de un desplegable visible
+# Formulario de simulación opcional
 with st.expander("➕ **SIMULAR NUEVO CONCEPTO (OPCIONAL)**", expanded=False):
-    with st.form("form_simulacion_principal", clear_on_submit=True):
+    with st.form("form_simulacion_dark", clear_on_submit=True):
         f_col1, f_col2, f_col3 = st.columns(3)
         with f_col1:
             concepto_desc = st.text_input("Descripción / Cliente", placeholder="Ej. Anticipo Proyecto X")
@@ -217,7 +276,7 @@ if btn_simular and concepto_desc.strip() != "":
     st.success(f"¡Concepto '{concepto_desc}' inyectado en {semana_destino}!")
 
 # =============================================================================
-# 5. MATRICES Y NAVEGACIÓN
+# 5. MATRICES DE CÁLCULO Y PESTAÑAS
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -246,10 +305,10 @@ if uploaded_file is not None:
             "Terrenos/Estructura/TDYS": [18503570, 41725254, 76605000, 29016120, 29016120, 29016120, 29016120, 29016120, 15266120, 15266120, 15266120, 15266120, 15266120]
         }
 
-        # Guardar en Supabase
+        # Guardar snapshot diario en Supabase
         guardar_snapshot_diario(fecha_corte, matriz_ingresos, matriz_egresos)
 
-        # Inyectar conceptos simulados
+        # Inyectar simulaciones
         for item in st.session_state.conceptos_adicionales:
             if item["Periodo"] in semanas_dinamicas:
                 idx_sem = semanas_dinamicas.index(item["Periodo"])
@@ -272,7 +331,7 @@ if uploaded_file is not None:
             saldo_act += fn
             saldo_acumulado.append(saldo_act)
 
-        # PESTAÑAS PRINCIPALES
+        # PESTAÑAS NAVEGABLES ALTO CONTRASTE
         tab_dash, tab_influencia, tab_matriz_nueva, tab_hist, tab_sim = st.tabs([
             "Visión General", 
             "Análisis por Rubro", 
@@ -406,4 +465,4 @@ if uploaded_file is not None:
         st.error(f"Error procesando el modelo: {e}")
 
 else:
-    st.info("👈 Por favor, carga tu archivo '.xlsx' en el panel superior para desplegar la suite Fitonist.")
+    st.info("👈 Por favor, carga tu archivo '.xlsx' en el panel superior para desplegar la suite ejecutiva.")
