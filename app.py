@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, date
 from supabase import create_client, Client
 
 # =============================================================================
-# 1. CONFIGURACIÓN E INTERFAZ DARK EXECUTIVE PREMIUM (SIN BLOQUES BLANCOS)
+# 1. CONFIGURACIÓN Y ESTILOS CSS CORREGIDOS (SIN BLOQUES BLANCOS EN EXPANDER)
 # =============================================================================
 st.set_page_config(
     page_title="Cashflow Link | Dashboard Ejecutivo",
@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inyección de CSS avanzado para estilizar TODOS los componentes nativos de Streamlit
+# Inyección de CSS avanzado con corrección total para st.expander y botones
 st.markdown("""
     <style>
     /* Fondo principal de la aplicación */
@@ -27,7 +27,7 @@ st.markdown("""
         font-family: 'Inter', -apple-system, sans-serif;
     }
     
-    /* Encabezado sin la marca fitonist */
+    /* Encabezado principal */
     .brand-title { 
         color: #FFFFFF; 
         font-weight: 800; 
@@ -40,8 +40,32 @@ st.markdown("""
         margin-bottom: 20px; 
     }
     
-    /* ESTILIZADO DE CAMPOS DE ENTRADA (MANDAR A OSCURO CADA BLOQUE BLANCO) */
-    /* Cargador de archivos Excel */
+    /* CORRECCIÓN DEFINITIVA DE EXPANDERS (BARRAS DESPLEGABLES) */
+    div[data-testid="stExpander"] {
+        background-color: #181B22 !important;
+        border: 1px solid #2D323E !important;
+        border-radius: 12px !important;
+        margin-bottom: 15px !important;
+    }
+    div[data-testid="stExpander"] summary {
+        background-color: #181B22 !important;
+        color: #FFFFFF !important;
+        border-radius: 12px !important;
+    }
+    div[data-testid="stExpander"] summary * {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+    }
+    .streamlit-expanderHeader {
+        background-color: #181B22 !important;
+        color: #FFFFFF !important;
+    }
+    .streamlit-expanderContent {
+        background-color: #13151C !important;
+        border-top: 1px solid #2D323E !important;
+    }
+    
+    /* CARGADOR DE ARCHIVOS EXCEL (FILE UPLOADER) */
     [data-testid="stFileUploader"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -54,8 +78,15 @@ st.markdown("""
     [data-testid="stFileUploader"] * {
         color: #E2E8F0 !important;
     }
-    
-    /* Entradas de fecha y texto */
+    /* Botón interno de Upload */
+    [data-testid="stFileUploader"] button {
+        background-color: #262B36 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #3B82F6 !important;
+        border-radius: 8px !important;
+    }
+
+    /* ENTRADAS DE FECHA Y TEXTO */
     div[data-baseweb="input"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -67,7 +98,7 @@ st.markdown("""
         background-color: #181B22 !important;
     }
     
-    /* Listas desplegables y Selects */
+    /* LISTAS DESPLEGABLES */
     div[data-baseweb="select"] > div {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -75,23 +106,7 @@ st.markdown("""
         border-radius: 8px !important;
     }
     
-    /* Bloques expandibles (Expander) en tono oscuro */
-    .streamlit-expanderHeader {
-        background-color: #181B22 !important;
-        border-radius: 10px !important;
-        color: #FFFFFF !important;
-        border: 1px solid #2D323E !important;
-        font-weight: 600 !important;
-    }
-    .streamlit-expanderContent {
-        background-color: #13151C !important;
-        border: 1px solid #2D323E !important;
-        border-top: none !important;
-        border-bottom-left-radius: 10px !important;
-        border-bottom-right-radius: 10px !important;
-    }
-
-    /* Tarjetas de Indicadores Clave (KPIs) estilo Dark Glass */
+    /* TARJETAS KPI DARK GLASS */
     .dark-kpi-card { 
         background: #181B22; 
         border: 1px solid #2D323E; 
@@ -116,7 +131,7 @@ st.markdown("""
         gap: 10px;
     }
     
-    /* Insignias de porcentaje */
+    /* INSIGNIAS DE PORCENTAJE */
     .badge-green { 
         background-color: rgba(34, 197, 94, 0.15); 
         color: #4ADE80; 
@@ -136,7 +151,7 @@ st.markdown("""
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
     
-    /* DISEÑO DE PESTAÑAS (TABS) CORPORATIVAS */
+    /* PESTAÑAS CORPORATIVAS */
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         background-color: #181B22; 
@@ -149,19 +164,19 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] { 
         height: 38px; 
         border-radius: 20px; 
-        color: #CBD5E1 !important; /* TEXTO GRIS CLARO BIEN VISIBLE */
+        color: #CBD5E1 !important; 
         font-weight: 600; 
         font-size: 0.88rem;
         border: none !important;
         padding: 0px 20px;
     }
     .stTabs [aria-selected="true"] { 
-        background-color: #3B82F6 !important; /* AZUL CORPORATIVO DESTACADO */
+        background-color: #3B82F6 !important; 
         color: #FFFFFF !important; 
         font-weight: 700 !important;
     }
     
-    /* Tablas de datos en modo oscuro */
+    /* TABLAS DE DATOS */
     .stDataFrame {
         border-radius: 10px;
         border: 1px solid #2D323E;
@@ -170,7 +185,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Encabezado principal corporativo
+# Encabezado corporativo
 st.markdown('<p class="brand-title">💼 CASHFLOW LINK <span style="font-size:1.1rem; font-weight:400; color:#94A3B8;">| Dashboard Ejecutivo & Liquidez</span></p>', unsafe_allow_html=True)
 st.markdown('<p class="brand-subtitle">Sistema corporativo de análisis de flujo de caja y proyección a 13 semanas.</p>', unsafe_allow_html=True)
 
@@ -216,9 +231,9 @@ def guardar_snapshot_diario(fecha_corte, matriz_ing, matriz_egr):
             pass
 
 # =============================================================================
-# 4. CONTROLES PRINCIPALES ESTILIZADOS EN MODO OSCURO
+# 4. CONTROLES PRINCIPALES CON ESTILO OSCURO
 # =============================================================================
-with st.expander("⚙️ **CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO**", expanded=True):
+with st.expander("⚙️ CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO", expanded=True):
     col_corta1, col_corta2 = st.columns([2, 1])
     
     with col_corta1:
@@ -230,7 +245,7 @@ with st.expander("⚙️ **CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO**", expand
 semanas_dinamicas = generar_periodos_semanales(fecha_corte, 13)
 
 # Formulario de simulación opcional
-with st.expander("➕ **SIMULAR NUEVO CONCEPTO (OPCIONAL)**", expanded=False):
+with st.expander("➕ SIMULAR NUEVO CONCEPTO (OPCIONAL)", expanded=False):
     with st.form("form_simulacion_dark", clear_on_submit=True):
         f_col1, f_col2, f_col3 = st.columns(3)
         with f_col1:
@@ -331,7 +346,7 @@ if uploaded_file is not None:
             saldo_act += fn
             saldo_acumulado.append(saldo_act)
 
-        # PESTAÑAS NAVEGABLES ALTO CONTRASTE
+        # PESTAÑAS NAVEGABLES
         tab_dash, tab_influencia, tab_matriz_nueva, tab_hist, tab_sim = st.tabs([
             "Visión General", 
             "Análisis por Rubro", 
