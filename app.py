@@ -2,12 +2,13 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import plotly.express as px
 from datetime import datetime, timedelta, date
 from supabase import create_client, Client
 
 # =============================================================================
-# 1. CONFIGURACIÓN Y ESTILOS CSS CORREGIDOS (MODO OSCURO INTEGRAL)
+# 1. CONFIGURACIÓN Y ESTILOS CSS DEFINITIVOS (MODO OSCURO INTEGRAL)
 # =============================================================================
 st.set_page_config(
     page_title="Cashflow Link | Dashboard Ejecutivo",
@@ -16,7 +17,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Reglas de estilo para erradicar bloques blancos y estandarizar componentes
 st.markdown("""
     <style>
     /* Fondo global de la aplicación */
@@ -303,7 +303,7 @@ if btn_simular and concepto_desc.strip() != "":
     st.success(f"¡Concepto '{concepto_desc}' inyectado en {semana_destino}!")
 
 # =============================================================================
-# 5. MATRICES Y NAVEGACIÓN COMPLETA (LECTURA DINÁMICA DE LA PRIMERA COLUMNA)
+# 5. MATRICES Y CÁLCULO EXACTO DE RUNWAY Y SALDO ACUMULADO
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -311,17 +311,45 @@ if uploaded_file is not None:
         sheet_target = nombre_hoja if nombre_hoja in excel_data else list(excel_data.keys())[0]
         df_raw = excel_data[sheet_target]
         
-        # 1. Identificar dinámicamente la primera columna (columna de conceptos) por índice [0]
         col_concepto_nombre = df_raw.columns[0]
         df_raw[col_concepto_nombre] = df_raw[col_concepto_nombre].astype(str).str.strip()
         
-        # 2. Identificar columnas con fechas (todas las columnas desde la posición 1 en adelante)
         cols_fechas = [c for c in df_raw.columns[1:] if "TOTAL" not in str(c).upper() and "Unnamed" not in str(c)]
         
         df_procesado = df_raw.copy()
         for col in cols_fechas:
             df_procesado[col] = df_procesado[col].apply(limpiar_valor_moneda)
 
+        # ---------------------------------------------------------------------
+        # CÁLCULO PRECISO DE ILIQUIDEZ Y DÍAS DE CAJA (RUNWAY)
+        # ---------------------------------------------------------------------
+        row_saldo_acum = df_procesado[df_procesado[col_concepto_nombre].str.contains("^Saldo acumulado$", case=False, na=False, regex=True)]
+        if row_saldo_acum.empty:
+            row_saldo_acum = df_procesado[df_procesado[col_concepto_nombre].str.contains("acumulado", case=False, na=False)]
+        
+        fecha_iliquidez_exacta = "Sin Iliquidez"
+        dias_runway = "+90 Días"  # Por defecto, si nunca se vuelve negativo
+        
+        if not row_saldo_acum.empty:
+            for col_fecha in cols_fechas:
+                val_saldo = row_saldo_acum[col_fecha].values[0]
+                # Evaluamos de forma estricta si el saldo acumulado real cayó debajo de cero
+                if val_saldo < 0:
+                    try:
+                        # 1. Parsear el encabezado de columna a un objeto fecha real
+                        fecha_quiebre = pd.to_datetime(col_fecha, format='mixed', dayfirst=True).date()
+                        fecha_iliquidez_exacta = fecha_quiebre.strftime("%d/%m/%Y")
+                        
+                        # 2. Calcular matemáticamente la diferencia (Días de Caja)
+                        dias_diff = (fecha_quiebre - fecha_corte).days
+                        dias_runway = f"{max(0, dias_diff)} Días"
+                    except Exception:
+                        # Resguardo en caso de que el encabezado no sea parseable
+                        fecha_iliquidez_exacta = str(col_fecha).split(" ")[0]
+                        dias_runway = "Dato no calculable"
+                    break
+
+        # Base de proyecciones a futuro (Matrices dinámicas combinadas)
         matriz_ingresos = {
             "Cupos Neuquén": [120928815, 0, 0, 0, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000],
             "Cupos Boulevard": [60192280, 0, 0, 0, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070],
@@ -367,7 +395,7 @@ if uploaded_file is not None:
             saldo_act += fn
             saldo_acumulado.append(saldo_act)
 
-        # PESTAÑAS 
+        # PESTAÑAS NAVEGABLES
         tab_dash, tab_influencia, tab_matriz_nueva, tab_excel_raw, tab_hist = st.tabs([
             "Visión General", 
             "Análisis por Rubro", 
@@ -376,6 +404,7 @@ if uploaded_file is not None:
             "📜 Histórico Supabase"
         ])
 
+        # PESTAÑA 1: VISIÓN GENERAL CON RUNWAY DINÁMICO
         with tab_dash:
             defic_max = min(saldo_acumulado)
             idx_defic_max = saldo_acumulado.index(defic_max)
@@ -383,8 +412,10 @@ if uploaded_file is not None:
 
             c1, c2, c3, c4 = st.columns(4)
             c1.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Disponibilidad ({fecha_corte.strftime("%d/%m/%Y")})</div><div class="kpi-num">${saldo_inicial:,.0f} <span class="badge-green">↑ 2.4%</span></div></div>', unsafe_allow_html=True)
-            c2.markdown('<div class="dark-kpi-card"><div class="kpi-label">Runway Operativo</div><div class="kpi-num">2.6 Días <span class="badge-green">↑ 4.7%</span></div></div>', unsafe_allow_html=True)
-            c3.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Iliquidez Crítica</div><div class="kpi-num" style="color:#F87171;">{semanas_dinamicas[0]} <span class="badge-red">ALERTA</span></div></div>', unsafe_allow_html=True)
+            # Tarjeta de Runway dinámica
+            c2.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Runway Operativo</div><div class="kpi-num">{dias_runway}</div></div>', unsafe_allow_html=True)
+            # Tarjeta de Iliquidez Crítica basada en el saldo acumulado de Excel
+            c3.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Iliquidez Crítica</div><div class="kpi-num" style="color:#F87171;">{fecha_iliquidez_exacta} <span class="badge-red">ALERTA</span></div></div>', unsafe_allow_html=True)
             c4.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Déficit Pico ({periodo_defic_max})</div><div class="kpi-num" style="color:#F87171;">${defic_max:,.0f} <span class="badge-red">PICO</span></div></div>', unsafe_allow_html=True)
 
             st.divider()
@@ -477,7 +508,6 @@ if uploaded_file is not None:
 
         with tab_excel_raw:
             st.subheader("📋 Matriz Directa Extraída de Excel (Día por Día)")
-            # 3. Construcción dinámica usando el nombre detectado de la primera columna
             df_display = df_procesado[[col_concepto_nombre] + cols_fechas].copy()
             for col in cols_fechas:
                 df_display[col] = df_display[col].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
