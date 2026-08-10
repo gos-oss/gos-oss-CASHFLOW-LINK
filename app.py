@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, date
 from supabase import create_client, Client
 
 # =============================================================================
-# 1. CONFIGURACIÓN Y ESTILOS CSS CORREGIDOS (SIN BLOQUES BLANCOS EN EXPANDER)
+# 1. CONFIGURACIÓN Y ESTILOS CSS CORREGIDOS
 # =============================================================================
 st.set_page_config(
     page_title="Cashflow Link | Dashboard Ejecutivo",
@@ -17,17 +17,15 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inyección de CSS avanzado con corrección total para st.expander y botones
+# Estilos CSS oscuros para componentes y cajas
 st.markdown("""
     <style>
-    /* Fondo principal de la aplicación */
     .stApp { 
         background-color: #0F1117; 
         color: #F1F5F9; 
         font-family: 'Inter', -apple-system, sans-serif;
     }
     
-    /* Encabezado principal */
     .brand-title { 
         color: #FFFFFF; 
         font-weight: 800; 
@@ -40,7 +38,7 @@ st.markdown("""
         margin-bottom: 20px; 
     }
     
-    /* CORRECCIÓN DEFINITIVA DE EXPANDERS (BARRAS DESPLEGABLES) */
+    /* Expanders oscuros */
     div[data-testid="stExpander"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -65,7 +63,7 @@ st.markdown("""
         border-top: 1px solid #2D323E !important;
     }
     
-    /* CARGADOR DE ARCHIVOS EXCEL (FILE UPLOADER) */
+    /* File Uploader e Inputs */
     [data-testid="stFileUploader"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -78,7 +76,6 @@ st.markdown("""
     [data-testid="stFileUploader"] * {
         color: #E2E8F0 !important;
     }
-    /* Botón interno de Upload */
     [data-testid="stFileUploader"] button {
         background-color: #262B36 !important;
         color: #FFFFFF !important;
@@ -86,7 +83,6 @@ st.markdown("""
         border-radius: 8px !important;
     }
 
-    /* ENTRADAS DE FECHA Y TEXTO */
     div[data-baseweb="input"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -97,8 +93,6 @@ st.markdown("""
         color: #FFFFFF !important;
         background-color: #181B22 !important;
     }
-    
-    /* LISTAS DESPLEGABLES */
     div[data-baseweb="select"] > div {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -106,7 +100,7 @@ st.markdown("""
         border-radius: 8px !important;
     }
     
-    /* TARJETAS KPI DARK GLASS */
+    /* Tarjetas KPI */
     .dark-kpi-card { 
         background: #181B22; 
         border: 1px solid #2D323E; 
@@ -131,7 +125,6 @@ st.markdown("""
         gap: 10px;
     }
     
-    /* INSIGNIAS DE PORCENTAJE */
     .badge-green { 
         background-color: rgba(34, 197, 94, 0.15); 
         color: #4ADE80; 
@@ -151,7 +144,7 @@ st.markdown("""
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
     
-    /* PESTAÑAS CORPORATIVAS */
+    /* Pestañas */
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         background-color: #181B22; 
@@ -176,7 +169,6 @@ st.markdown("""
         font-weight: 700 !important;
     }
     
-    /* TABLAS DE DATOS */
     .stDataFrame {
         border-radius: 10px;
         border: 1px solid #2D323E;
@@ -190,7 +182,7 @@ st.markdown('<p class="brand-title">💼 CASHFLOW LINK <span style="font-size:1.
 st.markdown('<p class="brand-subtitle">Sistema corporativo de análisis de flujo de caja y proyección a 13 semanas.</p>', unsafe_allow_html=True)
 
 # =============================================================================
-# 2. CONEXIÓN SEGURA A SUPABASE
+# 2. CONEXIÓN A SUPABASE
 # =============================================================================
 @st.cache_resource
 def init_supabase() -> Client:
@@ -204,7 +196,7 @@ def init_supabase() -> Client:
 supabase = init_supabase()
 
 # =============================================================================
-# 3. FUNCIONES DE CÁLCULO Y PERIODOS MÓVILES
+# 3. FUNCIONES DE CÁLCULO
 # =============================================================================
 def generar_periodos_semanales(fecha_inicio, num_semanas=13):
     periodos = []
@@ -231,7 +223,7 @@ def guardar_snapshot_diario(fecha_corte, matriz_ing, matriz_egr):
             pass
 
 # =============================================================================
-# 4. CONTROLES PRINCIPALES CON ESTILO OSCURO
+# 4. CONTROLES DE ENTRADA
 # =============================================================================
 with st.expander("⚙️ CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO", expanded=True):
     col_corta1, col_corta2 = st.columns([2, 1])
@@ -244,7 +236,6 @@ with st.expander("⚙️ CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO", expanded=T
 
 semanas_dinamicas = generar_periodos_semanales(fecha_corte, 13)
 
-# Formulario de simulación opcional
 with st.expander("➕ SIMULAR NUEVO CONCEPTO (OPCIONAL)", expanded=False):
     with st.form("form_simulacion_dark", clear_on_submit=True):
         f_col1, f_col2, f_col3 = st.columns(3)
@@ -291,7 +282,7 @@ if btn_simular and concepto_desc.strip() != "":
     st.success(f"¡Concepto '{concepto_desc}' inyectado en {semana_destino}!")
 
 # =============================================================================
-# 5. MATRICES DE CÁLCULO Y PESTAÑAS
+# 5. MATRICES Y PESTAÑAS
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -346,7 +337,7 @@ if uploaded_file is not None:
             saldo_act += fn
             saldo_acumulado.append(saldo_act)
 
-        # PESTAÑAS NAVEGABLES
+        # PESTAÑAS
         tab_dash, tab_influencia, tab_matriz_nueva, tab_hist, tab_sim = st.tabs([
             "Visión General", 
             "Análisis por Rubro", 
@@ -389,7 +380,7 @@ if uploaded_file is not None:
             )
             st.plotly_chart(fig_neon, use_container_width=True)
 
-        # PESTAÑA 2: ANÁLISIS POR RUBRO
+        # PESTAÑA 2: ANÁLISIS POR RUBRO (GRÁFICOS CORREGIDOS CON TEXTO BLANCO)
         with tab_influencia:
             st.subheader("🍩 Análisis: Composición por Rubro de Egreso")
             c_dona1, c_dona2 = st.columns([1, 1])
@@ -397,22 +388,37 @@ if uploaded_file is not None:
                 st.markdown("**Distribución Total de Egresos**")
                 totales_por_rubro = {rubro: sum(montos) for rubro, montos in matriz_egresos.items()}
                 df_dona = pd.DataFrame(list(totales_por_rubro.items()), columns=['Rubro', 'Total ARS'])
+                
                 fig_dona = px.pie(
                     df_dona, values='Total ARS', names='Rubro', hole=0.6,
-                    color_discrete_sequence=['#C084FC', '#FDE047', '#4ADE80', '#22D3EE', '#F87171']
+                    color_discrete_sequence=['#C084FC', '#FDE047', '#4ADE80', '#22D3EE', '#F87171', '#A855F7', '#38BDF8', '#F43F5E']
                 )
-                fig_dona.update_layout(paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#94A3B8'), height=420)
+                fig_dona.update_traces(textposition='inside', textinfo='percent', marker=dict(line=dict(color='#0F1117', width=2)))
+                fig_dona.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#FFFFFF', family="Inter", size=12),
+                    height=430, showlegend=True,
+                    legend=dict(font=dict(color='#FFFFFF', size=11), orientation="v", y=0.5),
+                    margin=dict(l=10, r=10, t=20, b=10)
+                )
                 st.plotly_chart(fig_dona, use_container_width=True)
 
             with c_dona2:
                 st.markdown("**Egresos Semanales Apilados ($)**")
                 df_egr_stack = pd.DataFrame(matriz_egresos, index=semanas_dinamicas).reset_index().rename(columns={'index': 'Periodo'})
                 df_egr_melted = df_egr_stack.melt(id_vars=['Periodo'], var_name='Rubro', value_name='Monto (ARS)')
+                
                 fig_stack = px.bar(
                     df_egr_melted, x='Periodo', y='Monto (ARS)', color='Rubro',
-                    color_discrete_sequence=['#C084FC', '#FDE047', '#4ADE80', '#22D3EE', '#F87171']
+                    color_discrete_sequence=['#C084FC', '#FDE047', '#4ADE80', '#22D3EE', '#F87171', '#A855F7', '#38BDF8', '#F43F5E']
                 )
-                fig_stack.update_layout(paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#94A3B8'), height=420, showlegend=False)
+                fig_stack.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#CBD5E1', family="Inter"),
+                    height=430, showlegend=False, margin=dict(l=10, r=10, t=20, b=10),
+                    xaxis=dict(showgrid=False, tickcolor='#2D323E', title_font=dict(color='#FFFFFF')),
+                    yaxis=dict(showgrid=True, gridcolor='#22242D', title_font=dict(color='#FFFFFF'))
+                )
                 st.plotly_chart(fig_stack, use_container_width=True)
 
         # PESTAÑA 3: DETALLE FINANCIERO POR CONCEPTO
