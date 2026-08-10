@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.express as px
 from datetime import datetime, timedelta, date
 from supabase import create_client, Client
@@ -13,10 +12,11 @@ from supabase import create_client, Client
 st.set_page_config(
     page_title="Fitonist Cashflow Ejecutivo & Supabase",
     page_icon="⚡",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded" # Fuerza la apertura inicial de la barra lateral si existe
 )
 
-# Estilos CSS Fitonist UI con alto contraste en pestañas e idioma español
+# Estilos CSS Fitonist UI con alto contraste y soporte para controles principales
 st.markdown("""
     <style>
     /* Fondo principal de la aplicación */
@@ -24,7 +24,6 @@ st.markdown("""
         background-color: #0D0E12; 
         color: #F8FAFC; 
     }
-    header {visibility: hidden;}
     
     /* Tipografía del encabezado principal */
     .brand-title { 
@@ -37,7 +36,7 @@ st.markdown("""
         font-family: 'Inter', sans-serif; 
         color: #94A3B8; 
         font-size: 0.9rem; 
-        margin-bottom: 25px; 
+        margin-bottom: 20px; 
     }
     
     /* Tarjetas KPI Dark Glassmorphism */
@@ -85,7 +84,7 @@ st.markdown("""
         border: 1px solid rgba(248, 113, 113, 0.3);
     }
     
-    /* CORRECCIÓN DE PESTAÑAS: TEXTO EN BLANCO/GRIS CLARO VISIBLE */
+    /* Alto contraste en pestañas superiores */
     .stTabs [data-baseweb="tab-list"] { 
         gap: 10px; 
         background-color: #14151B; 
@@ -98,7 +97,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] { 
         height: 40px; 
         border-radius: 20px; 
-        color: #F1F5F9 !important; /* TEXTO GRIS MUY CLARO / VISIBLE */
+        color: #F1F5F9 !important;
         font-weight: 600; 
         font-size: 0.9rem;
         border: none !important;
@@ -106,21 +105,15 @@ st.markdown("""
     }
     .stTabs [aria-selected="true"] { 
         background-color: #FFFFFF !important; 
-        color: #0D0E12 !important; /* TEXTO OSCURO EN PESTAÑA ACTIVA */
+        color: #0D0E12 !important; 
         font-weight: 800 !important;
-    }
-    
-    /* Estilo de tablas en modo oscuro */
-    .stDataFrame {
-        border-radius: 12px;
-        overflow: hidden;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Encabezado principal en español
+# Encabezado principal
 st.markdown('<p class="brand-title">⚡ fitonist <span style="font-size:1rem; font-weight:400; color:#94A3B8;">| Cashflow Ejecutivo & Supabase</span></p>', unsafe_allow_html=True)
-st.markdown('<p class="brand-subtitle">Plataforma corporativa conectada a base de datos en la nube para análisis de liquidez y directores.</p>', unsafe_allow_html=True)
+st.markdown('<p class="brand-subtitle">Plataforma corporativa de análisis de liquidez y proyección a 13 semanas.</p>', unsafe_allow_html=True)
 
 # =============================================================================
 # 2. CONEXIÓN SEGURA A SUPABASE
@@ -137,7 +130,7 @@ def init_supabase() -> Client:
 supabase = init_supabase()
 
 # =============================================================================
-# 3. FUNCIONES DE BASE DE DATOS Y PERIODOS MÓVILES
+# 3. FUNCIONES DE CÁLCULO Y PERIODOS MÓVILES
 # =============================================================================
 def generar_periodos_semanales(fecha_inicio, num_semanas=13):
     periodos = []
@@ -164,30 +157,38 @@ def guardar_snapshot_diario(fecha_corte, matriz_ing, matriz_egr):
             pass
 
 # =============================================================================
-# 4. BARRA LATERAL (SIDEBAR) EN ESPAÑOL
+# 4. CONTROLES PRINCIPALES EN PANTALLA (REEMPLAZO DE BARRA LATERAL)
 # =============================================================================
-st.sidebar.title("⚙️ Panel de Control")
-uploaded_file = st.sidebar.file_uploader("Cargar Archivo Diario (.xlsx)", type=["xlsx"])
+with st.expander("⚙️ **PANEL DE CONFIGURACIÓN Y CARGA DE DATOS**", expanded=True):
+    col_corta1, col_corta2 = st.columns([1, 1])
+    
+    with col_corta1:
+        uploaded_file = st.file_uploader("Cargar Archivo Diario (.xlsx)", type=["xlsx"])
+    
+    with col_corta2:
+        fecha_corte = st.date_input("Fecha Inicio Proyección", value=date(2026, 8, 11))
 
-fecha_corte = st.sidebar.date_input("Fecha Inicio Proyección", value=date(2026, 8, 11))
 semanas_dinamicas = generar_periodos_semanales(fecha_corte, 13)
 
-st.sidebar.divider()
-st.sidebar.subheader("➕ Simular Nuevo Concepto")
-
-with st.sidebar.form("form_simulacion_espanol", clear_on_submit=True):
-    concepto_desc = st.text_input("Descripción / Cliente", placeholder="Ej. Anticipo Proyecto X")
-    rubro_destino = st.selectbox("Rubro Específico", [
-        "Cupos Neuquén", "Cupos Boulevard", "Cupos #300", "Cobranzas y Cuotas", "Ventas Nuevas", "Otros Ingresos",
-        "Cheques Emitidos", "Préstamos", "Sueldos y Cargas Sociales", "Quincena Obra", "Proveedores/Materiales",
-        "Contratistas", "Impuestos/Planes de Pago", "Tarjetas/Seguros/Mensuales", "Terrenos/Estructura/TDYS"
-    ])
-    tipo_mov = st.selectbox("Tipo de Movimiento", ["Ingreso", "Egreso"])
-    semana_destino = st.selectbox("Periodo Objetivo", semanas_dinamicas)
-    monto_base = st.number_input("Monto Bruto ARS ($)", min_value=0.0, value=200000.0, step=50000.0)
-    probabilidad = st.slider("Probabilidad (%)", min_value=0, max_value=100, value=80, step=5)
-    
-    btn_simular = st.form_submit_button("Inyectar al Modelo")
+# Formulario de simulación de conceptos dentro de un desplegable visible
+with st.expander("➕ **SIMULAR NUEVO CONCEPTO (OPCIONAL)**", expanded=False):
+    with st.form("form_simulacion_principal", clear_on_submit=True):
+        f_col1, f_col2, f_col3 = st.columns(3)
+        with f_col1:
+            concepto_desc = st.text_input("Descripción / Cliente", placeholder="Ej. Anticipo Proyecto X")
+            tipo_mov = st.selectbox("Tipo de Movimiento", ["Ingreso", "Egreso"])
+        with f_col2:
+            rubro_destino = st.selectbox("Rubro Específico", [
+                "Cupos Neuquén", "Cupos Boulevard", "Cupos #300", "Cobranzas y Cuotas", "Ventas Nuevas", "Otros Ingresos",
+                "Cheques Emitidos", "Préstamos", "Sueldos y Cargas Sociales", "Quincena Obra", "Proveedores/Materiales",
+                "Contratistas", "Impuestos/Planes de Pago", "Tarjetas/Seguros/Mensuales", "Terrenos/Estructura/TDYS"
+            ])
+            semana_destino = st.selectbox("Periodo Objetivo", semanas_dinamicas)
+        with f_col3:
+            monto_base = st.number_input("Monto Bruto ARS ($)", min_value=0.0, value=200000.0, step=50000.0)
+            probabilidad = st.slider("Probabilidad (%)", min_value=0, max_value=100, value=80, step=5)
+            
+        btn_simular = st.form_submit_button("Inyectar al Modelo")
 
 if "conceptos_adicionales" not in st.session_state:
     st.session_state.conceptos_adicionales = []
@@ -213,10 +214,10 @@ if btn_simular and concepto_desc.strip() != "":
             }).execute()
         except Exception:
             pass
-    st.sidebar.success(f"¡Inyectado en {semana_destino}!")
+    st.success(f"¡Concepto '{concepto_desc}' inyectado en {semana_destino}!")
 
 # =============================================================================
-# 5. MATRICES Y PESTAÑAS EN ESPAÑOL
+# 5. MATRICES Y NAVEGACIÓN
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -271,7 +272,7 @@ if uploaded_file is not None:
             saldo_act += fn
             saldo_acumulado.append(saldo_act)
 
-        # PESTAÑAS CON NOMBRES Y TEXTOS TOTALMENTE EN ESPAÑOL Y ALTO CONTRASTE
+        # PESTAÑAS PRINCIPALES
         tab_dash, tab_influencia, tab_matriz_nueva, tab_hist, tab_sim = st.tabs([
             "Visión General", 
             "Análisis por Rubro", 
@@ -280,7 +281,7 @@ if uploaded_file is not None:
             "Simulaciones"
         ])
 
-        # PESTAÑA 1: VISIÓN GENERAL (EXECUTIVE DASHBOARD)
+        # PESTAÑA 1: VISIÓN GENERAL
         with tab_dash:
             defic_max = min(saldo_acumulado)
             idx_defic_max = saldo_acumulado.index(defic_max)
@@ -405,4 +406,4 @@ if uploaded_file is not None:
         st.error(f"Error procesando el modelo: {e}")
 
 else:
-    st.info("👈 Por favor, carga tu archivo '.xlsx' en el panel lateral para desplegar la suite Fitonist.")
+    st.info("👈 Por favor, carga tu archivo '.xlsx' en el panel superior para desplegar la suite Fitonist.")
