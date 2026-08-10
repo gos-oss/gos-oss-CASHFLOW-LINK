@@ -2,13 +2,12 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.express as px
 from datetime import datetime, timedelta, date
 from supabase import create_client, Client
 
 # =============================================================================
-# 1. CONFIGURACIÓN Y ESTILOS CSS DEFINITIVOS (MODO OSCURO INTEGRAL)
+# 1. CONFIGURACIÓN Y ESTILOS CSS CORREGIDOS (MODO OSCURO INTEGRAL)
 # =============================================================================
 st.set_page_config(
     page_title="Cashflow Link | Dashboard Ejecutivo",
@@ -304,7 +303,7 @@ if btn_simular and concepto_desc.strip() != "":
     st.success(f"¡Concepto '{concepto_desc}' inyectado en {semana_destino}!")
 
 # =============================================================================
-# 5. MATRICES Y NAVEGACIÓN COMPLETA
+# 5. MATRICES Y NAVEGACIÓN COMPLETA (LECTURA DINÁMICA DE LA PRIMERA COLUMNA)
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -312,7 +311,11 @@ if uploaded_file is not None:
         sheet_target = nombre_hoja if nombre_hoja in excel_data else list(excel_data.keys())[0]
         df_raw = excel_data[sheet_target]
         
-        df_raw.iloc[:, 0] = df_raw.iloc[:, 0].astype(str).str.strip()
+        # 1. Identificar dinámicamente la primera columna (columna de conceptos) por índice [0]
+        col_concepto_nombre = df_raw.columns[0]
+        df_raw[col_concepto_nombre] = df_raw[col_concepto_nombre].astype(str).str.strip()
+        
+        # 2. Identificar columnas con fechas (todas las columnas desde la posición 1 en adelante)
         cols_fechas = [c for c in df_raw.columns[1:] if "TOTAL" not in str(c).upper() and "Unnamed" not in str(c)]
         
         df_procesado = df_raw.copy()
@@ -474,7 +477,8 @@ if uploaded_file is not None:
 
         with tab_excel_raw:
             st.subheader("📋 Matriz Directa Extraída de Excel (Día por Día)")
-            df_display = df_procesado[['CASH EMPRESA'] + cols_fechas].copy()
+            # 3. Construcción dinámica usando el nombre detectado de la primera columna
+            df_display = df_procesado[[col_concepto_nombre] + cols_fechas].copy()
             for col in cols_fechas:
                 df_display[col] = df_display[col].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
             st.dataframe(df_display, use_container_width=True, hide_index=True)
