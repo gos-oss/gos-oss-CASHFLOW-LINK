@@ -6,9 +6,8 @@ import plotly.express as px
 from datetime import date
 
 # =============================================================================
-# 1. CONFIGURACIÓN INICIAL Y ESTILOS CORPORATIVOS
+# 1. CONFIGURACIÓN INICIAL Y ESTILOS CSS CORPORATIVOS
 # =============================================================================
-# Configuración del lienzo de la aplicación
 st.set_page_config(
     page_title="Executive Cashflow Analytics",
     page_icon="🏢",
@@ -18,12 +17,9 @@ st.set_page_config(
 # Inyección de CSS para diseño corporativo limpio (Light Modern Slate)
 st.markdown("""
     <style>
-    /* Fondo general */
     .main {
         background-color: #F8FAFC;
     }
-    
-    /* Tipografía de títulos */
     .title-text {
         font-family: 'Inter', -apple-system, sans-serif;
         color: #0F172A;
@@ -37,8 +33,6 @@ st.markdown("""
         font-size: 0.95rem;
         margin-bottom: 20px;
     }
-    
-    /* Tarjetas de KPI */
     .kpi-card {
         background-color: #FFFFFF;
         border-radius: 8px;
@@ -65,20 +59,10 @@ st.markdown("""
         color: #DC2626;
         margin-top: 4px;
     }
-    
-    /* Tarjetas del Cashflow Detallado */
-    .section-card {
-        background-color: #FFFFFF;
-        border-radius: 10px;
-        padding: 20px;
-        border: 1px solid #E2E8F0;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-    }
     .section-header-ingreso {
         color: #166534;
         font-weight: 700;
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         margin-bottom: 10px;
         border-bottom: 2px solid #DCFCE7;
         padding-bottom: 5px;
@@ -86,7 +70,7 @@ st.markdown("""
     .section-header-egreso {
         color: #991B1B;
         font-weight: 700;
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         margin-bottom: 10px;
         border-bottom: 2px solid #FEE2E2;
         padding-bottom: 5px;
@@ -96,14 +80,27 @@ st.markdown("""
 
 # Encabezado principal
 st.markdown('<p class="title-text">🏢 Corporate Cashflow & Rubro Analytics</p>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle-text">Plataforma ejecutiva de análisis de liquidez, simulación con probabilidad y desglose de rubros.</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle-text">Plataforma ejecutiva de análisis de liquidez con indicación explícita de periodos semanales.</p>', unsafe_allow_html=True)
 
 # Memoria de sesión para conceptos adicionales
 if "conceptos_adicionales" not in st.session_state:
     st.session_state.conceptos_adicionales = []
 
 # =============================================================================
-# 2. PANEL LATERAL (SIDEBAR)
+# 2. DEFINICIÓN DE SEMANAS Y PERIODOS DE ANÁLISIS
+# =============================================================================
+# Lista de rangos de fechas por semana
+dates_cf = [
+    "10/08 - 14/08", "17/08 - 21/08", "24/08 - 28/08", "31/08 - 04/09", 
+    "07/09 - 11/09", "14/09 - 18/09", "21/09 - 25/09", "28/09 - 02/10",
+    "05/10 - 09/10", "12/10 - 16/10", "19/10 - 23/10", "26/10 - 30/10", "02/11 - 06/11"
+]
+
+# Encabezados combinados: 'Semana X (DD/MM - DD/MM)'
+semanas_con_periodo = [f"Semana {i+1} ({dates_cf[i]})" for i in range(13)]
+
+# =============================================================================
+# 3. PANEL LATERAL (SIDEBAR)
 # =============================================================================
 st.sidebar.title("⚙️ Panel de Control")
 uploaded_file = st.sidebar.file_uploader("Cargar Archivo Excel (.xlsx)", type=["xlsx"])
@@ -111,7 +108,7 @@ uploaded_file = st.sidebar.file_uploader("Cargar Archivo Excel (.xlsx)", type=["
 st.sidebar.divider()
 st.sidebar.subheader("➕ Simular Nuevo Concepto")
 
-with st.sidebar.form("form_simulacion_completo", clear_on_submit=True):
+with st.sidebar.form("form_simulacion_periodo", clear_on_submit=True):
     concepto_desc = st.text_input("Descripción / Cliente", placeholder="Ej. Cobranza Cliente X")
     rubro_destino = st.selectbox("Rubro Específico", [
         "Cupos Neuquén", "Cupos Boulevard", "Cupos #300", "Cobranzas y Cuotas", "Ventas Nuevas", "Otros Ingresos",
@@ -119,7 +116,10 @@ with st.sidebar.form("form_simulacion_completo", clear_on_submit=True):
         "Contratistas", "Impuestos/Planes de Pago", "Tarjetas/Seguros/Mensuales", "Terrenos/Estructura/TDYS"
     ])
     tipo_mov = st.selectbox("Tipo de Movimiento", ["Ingreso", "Egreso"])
-    semana_destino = st.selectbox("Semana Objetivo", [f"Semana {i}" for i in range(1, 14)])
+    
+    # El selector de semana muestra de forma explícita el periodo de análisis
+    semana_destino = st.selectbox("Periodo Objetivo", semanas_con_periodo)
+    
     monto_base = st.number_input("Monto Bruto ARS ($)", min_value=0.0, value=200000.0, step=50000.0)
     probabilidad = st.slider("Probabilidad de Ocurrencia (%)", min_value=0, max_value=100, value=80, step=5)
     
@@ -137,15 +137,15 @@ if btn_simular and concepto_desc.strip() != "":
         "Descripción": concepto_desc,
         "Rubro": rubro_destino,
         "Tipo": tipo_mov,
-        "Semana": semana_destino,
+        "Periodo": semana_destino,
         "Monto Base": monto_base,
         "Probabilidad": probabilidad,
         "Monto Ponderado": monto_base * (probabilidad / 100.0)
     })
-    st.sidebar.success(f"Concepto '{concepto_desc}' inyectado a {semana_destino}")
+    st.sidebar.success(f"Concepto '{concepto_desc}' inyectado en {semana_destino}")
 
 # =============================================================================
-# 3. PROCESAMIENTO Y ESTRUCTURACIÓN DE DATOS
+# 4. PROCESAMIENTO DE DATOS Y MATRICES POR PERIODO
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -160,8 +160,6 @@ if uploaded_file is not None:
         
         if target_sheet is None:
             target_sheet = st.sidebar.selectbox("Selecciona la pestaña de origen:", sheet_names)
-
-        semanas = [f"Semana {i}" for i in range(1, 14)]
 
         # Matriz base de Ingresos
         matriz_ingresos = {
@@ -186,9 +184,9 @@ if uploaded_file is not None:
             "Terrenos/Estructura/TDYS": [18503570, 41725254, 76605000, 29016120, 29016120, 29016120, 29016120, 29016120, 15266120, 15266120, 15266120, 15266120, 15266120]
         }
 
-        # Inyectar conceptos simulados
+        # Inyectar conceptos simulados en la semana correspondiente
         for item in st.session_state.conceptos_adicionales:
-            idx_sem = semanas.index(item["Semana"])
+            idx_sem = semanas_con_periodo.index(item["Periodo"])
             rubro = item["Rubro"]
             monto_p = item["Monto Ponderado"]
             if item["Tipo"] == "Ingreso" and rubro in matriz_ingresos:
@@ -210,12 +208,12 @@ if uploaded_file is not None:
             saldo_acumulado.append(saldo_act)
 
         # =====================================================================
-        # 4. PESTAÑAS PRINCIPALES DE NAVEGACIÓN
+        # 5. PESTAÑAS PRINCIPALES DE NAVEGACIÓN
         # =====================================================================
         tab_dash, tab_influencia, tab_matriz_nueva, tab_sim = st.tabs([
             "📊 Executive Dashboard", 
             "🍩 Influencia por Rubro (Dona)", 
-            "📂 Detalle Estructurado por Concepto", 
+            "📂 Detalle Estructurado por Periodo", 
             "📝 Escenarios Simulados"
         ])
 
@@ -257,10 +255,10 @@ if uploaded_file is not None:
 
             st.divider()
 
-            st.subheader("📈 Trayectoria de Liquidez Acumulada")
+            st.subheader("📈 Trayectoria de Liquidez Acumulada por Periodo")
             fig_tray = go.Figure()
             fig_tray.add_trace(go.Scatter(
-                x=semanas, y=saldo_acumulado, mode='lines+markers', name='Saldo Acumulado',
+                x=semanas_con_periodo, y=saldo_acumulado, mode='lines+markers', name='Saldo Acumulado',
                 fill='tozeroy', fillcolor='rgba(30, 58, 138, 0.08)',
                 line=dict(color='#1E3A8A', width=3), marker=dict(size=7)
             ))
@@ -300,11 +298,11 @@ if uploaded_file is not None:
 
             with col_stack:
                 st.markdown("**Composición Semanal Apilada ($)**")
-                df_egr_stack = pd.DataFrame(matriz_egresos, index=semanas).reset_index().rename(columns={'index': 'Semana'})
-                df_egr_melted = df_egr_stack.melt(id_vars=['Semana'], var_name='Rubro', value_name='Monto (ARS)')
+                df_egr_stack = pd.DataFrame(matriz_egresos, index=semanas_con_periodo).reset_index().rename(columns={'index': 'Periodo'})
+                df_egr_melted = df_egr_stack.melt(id_vars=['Periodo'], var_name='Rubro', value_name='Monto (ARS)')
 
                 fig_stack = px.bar(
-                    df_egr_melted, x='Semana', y='Monto (ARS)', color='Rubro',
+                    df_egr_melted, x='Periodo', y='Monto (ARS)', color='Rubro',
                     color_discrete_sequence=px.colors.qualitative.Prism,
                     template="plotly_white"
                 )
@@ -312,59 +310,56 @@ if uploaded_file is not None:
                 st.plotly_chart(fig_stack, use_container_width=True)
 
         # ---------------------------------------------------------------------
-        # PESTAÑA 3: DETALLE ESTRUCTURADO Y VISUAL POR CONCEPTO (NUEVO DISEÑO)
+        # PESTAÑA 3: DETALLE ESTRUCTURADO CON PERIODOS CLAROS
         # ---------------------------------------------------------------------
         with tab_matriz_nueva:
-            st.subheader("📂 Detalle Estructurado de Flujo de Caja")
-            st.caption("Estructura clara y dividida por bloques de Ingresos, Egresos y Saldos Semanales.")
+            st.subheader("📂 Detalle Estructurado por Periodo de Análisis")
+            st.caption("Cada columna indica explícitamente la semana y el rango de fechas correspondiente.")
 
-            # 1. BLOQUE RESUMEN DE SALDOS SEMANALES
-            with st.expander("📌 **RESUMEN DE LIQUIDEZ Y SALDOS SEMANALES**", expanded=True):
+            # 1. BLOQUE RESUMEN DE SALDOS
+            with st.expander("📌 **RESUMEN DE LIQUIDEZ Y SALDOS POR PERIODO**", expanded=True):
                 df_resumen_semanal = pd.DataFrame({
                     "Concepto": ["(+) Total Ingresos", "(-) Total Egresos", "(=) Flujo Neto", "SALDO ACUMULADO FINAL"],
                 })
                 
-                for idx, sem in enumerate(semanas):
-                    df_resumen_semanal[sem] = [
+                for idx, sem_p in enumerate(semanas_con_periodo):
+                    df_resumen_semanal[sem_p] = [
                         totales_ing[idx],
                         totales_egr[idx],
                         flujo_neto[idx],
                         saldo_acumulado[idx]
                     ]
                 
-                # Formato numérico
                 df_res_fmt = df_resumen_semanal.copy()
-                for col in semanas:
+                for col in semanas_con_periodo:
                     df_res_fmt[col] = df_res_fmt[col].apply(lambda x: f"${x:,.0f}")
                 
                 st.dataframe(df_res_fmt, use_container_width=True)
 
-            # 2. BLOQUE DE INGRESOS POR RUBRO
+            # 2. BLOQUE DE INGRESOS
             with st.expander("🟢 **DETALLE DE INGRESOS POR RUBRO**", expanded=True):
                 st.markdown('<p class="section-header-ingreso">Estructura de Entradas de Caja</p>', unsafe_allow_html=True)
                 
-                df_ing_det = pd.DataFrame(matriz_ingresos, index=semanas).T.reset_index()
+                df_ing_det = pd.DataFrame(matriz_ingresos, index=semanas_con_periodo).T.reset_index()
                 df_ing_det.rename(columns={'index': 'Rubro de Ingreso'}, inplace=True)
-                df_ing_det['Total Acumulado'] = df_ing_det[semanas].sum(axis=1)
+                df_ing_det['Total Acumulado'] = df_ing_det[semanas_con_periodo].sum(axis=1)
                 
-                # Formato moneda
                 df_ing_fmt = df_ing_det.copy()
-                for col in semanas + ['Total Acumulado']:
+                for col in semanas_con_periodo + ['Total Acumulado']:
                     df_ing_fmt[col] = df_ing_fmt[col].apply(lambda x: f"${x:,.0f}")
                     
                 st.dataframe(df_ing_fmt, use_container_width=True)
 
-            # 3. BLOQUE DE EGRESOS POR RUBRO
+            # 3. BLOQUE DE EGRESOS
             with st.expander("🔴 **DETALLE DE EGRESOS POR RUBRO**", expanded=True):
                 st.markdown('<p class="section-header-egreso">Estructura de Salidas de Caja</p>', unsafe_allow_html=True)
                 
-                df_egr_det = pd.DataFrame(matriz_egresos, index=semanas).T.reset_index()
+                df_egr_det = pd.DataFrame(matriz_egresos, index=semanas_con_periodo).T.reset_index()
                 df_egr_det.rename(columns={'index': 'Rubro de Egreso'}, inplace=True)
-                df_egr_det['Total Acumulado'] = df_egr_det[semanas].sum(axis=1)
+                df_egr_det['Total Acumulado'] = df_egr_det[semanas_con_periodo].sum(axis=1)
                 
-                # Formato moneda
                 df_egr_fmt = df_egr_det.copy()
-                for col in semanas + ['Total Acumulado']:
+                for col in semanas_con_periodo + ['Total Acumulado']:
                     df_egr_fmt[col] = df_egr_fmt[col].apply(lambda x: f"${x:,.0f}")
                     
                 st.dataframe(df_egr_fmt, use_container_width=True)
