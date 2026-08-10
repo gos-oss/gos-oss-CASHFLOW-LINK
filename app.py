@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, date
 from supabase import create_client, Client
 
 # =============================================================================
-# 1. CONFIGURACIÓN Y ESTILOS CSS CORREGIDOS
+# 1. CONFIGURACIÓN Y ESTILOS CSS CORREGIDOS (TABLAS OSCURAS SIN ÍNDICES)
 # =============================================================================
 st.set_page_config(
     page_title="Cashflow Link | Dashboard Ejecutivo",
@@ -17,15 +17,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilos CSS oscuros para componentes y cajas
+# Estilos CSS oscuros integrales
 st.markdown("""
     <style>
+    /* Fondo principal de la aplicación */
     .stApp { 
         background-color: #0F1117; 
         color: #F1F5F9; 
         font-family: 'Inter', -apple-system, sans-serif;
     }
     
+    /* Encabezado principal */
     .brand-title { 
         color: #FFFFFF; 
         font-weight: 800; 
@@ -38,7 +40,7 @@ st.markdown("""
         margin-bottom: 20px; 
     }
     
-    /* Expanders oscuros */
+    /* PANELS DESPLEGABLES (EXPANDERS) OSCUROS */
     div[data-testid="stExpander"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -63,7 +65,18 @@ st.markdown("""
         border-top: 1px solid #2D323E !important;
     }
     
-    /* File Uploader e Inputs */
+    /* BORDES OSCUROS Y MODO OSCURO FORZADO EN ST.DATAFRAME */
+    div[data-testid="stDataFrame"] {
+        background-color: #181B22 !important;
+        border: 1px solid #2D323E !important;
+        border-radius: 10px !important;
+    }
+    div[data-testid="stDataFrame"] * {
+        color: #FFFFFF !important;
+        border-color: #2D323E !important;
+    }
+    
+    /* CARGADOR DE ARCHIVOS Y INPUTS */
     [data-testid="stFileUploader"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -100,7 +113,7 @@ st.markdown("""
         border-radius: 8px !important;
     }
     
-    /* Tarjetas KPI */
+    /* TARJETAS KPI DARK GLASS */
     .dark-kpi-card { 
         background: #181B22; 
         border: 1px solid #2D323E; 
@@ -144,7 +157,7 @@ st.markdown("""
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
     
-    /* Pestañas */
+    /* PESTAÑAS NAVEGABLES */
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         background-color: #181B22; 
@@ -168,12 +181,6 @@ st.markdown("""
         color: #FFFFFF !important; 
         font-weight: 700 !important;
     }
-    
-    .stDataFrame {
-        border-radius: 10px;
-        border: 1px solid #2D323E;
-        overflow: hidden;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -182,7 +189,7 @@ st.markdown('<p class="brand-title">💼 CASHFLOW LINK <span style="font-size:1.
 st.markdown('<p class="brand-subtitle">Sistema corporativo de análisis de flujo de caja y proyección a 13 semanas.</p>', unsafe_allow_html=True)
 
 # =============================================================================
-# 2. CONEXIÓN A SUPABASE
+# 2. CONEXIÓN SEGURA A SUPABASE
 # =============================================================================
 @st.cache_resource
 def init_supabase() -> Client:
@@ -196,7 +203,7 @@ def init_supabase() -> Client:
 supabase = init_supabase()
 
 # =============================================================================
-# 3. FUNCIONES DE CÁLCULO
+# 3. FUNCIONES DE CÁLCULO Y PERIODOS MÓVILES
 # =============================================================================
 def generar_periodos_semanales(fecha_inicio, num_semanas=13):
     periodos = []
@@ -223,7 +230,7 @@ def guardar_snapshot_diario(fecha_corte, matriz_ing, matriz_egr):
             pass
 
 # =============================================================================
-# 4. CONTROLES DE ENTRADA
+# 4. CONTROLES PRINCIPALES CON ESTILO OSCURO
 # =============================================================================
 with st.expander("⚙️ CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO", expanded=True):
     col_corta1, col_corta2 = st.columns([2, 1])
@@ -236,6 +243,7 @@ with st.expander("⚙️ CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO", expanded=T
 
 semanas_dinamicas = generar_periodos_semanales(fecha_corte, 13)
 
+# Formulario de simulación opcional
 with st.expander("➕ SIMULAR NUEVO CONCEPTO (OPCIONAL)", expanded=False):
     with st.form("form_simulacion_dark", clear_on_submit=True):
         f_col1, f_col2, f_col3 = st.columns(3)
@@ -282,7 +290,7 @@ if btn_simular and concepto_desc.strip() != "":
     st.success(f"¡Concepto '{concepto_desc}' inyectado en {semana_destino}!")
 
 # =============================================================================
-# 5. MATRICES Y PESTAÑAS
+# 5. MATRICES DE CÁLCULO Y PESTAÑAS
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -337,7 +345,7 @@ if uploaded_file is not None:
             saldo_act += fn
             saldo_acumulado.append(saldo_act)
 
-        # PESTAÑAS
+        # PESTAÑAS NAVEGABLES
         tab_dash, tab_influencia, tab_matriz_nueva, tab_hist, tab_sim = st.tabs([
             "Visión General", 
             "Análisis por Rubro", 
@@ -380,7 +388,7 @@ if uploaded_file is not None:
             )
             st.plotly_chart(fig_neon, use_container_width=True)
 
-        # PESTAÑA 2: ANÁLISIS POR RUBRO (GRÁFICOS CORREGIDOS CON TEXTO BLANCO)
+        # PESTAÑA 2: ANÁLISIS POR RUBRO
         with tab_influencia:
             st.subheader("🍩 Análisis: Composición por Rubro de Egreso")
             c_dona1, c_dona2 = st.columns([1, 1])
@@ -421,10 +429,11 @@ if uploaded_file is not None:
                 )
                 st.plotly_chart(fig_stack, use_container_width=True)
 
-        # PESTAÑA 3: DETALLE FINANCIERO POR CONCEPTO
+        # PESTAÑA 3: DETALLE FINANCIERO POR CONCEPTO (HIDE_INDEX=TRUE APLICADO)
         with tab_matriz_nueva:
             st.subheader("📂 Detalle Financiero: Desglose Estructurado por Concepto")
 
+            # 1. Resumen de Saldos sin números de índice (0, 1, 2, 3...)
             with st.expander("📌 **RESUMEN DE LIQUIDEZ Y SALDOS POR PERIODO**", expanded=True):
                 df_resumen_semanal = pd.DataFrame({"Concepto": ["(+) Total Ingresos", "(-) Total Egresos", "(=) Flujo Neto", "SALDO ACUMULADO FINAL"]})
                 for idx, sem_p in enumerate(semanas_dinamicas):
@@ -433,8 +442,9 @@ if uploaded_file is not None:
                 df_res_fmt = df_resumen_semanal.copy()
                 for col in semanas_dinamicas:
                     df_res_fmt[col] = df_res_fmt[col].apply(lambda x: f"${x:,.0f}")
-                st.dataframe(df_res_fmt, use_container_width=True)
+                st.dataframe(df_res_fmt, use_container_width=True, hide_index=True)
 
+            # 2. Detalle de Ingresos sin números de índice
             with st.expander("🟢 **DETALLE DE INGRESOS POR CONCEPTO / RUBRO**", expanded=True):
                 df_ing_det = pd.DataFrame(matriz_ingresos, index=semanas_dinamicas).T.reset_index()
                 df_ing_det.rename(columns={'index': 'Concepto / Rubro'}, inplace=True)
@@ -443,8 +453,9 @@ if uploaded_file is not None:
                 df_ing_fmt = df_ing_det.copy()
                 for col in semanas_dinamicas + ['Total 13 Wks']:
                     df_ing_fmt[col] = df_ing_fmt[col].apply(lambda x: f"${x:,.0f}")
-                st.dataframe(df_ing_fmt, use_container_width=True)
+                st.dataframe(df_ing_fmt, use_container_width=True, hide_index=True)
 
+            # 3. Detalle de Egresos sin números de índice
             with st.expander("🔴 **DETALLE DE EGRESOS POR CONCEPTO / RUBRO**", expanded=True):
                 df_egr_det = pd.DataFrame(matriz_egresos, index=semanas_dinamicas).T.reset_index()
                 df_egr_det.rename(columns={'index': 'Concepto / Rubro'}, inplace=True)
@@ -453,7 +464,7 @@ if uploaded_file is not None:
                 df_egr_fmt = df_egr_det.copy()
                 for col in semanas_dinamicas + ['Total 13 Wks']:
                     df_egr_fmt[col] = df_egr_fmt[col].apply(lambda x: f"${x:,.0f}")
-                st.dataframe(df_egr_fmt, use_container_width=True)
+                st.dataframe(df_egr_fmt, use_container_width=True, hide_index=True)
 
         # PESTAÑA 4: HISTÓRICO SUPABASE
         with tab_hist:
@@ -463,7 +474,7 @@ if uploaded_file is not None:
                     res = supabase.table("cashflow_historico").select("*").order("fecha_corte", desc=True).execute()
                     df_hist = pd.DataFrame(res.data)
                     if not df_hist.empty:
-                        st.dataframe(df_hist, use_container_width=True)
+                        st.dataframe(df_hist, use_container_width=True, hide_index=True)
                     else:
                         st.info("Aún no existen registros en la base de datos de Supabase.")
                 except Exception as e:
@@ -475,7 +486,7 @@ if uploaded_file is not None:
         with tab_sim:
             st.subheader("📝 Simulaciones: Registro de Modificaciones")
             if len(st.session_state.conceptos_adicionales) > 0:
-                st.dataframe(pd.DataFrame(st.session_state.conceptos_adicionales), use_container_width=True)
+                st.dataframe(pd.DataFrame(st.session_state.conceptos_adicionales), use_container_width=True, hide_index=True)
                 if st.button("🗑️ Restablecer Simulación"):
                     st.session_state.conceptos_adicionales = []
                     st.rerun()
