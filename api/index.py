@@ -4,16 +4,13 @@ import pandas as pd
 from io import BytesIO
 import re
 
-# Inicializamos la aplicación FastAPI
 app = FastAPI()
 
 def normalizar_concepto(texto):
-    """Limpia el texto para buscar filas sin fallos."""
     if pd.isna(texto): return ""
     return re.sub(r'[^a-z0-9]', '', str(texto).lower())
 
 def limpiar_valor_moneda(val):
-    """Convierte texto de dinero a números para graficar."""
     if pd.isna(val) or val == '': return 0.0
     if isinstance(val, (int, float)): return float(val)
     val_str = str(val)
@@ -28,7 +25,7 @@ def limpiar_valor_moneda(val):
     try: return float(val_str)
     except ValueError: return 0.0
 
-# 1. RUTA PRINCIPAL: La interfaz visual con HTML, CSS y JavaScript
+# 1. RUTA PRINCIPAL: Interfaz Completa (HTML + CSS + JS)
 @app.get("/", response_class=HTMLResponse)
 def ruta_principal():
     html_content = """
@@ -36,151 +33,187 @@ def ruta_principal():
     <html lang="es">
     <head>
         <meta charset="UTF-8">
-        <title>Cashflow Link | Executive Board</title>
-        <!-- Importamos la librería Plotly para Javascript -->
+        <title>Cashflow Link | Vercel Edition</title>
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
             
             body {
                 background: radial-gradient(circle at 50% 0%, #1e3a8a 0%, #0f172a 100%);
-                color: #f8fafc;
-                font-family: 'Inter', sans-serif;
-                margin: 0; padding: 20px;
+                color: #f8fafc; font-family: 'Inter', sans-serif;
+                margin: 0; padding: 20px; min-height: 100vh;
             }
             .corporate-banner {
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.15);
-                padding: 30px; border-radius: 15px;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-                text-align: center; margin-bottom: 20px;
+                background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15);
+                padding: 25px 35px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                margin-bottom: 20px;
             }
-            h1 { margin: 0; font-size: 2.5rem; font-weight: 800; }
-            .metrics-container {
-                display: flex; justify-content: space-between; gap: 20px; margin-bottom: 20px;
+            h1 { margin: 0 0 5px 0; font-size: 2.2rem; font-weight: 800; color: #ffffff; }
+            .btn-subir {
+                background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+                color: white; border: none; padding: 10px 20px; border-radius: 8px;
+                font-weight: bold; cursor: pointer; margin-top: 10px;
             }
+            
+            /* --- ESTILOS DE PESTAÑAS --- */
+            .tabs-container {
+                display: flex; gap: 10px; background: rgba(15, 23, 42, 0.8);
+                padding: 8px; border-radius: 12px; margin-bottom: 20px; display: none;
+            }
+            .tab-btn {
+                background: transparent; border: none; color: #cbd5e1; font-weight: 600;
+                font-size: 1rem; padding: 10px 20px; border-radius: 8px; cursor: pointer;
+            }
+            .tab-btn.active {
+                background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+                color: #ffffff; font-weight: 800;
+            }
+            .tab-content { display: none; }
+            .tab-content.active { display: block; }
+            
+            /* --- ESTILOS DE TARJETAS Y TABLA --- */
+            .metrics-row { display: flex; gap: 15px; margin-bottom: 20px; }
             .metric-card {
                 background: linear-gradient(145deg, rgba(30, 58, 138, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
-                border: 1px solid rgba(147, 197, 253, 0.15);
-                padding: 20px; border-radius: 16px; width: 100%;
-                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+                border: 1px solid rgba(147, 197, 253, 0.15); border-radius: 16px; padding: 20px; flex: 1;
             }
-            .metric-title { color: #93c5fd; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; }
-            .metric-value { font-size: 2.2rem; font-weight: 800; color: #ffffff; margin-top: 10px; }
-            
-            #chart-container {
-                background: rgba(15, 23, 42, 0.5);
-                border-radius: 16px; padding: 20px;
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                height: 450px; display: none; /* Oculto hasta que haya datos */
+            .chart-box {
+                background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 16px; padding: 20px; height: 500px; margin-bottom: 20px;
             }
-            button {
-                background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-                color: white; border: none; padding: 12px 25px;
-                font-weight: bold; border-radius: 8px; cursor: pointer;
-            }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+            th, td { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 10px; text-align: left; }
+            th { color: #93c5fd; }
+            .negativo { color: #f87171; font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="corporate-banner">
             <h1>CASHFLOW LINK</h1>
-            <p>Sube tu archivo Excel para generar el tablero en Vercel</p>
-            <input type="file" id="fileInput" accept=".xlsx">
-            <button onclick="procesarArchivo()">Generar Tablero</button>
-            <p id="status-msg" style="color: #60a5fa; margin-top: 15px;"></p>
+            <p style="color: #93c5fd; margin-bottom: 15px;">Executive Board • Procesado en Vercel</p>
+            <input type="file" id="fileInput" accept=".xlsx" style="color: white;">
+            <button class="btn-subir" onclick="procesarArchivo()">Generar Tablero Unificado</button>
+            <div id="status-msg" style="color: #60a5fa; margin-top: 10px; font-weight: bold;"></div>
         </div>
 
-        <!-- Contenedores para las métricas (Inician vacíos) -->
-        <div class="metrics-container" id="metrics-panel" style="display: none;">
-            <div class="metric-card">
-                <div class="metric-title">Disponibilidad Inicial</div>
-                <div class="metric-value" id="val-inicial">$0</div>
+        <!-- SISTEMA DE PESTAÑAS -->
+        <div class="tabs-container" id="tabs-menu">
+            <button class="tab-btn active" onclick="cambiarPestana('tab-vision', this)">📊 Visión Ejecutiva</button>
+            <button class="tab-btn" onclick="cambiarPestana('tab-matriz', this)">📁 Estructura Financiera</button>
+            <button class="tab-btn" onclick="cambiarPestana('tab-analisis', this)">🍩 Análisis de Rubros</button>
+        </div>
+
+        <!-- CONTENIDO: Visión Ejecutiva -->
+        <div id="tab-vision" class="tab-content active">
+            <div class="metrics-row">
+                <div class="metric-card">
+                    <div style="color: #93c5fd; font-size: 0.85rem; font-weight: bold;">DISPONIBILIDAD INICIAL</div>
+                    <div id="val-inicial" style="font-size: 2rem; font-weight: 800; margin-top: 5px;">$0</div>
+                </div>
+                <div class="metric-card">
+                    <div style="color: #93c5fd; font-size: 0.85rem; font-weight: bold;">DÉFICIT MÁXIMO PROYECTADO</div>
+                    <div id="val-deficit" style="font-size: 2rem; font-weight: 800; margin-top: 5px;">$0</div>
+                </div>
             </div>
-            <div class="metric-card">
-                <div class="metric-title">Déficit Máximo Proyectado</div>
-                <div class="metric-value" id="val-deficit">$0</div>
+            <div id="chart-lineas" class="chart-box"></div>
+        </div>
+
+        <!-- CONTENIDO: Estructura Financiera (Matriz) -->
+        <div id="tab-matriz" class="tab-content">
+            <div class="chart-box" style="height: auto; overflow-x: auto;">
+                <h3 style="color: #4ADE80; margin-top: 0;">Resumen Consolidado</h3>
+                <table id="tabla-matriz">
+                    <thead><tr id="tabla-header"></tr></thead>
+                    <tbody id="tabla-body"></tbody>
+                </table>
             </div>
         </div>
 
-        <!-- Contenedor donde Plotly dibujará el gráfico -->
-        <div id="chart-container"></div>
+        <!-- CONTENIDO: Análisis de Rubros -->
+        <div id="tab-analisis" class="tab-content">
+            <div style="display: flex; gap: 20px;">
+                <div id="chart-ingresos" class="chart-box" style="flex: 1;"></div>
+                <div id="chart-egresos" class="chart-box" style="flex: 1;"></div>
+            </div>
+        </div>
 
-        <!-- Lógica JavaScript para conectar con Python y dibujar -->
         <script>
+            // Función para alternar pestañas
+            function cambiarPestana(idDestino, btnElement) {
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+                document.getElementById(idDestino).classList.add('active');
+                btnElement.classList.add('active');
+            }
+
+            // Formatear Moneda
+            function formatMoney(num) {
+                if(num < 0) return "-$" + Math.abs(num).toLocaleString('en-US');
+                return "$" + num.toLocaleString('en-US');
+            }
+
             async function procesarArchivo() {
                 const fileInput = document.getElementById('fileInput');
                 const statusMsg = document.getElementById('status-msg');
-                
-                if (fileInput.files.length === 0) {
-                    statusMsg.innerText = "⚠️ Por favor, selecciona un archivo primero.";
-                    return;
-                }
+                if (fileInput.files.length === 0) { statusMsg.innerText = "Selecciona un archivo."; return; }
 
-                statusMsg.innerText = "⚙️ Procesando datos en la nube...";
-                
-                // Preparamos el archivo para enviarlo a Python
-                const formData = new FormData();
-                formData.append("archivo", fileInput.files[0]);
+                statusMsg.innerText = "Procesando...";
+                const formData = new FormData(); formData.append("archivo", fileInput.files[0]);
 
                 try {
-                    // Enviamos el archivo a nuestra ruta /procesar-excel/
-                    const response = await fetch('/procesar-excel/', {
-                        method: 'POST',
-                        body: formData
+                    const res = await fetch('/procesar-excel/', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.estado === "error") { statusMsg.innerText = "Error: " + data.mensaje; return; }
+                    statusMsg.innerText = "";
+                    document.getElementById('tabs-menu').style.display = 'flex';
+
+                    // 1. Llenar Métricas
+                    document.getElementById('val-inicial').innerText = formatMoney(data.saldo_inicial);
+                    document.getElementById('val-deficit').innerText = formatMoney(data.deficit_maximo);
+
+                    // 2. Gráfico de Evolución
+                    Plotly.newPlot('chart-lineas', [
+                        { x: data.fechas, y: data.saldo_acumulado, name: 'Saldo Acumulado', type: 'scatter', mode: 'lines+markers', line: {color: '#60a5fa', width: 4}, fill: 'tozeroy', fillcolor: 'rgba(96, 165, 250, 0.15)' },
+                        { x: data.fechas, y: data.posicion_dia, name: 'Saldo Diario', type: 'bar', marker: {color: 'rgba(148, 163, 184, 0.4)'} }
+                    ], {
+                        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: '#e2e8f0'},
+                        hovermode: 'x unified', xaxis: {showgrid: false}, yaxis: {showgrid: true, gridcolor: 'rgba(255,255,255,0.08)'}, margin: {t: 30, b: 40, l: 50, r: 20}
                     });
+
+                    // 3. Gráficos de Torta (Donas con automargin y textposition)
+                    const layoutPie = {
+                        paper_bgcolor: 'rgba(0,0,0,0)', font: {color: '#e2e8f0'},
+                        showlegend: false, margin: {t: 40, b: 60, l: 80, r: 80}
+                    };
                     
-                    const data = await response.json();
+                    Plotly.newPlot('chart-ingresos', [{
+                        values: data.ingresos_vals, labels: data.ingresos_nombres, type: 'pie', hole: 0.5,
+                        textposition: 'outside', textinfo: 'label+percent', automargin: true
+                    }], { ...layoutPie, title: 'Estructura de Ingresos' });
 
-                    if (data.estado === "error") {
-                        statusMsg.innerText = "❌ Error: " + data.mensaje;
-                        return;
-                    }
+                    Plotly.newPlot('chart-egresos', [{
+                        values: data.egresos_vals, labels: data.egresos_nombres, type: 'pie', hole: 0.5,
+                        textposition: 'outside', textinfo: 'label+percent', automargin: true
+                    }], { ...layoutPie, title: 'Estructura de Egresos' });
 
-                    statusMsg.innerText = "✅ ¡Tablero generado con éxito!";
+                    // 4. Llenar Tabla Matriz
+                    const thRow = document.getElementById('tabla-header');
+                    thRow.innerHTML = "<th>Concepto</th>" + data.fechas.map(f => `<th>${f}</th>`).join("");
                     
-                    // Mostrar los paneles ocultos
-                    document.getElementById('metrics-panel').style.display = 'flex';
-                    document.getElementById('chart-container').style.display = 'block';
+                    const tbody = document.getElementById('tabla-body');
+                    tbody.innerHTML = data.saldos_matriz.map(row => {
+                        return `<tr>
+                            <td><strong>${row.concepto}</strong></td>
+                            ${data.fechas.map((f, i) => {
+                                let val = row.valores[i];
+                                let clase = val < 0 ? "negativo" : "";
+                                return `<td class="${clase}">${formatMoney(val)}</td>`;
+                            }).join("")}
+                        </tr>`;
+                    }).join("");
 
-                    // Actualizar Métricas
-                    document.getElementById('val-inicial').innerText = "$" + data.saldo_inicial.toLocaleString('en-US');
-                    document.getElementById('val-deficit').innerText = "$" + data.deficit_maximo.toLocaleString('en-US');
-
-                    // Dibujar el Gráfico con Plotly
-                    const trazoAcumulado = {
-                        x: data.fechas,
-                        y: data.saldo_acumulado,
-                        name: 'Saldo Acumulado',
-                        type: 'scatter',
-                        mode: 'lines+markers',
-                        line: {color: '#60a5fa', width: 4},
-                        marker: {size: 8, color: '#3b82f6'},
-                        fill: 'tozeroy',
-                        fillcolor: 'rgba(96, 165, 250, 0.15)'
-                    };
-
-                    const trazoDiario = {
-                        x: data.fechas,
-                        y: data.posicion_dia,
-                        name: 'Saldo Diario',
-                        type: 'bar',
-                        marker: {color: 'rgba(148, 163, 184, 0.4)'}
-                    };
-
-                    const layout = {
-                        paper_bgcolor: 'rgba(0,0,0,0)',
-                        plot_bgcolor: 'rgba(0,0,0,0)',
-                        font: {color: '#e2e8f0'},
-                        hovermode: 'x unified',
-                        xaxis: {showgrid: false},
-                        yaxis: {showgrid: true, gridcolor: 'rgba(255,255,255,0.08)'},
-                        margin: {l: 40, r: 20, t: 30, b: 40}
-                    };
-
-                    Plotly.newPlot('chart-container', [trazoAcumulado, trazoDiario], layout);
-
-                } catch (error) {
-                    statusMsg.innerText = "❌ Error de conexión con el servidor.";
+                } catch (e) {
+                    statusMsg.innerText = "Error de red.";
                 }
             }
         </script>
@@ -189,27 +222,24 @@ def ruta_principal():
     """
     return html_content
 
-# 2. RUTA DE PROCESAMIENTO: El Cerebro Python (Backend)
+# 2. RUTA BACKEND: Procesa Excel y envía JSON
 @app.post("/procesar-excel/")
 async def procesar_archivo_excel(archivo: UploadFile = File(...)):
     try:
         contenido = await archivo.read()
         df_raw = pd.read_excel(BytesIO(contenido))
         
-        # Limpieza básica
         df_raw.rename(columns={df_raw.columns[0]: "Concepto"}, inplace=True)
         col_concepto = "Concepto"
-        df_raw[col_concepto] = df_raw[col_concepto].fillna("").astype(str).replace(['nan', 'None', 'NaN'], '')
+        df_raw[col_concepto] = df_raw[col_concepto].fillna("").astype(str)
         df_raw['concepto_norm'] = df_raw[col_concepto].apply(normalizar_concepto)
         
-        # Extraer fechas válidas (simulado para las primeras 10 columnas para esta prueba)
         cols_fechas = [col for col in df_raw.columns if col not in [col_concepto, 'concepto_norm']][:15]
         fechas_str = [str(col).split(" ")[0] for col in cols_fechas]
         
         for col in cols_fechas:
             df_raw[col] = df_raw[col].apply(limpiar_valor_moneda)
             
-        # Extraer filas clave
         row_saldo_acum = df_raw[df_raw['concepto_norm'].str.contains("saldoacumulado", na=False)]
         row_posicion_dia = df_raw[df_raw['concepto_norm'].str.contains("posiciondeldia", na=False)]
         row_saldo_ini = df_raw[df_raw['concepto_norm'].str.contains("saldoinicial", na=False)]
@@ -218,17 +248,46 @@ async def procesar_archivo_excel(archivo: UploadFile = File(...)):
         arr_posicion_dia = row_posicion_dia[cols_fechas].values[0].tolist() if not row_posicion_dia.empty else [0]*len(cols_fechas)
         val_saldo_ini = row_saldo_ini[cols_fechas[0]].values[0] if not row_saldo_ini.empty else 0.0
         
-        min_saldo = min(arr_saldo_acum) if arr_saldo_acum else 0
-        deficit_maximo = min_saldo if min_saldo < 0 else 0
+        # Procesamiento para Gráficos de Torta
+        idx_ingresos_list = df_raw.index[df_raw['concepto_norm'].str.contains("totalingresos", na=False)].tolist()
+        idx_egresos_list = df_raw.index[df_raw['concepto_norm'].str.contains("totalegresos", na=False)].tolist()
         
-        # Devolvemos un diccionario JSON limpio a JavaScript
+        ingresos_nombres, ingresos_vals = [], []
+        egresos_nombres, egresos_vals = [], []
+        
+        if idx_ingresos_list and idx_egresos_list:
+            idx_ing, idx_egr = idx_ingresos_list[0], idx_egresos_list[0]
+            
+            df_raw['suma'] = df_raw[cols_fechas].sum(axis=1)
+            
+            df_ing = df_raw.iloc[0:idx_ing]
+            df_ing = df_ing[(df_ing['suma'] > 0) & (df_ing[col_concepto] != "")]
+            ingresos_nombres = df_ing[col_concepto].tolist()
+            ingresos_vals = df_ing['suma'].tolist()
+            
+            df_egr = df_raw.iloc[idx_ing+1:idx_egr]
+            df_egr = df_egr[(df_egr['suma'] > 0) & (df_egr[col_concepto] != "")]
+            egresos_nombres = df_egr[col_concepto].tolist()
+            egresos_vals = df_egr['suma'].tolist()
+
+        # Filas para la Matriz
+        saldos_matriz = [
+            {"concepto": "Posición del Día", "valores": arr_posicion_dia},
+            {"concepto": "Saldo Acumulado", "valores": arr_saldo_acum}
+        ]
+        
         return {
             "estado": "éxito",
             "fechas": fechas_str,
             "saldo_acumulado": arr_saldo_acum,
             "posicion_dia": arr_posicion_dia,
             "saldo_inicial": val_saldo_ini,
-            "deficit_maximo": deficit_maximo
+            "deficit_maximo": min(arr_saldo_acum) if arr_saldo_acum and min(arr_saldo_acum) < 0 else 0,
+            "ingresos_nombres": ingresos_nombres,
+            "ingresos_vals": ingresos_vals,
+            "egresos_nombres": egresos_nombres,
+            "egresos_vals": egresos_vals,
+            "saldos_matriz": saldos_matriz
         }
     except Exception as e:
         return {"estado": "error", "mensaje": str(e)}
