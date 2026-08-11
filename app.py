@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS Avanzado: Corrección definitiva de pestañas
+# CSS Avanzado: Corrección extrema para pestañas y diseño
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -31,7 +31,6 @@ st.markdown("""
         font-family: 'Inter', sans-serif !important; 
     }
     
-    /* Banner Superior Corporativo */
     .corporate-banner {
         background: rgba(255, 255, 255, 0.05);
         border-bottom: 1px solid rgba(255, 255, 255, 0.15);
@@ -53,7 +52,6 @@ st.markdown("""
     .corporate-header { font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 5px; letter-spacing: -1px; line-height: 1.2;}
     .corporate-subheader { font-size: 1.05rem; color: #93c5fd; font-weight: 400; }
     
-    /* Estilización de Métricas Nativas */
     div[data-testid="metric-container"] {
         background: linear-gradient(145deg, rgba(30, 58, 138, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
         border: 1px solid rgba(147, 197, 253, 0.15);
@@ -64,35 +62,34 @@ st.markdown("""
     [data-testid="stMetricLabel"] * { color: #93c5fd !important; font-size: 0.95rem !important; font-weight: 600 !important; text-transform: uppercase; }
     [data-testid="stMetricValue"] * { color: #ffffff !important; font-size: 2.2rem !important; font-weight: 800 !important; }
 
-    /* CORRECCIÓN INFALIBLE DE PESTAÑAS (TABS) */
-    .stTabs [data-baseweb="tab-list"] {
-        background: rgba(15, 23, 42, 0.8);
-        padding: 8px;
-        border-radius: 12px;
-        border: 1px solid rgba(147, 197, 253, 0.2);
-        gap: 10px;
+    /* =========================================================
+       CORRECCIÓN EXTREMA DE PESTAÑAS (TABS)
+       ========================================================= */
+    /* Contenedor de las pestañas */
+    div[data-testid="stTabs"] {
+        background-color: transparent !important;
     }
-    .stTabs button[role="tab"] {
-        background: transparent !important;
-        border: none !important;
-        padding: 10px 20px !important;
+    /* Estilo del botón inactivo */
+    div[data-testid="stTabs"] button {
+        background-color: rgba(15, 23, 42, 0.8) !important;
+        border: 1px solid rgba(147, 197, 253, 0.2) !important;
         border-radius: 8px !important;
-        transition: all 0.3s ease;
+        margin-right: 10px !important;
+        padding: 10px 20px !important;
     }
-    /* Texto de Pestañas Inactivas (Celeste Claro) */
-    .stTabs button[role="tab"] * {
-        color: #cbd5e1 !important; 
-        font-weight: 600 !important;
-        font-size: 1.05rem !important;
+    /* Fuerza a TODO el texto interno a ser BLANCO y visible */
+    div[data-testid="stTabs"] button * {
+        color: #e2e8f0 !important;
+        font-weight: 700 !important;
+        font-size: 1.1rem !important;
     }
-    .stTabs button[role="tab"]:hover * {
-        color: #ffffff !important;
-    }
-    /* Pestaña Activa */
-    .stTabs button[role="tab"][aria-selected="true"] {
+    /* Estilo del botón activo (Seleccionado) */
+    div[data-testid="stTabs"] button[aria-selected="true"] {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        border: 1px solid #60a5fa !important;
     }
-    .stTabs button[role="tab"][aria-selected="true"] * {
+    /* Texto del botón activo (Aún más brillante) */
+    div[data-testid="stTabs"] button[aria-selected="true"] * {
         color: #ffffff !important;
         font-weight: 800 !important;
     }
@@ -102,7 +99,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =============================================================================
-# 2. MOTOR DE BASE DE DATOS E IMÁGENES
+# 2. MOTOR DE BASE DE DATOS (HISTORIAL)
 # =============================================================================
 DB_LOCAL = "cashflow_history.db"
 
@@ -142,18 +139,22 @@ def guardar_dia_en_historial(fecha_str, df_procesado):
     conn = sqlite3.connect(DB_LOCAL)
     cursor = conn.cursor()
     registros_supabase = []
+    
     for _, row in df_procesado.iterrows():
         concepto = row['Concepto']
         concepto_norm = row['concepto_norm']
         monto = float(row[fecha_str])
+        
         cursor.execute("""
             INSERT INTO historico_diario_conceptos (fecha, concepto, concepto_norm, monto)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(fecha, concepto_norm) DO UPDATE SET
                 monto = excluded.monto, concepto = excluded.concepto
         """, (fecha_str, concepto, concepto_norm, monto))
+        
         if supabase:
             registros_supabase.append({"fecha": fecha_str, "concepto": concepto, "concepto_norm": concepto_norm, "monto": monto})
+            
     conn.commit()
     conn.close()
     if supabase and registros_supabase:
@@ -165,16 +166,20 @@ def cargar_fechas_historicas(fecha_corte_obj):
     df_db = pd.read_sql_query("SELECT fecha, concepto, concepto_norm, monto FROM historico_diario_conceptos", conn)
     conn.close()
     if df_db.empty: return pd.DataFrame()
+    
     fechas_validas = []
     for f_str in df_db['fecha'].unique():
         try:
             f_obj = pd.to_datetime(f_str, format='%d/%m/%Y').date()
             if f_obj < fecha_corte_obj: fechas_validas.append((f_obj, f_str))
         except Exception: pass
+            
     if not fechas_validas: return pd.DataFrame()
     fechas_validas.sort(key=lambda x: x[0])
+    
     df_pivot = df_db.pivot(index=['concepto_norm', 'concepto'], columns='fecha', values='monto').reset_index()
     df_pivot.rename(columns={'concepto': 'Concepto'}, inplace=True)
+    
     cols_hist_ordenadas = [f[1] for f in fechas_validas if f[1] in df_pivot.columns]
     cols_finales = ['Concepto', 'concepto_norm'] + cols_hist_ordenadas
     return df_pivot[cols_finales]
@@ -394,17 +399,17 @@ if uploaded_file is not None and hoja_seleccionada is not None:
                 df_egresos_chart = df_egresos_chart[(df_egresos_chart['Suma_Periodo'] > 0) & (df_egresos_chart[col_concepto] != "")]
 
                 c_torta1, c_torta2 = st.columns(2)
-                # CORRECCIÓN DE GRÁFICOS: Se aumentan los márgenes 'l' y 'r' a 120 para evitar cortes.
+                # CORRECCIÓN EN GRÁFICOS: Márgenes super amplios (l=200, r=200) y fuente tamaño 11 para que nada se corte.
                 with c_torta1:
-                    fig_ing = px.pie(df_ingresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.6, color_discrete_sequence=px.colors.sequential.Teal)
-                    fig_ing.update_traces(textposition='outside', textinfo='label+percent+value', hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
-                    fig_ing.update_layout(title=dict(text="Distribución de Ingresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=40, l=120, r=120))
+                    fig_ing = px.pie(df_ingresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.5, color_discrete_sequence=px.colors.sequential.Teal)
+                    fig_ing.update_traces(textposition='outside', textinfo='label+percent', textfont=dict(size=11), hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
+                    fig_ing.update_layout(title=dict(text="Distribución de Ingresos", font=dict(color='#e2e8f0', size=18)), height=500, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=50, l=200, r=200))
                     st.plotly_chart(fig_ing, use_container_width=True)
 
                 with c_torta2:
-                    fig_egr = px.pie(df_egresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.6, color_discrete_sequence=px.colors.sequential.Reds_r)
-                    fig_egr.update_traces(textposition='outside', textinfo='label+percent+value', hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
-                    fig_egr.update_layout(title=dict(text="Distribución de Egresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=40, l=120, r=120))
+                    fig_egr = px.pie(df_egresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.5, color_discrete_sequence=px.colors.sequential.Reds_r)
+                    fig_egr.update_traces(textposition='outside', textinfo='label+percent', textfont=dict(size=11), hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
+                    fig_egr.update_layout(title=dict(text="Distribución de Egresos", font=dict(color='#e2e8f0', size=18)), height=500, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=50, l=200, r=200))
                     st.plotly_chart(fig_egr, use_container_width=True)
 
     except Exception as e:
