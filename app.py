@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS Avanzado: Corrección extrema para pestañas y diseño
+# CSS Avanzado: Resolución definitiva de Pestañas y Contraste
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -62,36 +62,30 @@ st.markdown("""
     [data-testid="stMetricLabel"] * { color: #93c5fd !important; font-size: 0.95rem !important; font-weight: 600 !important; text-transform: uppercase; }
     [data-testid="stMetricValue"] * { color: #ffffff !important; font-size: 2.2rem !important; font-weight: 800 !important; }
 
-    /* =========================================================
-       CORRECCIÓN EXTREMA DE PESTAÑAS (TABS)
-       ========================================================= */
-    /* Contenedor de las pestañas */
-    div[data-testid="stTabs"] {
-        background-color: transparent !important;
-    }
-    /* Estilo del botón inactivo */
+    /* ====================================================================
+       CORRECCIÓN DEFINITIVA DE PESTAÑAS (TABS)
+       Forzamos el color blanco y opacidad total en la etiqueta <p> interna
+       ==================================================================== */
     div[data-testid="stTabs"] button {
         background-color: rgba(15, 23, 42, 0.8) !important;
         border: 1px solid rgba(147, 197, 253, 0.2) !important;
         border-radius: 8px !important;
-        margin-right: 10px !important;
-        padding: 10px 20px !important;
+        margin-right: 5px !important;
     }
-    /* Fuerza a TODO el texto interno a ser BLANCO y visible */
-    div[data-testid="stTabs"] button * {
-        color: #e2e8f0 !important;
+    div[data-testid="stTabs"] button p {
+        color: #f8fafc !important; /* Blanco hielo infalible */
         font-weight: 700 !important;
         font-size: 1.1rem !important;
+        opacity: 1 !important; /* Streamlit suele poner opacidad 0.6, aquí la forzamos a 1 */
+        visibility: visible !important;
     }
-    /* Estilo del botón activo (Seleccionado) */
     div[data-testid="stTabs"] button[aria-selected="true"] {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
         border: 1px solid #60a5fa !important;
     }
-    /* Texto del botón activo (Aún más brillante) */
-    div[data-testid="stTabs"] button[aria-selected="true"] * {
+    div[data-testid="stTabs"] button[aria-selected="true"] p {
         color: #ffffff !important;
-        font-weight: 800 !important;
+        font-weight: 900 !important;
     }
 
     .section-title { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; margin-top: 25px; margin-bottom: 20px; border-left: 4px solid #60a5fa; padding-left: 12px; }
@@ -399,17 +393,18 @@ if uploaded_file is not None and hoja_seleccionada is not None:
                 df_egresos_chart = df_egresos_chart[(df_egresos_chart['Suma_Periodo'] > 0) & (df_egresos_chart[col_concepto] != "")]
 
                 c_torta1, c_torta2 = st.columns(2)
-                # CORRECCIÓN EN GRÁFICOS: Márgenes super amplios (l=200, r=200) y fuente tamaño 11 para que nada se corte.
+                
+                # CORRECCIÓN EN GRÁFICOS: Altura expandida a 700px y margen inferior (b) en 150px
                 with c_torta1:
                     fig_ing = px.pie(df_ingresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.5, color_discrete_sequence=px.colors.sequential.Teal)
                     fig_ing.update_traces(textposition='outside', textinfo='label+percent', textfont=dict(size=11), hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
-                    fig_ing.update_layout(title=dict(text="Distribución de Ingresos", font=dict(color='#e2e8f0', size=18)), height=500, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=50, l=200, r=200))
+                    fig_ing.update_layout(title=dict(text="Distribución de Ingresos", font=dict(color='#e2e8f0', size=18)), height=700, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=150, l=150, r=150))
                     st.plotly_chart(fig_ing, use_container_width=True)
 
                 with c_torta2:
                     fig_egr = px.pie(df_egresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.5, color_discrete_sequence=px.colors.sequential.Reds_r)
                     fig_egr.update_traces(textposition='outside', textinfo='label+percent', textfont=dict(size=11), hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
-                    fig_egr.update_layout(title=dict(text="Distribución de Egresos", font=dict(color='#e2e8f0', size=18)), height=500, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=50, l=200, r=200))
+                    fig_egr.update_layout(title=dict(text="Distribución de Egresos", font=dict(color='#e2e8f0', size=18)), height=700, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=150, l=150, r=150))
                     st.plotly_chart(fig_egr, use_container_width=True)
 
     except Exception as e:
