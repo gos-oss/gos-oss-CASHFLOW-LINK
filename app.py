@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, date
 from supabase import create_client, Client
 
 # =============================================================================
-# 1. CONFIGURACIÓN Y ESTILOS CSS DEFINITIVOS (MODO OSCURO INTEGRAL)
+# 1. CONFIGURACIÓN Y ESTILOS CSS DEFINITIVOS (ESPACIADO Y MODO OSCURO)
 # =============================================================================
 st.set_page_config(
     page_title="Cashflow Link | Dashboard Ejecutivo",
@@ -17,6 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Reglas CSS avanzadas para mejorar la legibilidad y el espaciado de tablas
 st.markdown("""
     <style>
     /* Fondo global de la aplicación */
@@ -39,32 +40,43 @@ st.markdown("""
         margin-bottom: 20px; 
     }
     
-    /* ESTILIZADO DE EXPANDERS (SIN BARRAS O FONDOS BLANCOS) */
+    /* ESTILIZADO DE EXPANDERS (PANEL DESPLEGABLE OSCURO) */
     div[data-testid="stExpander"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
         border-radius: 12px !important;
-        margin-bottom: 15px !important;
+        margin-bottom: 20px !important;
     }
     div[data-testid="stExpander"] summary {
         background-color: #181B22 !important;
         color: #FFFFFF !important;
         border-radius: 12px !important;
+        padding: 14px 20px !important;
     }
     div[data-testid="stExpander"] summary * {
         color: #FFFFFF !important;
         font-weight: 700 !important;
-    }
-    .streamlit-expanderHeader {
-        background-color: #181B22 !important;
-        color: #FFFFFF !important;
+        font-size: 1.05rem !important;
     }
     .streamlit-expanderContent {
         background-color: #13151C !important;
         border-top: 1px solid #2D323E !important;
+        padding: 20px !important;
     }
     
-    /* ESTILIZADO DE CARGADOR DE ARCHIVOS (FILE UPLOADER) */
+    /* TABLAS EN MODO OSCURO CON MAYOR ESPACIADO (ST.DATAFRAME) */
+    div[data-testid="stDataFrame"] {
+        background-color: #181B22 !important;
+        border: 1px solid #2D323E !important;
+        border-radius: 10px !important;
+        padding: 5px !important;
+    }
+    div[data-testid="stDataFrame"] * {
+        color: #FFFFFF !important;
+        border-color: #2D323E !important;
+    }
+    
+    /* CARGADOR DE ARCHIVOS Y INPUTS */
     [data-testid="stFileUploader"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -84,7 +96,6 @@ st.markdown("""
         border-radius: 8px !important;
     }
 
-    /* ESTILIZADO DE ENTRADAS DE TEXTO Y FECHA */
     div[data-baseweb="input"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -99,17 +110,6 @@ st.markdown("""
         border: 1px solid #2D323E !important;
         color: #FFFFFF !important;
         border-radius: 8px !important;
-    }
-    
-    /* TABLAS EN MODO OSCURO (ST.DATAFRAME) */
-    div[data-testid="stDataFrame"] {
-        background-color: #181B22 !important;
-        border: 1px solid #2D323E !important;
-        border-radius: 10px !important;
-    }
-    div[data-testid="stDataFrame"] * {
-        color: #FFFFFF !important;
-        border-color: #2D323E !important;
     }
     
     /* TARJETAS KPI */
@@ -182,12 +182,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Encabezado
+# Encabezado corporativo
 st.markdown('<p class="brand-title">💼 CASHFLOW LINK <span style="font-size:1.1rem; font-weight:400; color:#94A3B8;">| Dashboard Ejecutivo & Liquidez</span></p>', unsafe_allow_html=True)
 st.markdown('<p class="brand-subtitle">Sistema corporativo de análisis de flujo de caja y proyección a 13 semanas.</p>', unsafe_allow_html=True)
 
 # =============================================================================
-# 2. CONEXIÓN A SUPABASE
+# 2. CONEXIÓN SEGURA A SUPABASE
 # =============================================================================
 @st.cache_resource
 def init_supabase() -> Client:
@@ -303,7 +303,7 @@ if btn_simular and concepto_desc.strip() != "":
     st.success(f"¡Concepto '{concepto_desc}' inyectado en {semana_destino}!")
 
 # =============================================================================
-# 5. MATRICES Y CÁLCULO EXACTO DE RUNWAY Y SALDO ACUMULADO
+# 5. MATRICES Y CÁLCULO DE SALDO ACUMULADO
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -320,36 +320,28 @@ if uploaded_file is not None:
         for col in cols_fechas:
             df_procesado[col] = df_procesado[col].apply(limpiar_valor_moneda)
 
-        # ---------------------------------------------------------------------
-        # CÁLCULO PRECISO DE ILIQUIDEZ Y DÍAS DE CAJA (RUNWAY)
-        # ---------------------------------------------------------------------
+        # Filtrar exactamente la fila "Saldo acumulado"
         row_saldo_acum = df_procesado[df_procesado[col_concepto_nombre].str.contains("^Saldo acumulado$", case=False, na=False, regex=True)]
         if row_saldo_acum.empty:
             row_saldo_acum = df_procesado[df_procesado[col_concepto_nombre].str.contains("acumulado", case=False, na=False)]
         
         fecha_iliquidez_exacta = "Sin Iliquidez"
-        dias_runway = "+90 Días"  # Por defecto, si nunca se vuelve negativo
+        dias_runway = "+90 Días"
         
         if not row_saldo_acum.empty:
             for col_fecha in cols_fechas:
                 val_saldo = row_saldo_acum[col_fecha].values[0]
-                # Evaluamos de forma estricta si el saldo acumulado real cayó debajo de cero
                 if val_saldo < 0:
                     try:
-                        # 1. Parsear el encabezado de columna a un objeto fecha real
                         fecha_quiebre = pd.to_datetime(col_fecha, format='mixed', dayfirst=True).date()
                         fecha_iliquidez_exacta = fecha_quiebre.strftime("%d/%m/%Y")
-                        
-                        # 2. Calcular matemáticamente la diferencia (Días de Caja)
                         dias_diff = (fecha_quiebre - fecha_corte).days
                         dias_runway = f"{max(0, dias_diff)} Días"
                     except Exception:
-                        # Resguardo en caso de que el encabezado no sea parseable
                         fecha_iliquidez_exacta = str(col_fecha).split(" ")[0]
                         dias_runway = "Dato no calculable"
                     break
 
-        # Base de proyecciones a futuro (Matrices dinámicas combinadas)
         matriz_ingresos = {
             "Cupos Neuquén": [120928815, 0, 0, 0, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000],
             "Cupos Boulevard": [60192280, 0, 0, 0, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070],
@@ -395,7 +387,7 @@ if uploaded_file is not None:
             saldo_act += fn
             saldo_acumulado.append(saldo_act)
 
-        # PESTAÑAS NAVEGABLES
+        # PESTAÑAS
         tab_dash, tab_influencia, tab_matriz_nueva, tab_excel_raw, tab_hist = st.tabs([
             "Visión General", 
             "Análisis por Rubro", 
@@ -404,7 +396,7 @@ if uploaded_file is not None:
             "📜 Histórico Supabase"
         ])
 
-        # PESTAÑA 1: VISIÓN GENERAL CON RUNWAY DINÁMICO
+        # PESTAÑA 1: VISIÓN GENERAL
         with tab_dash:
             defic_max = min(saldo_acumulado)
             idx_defic_max = saldo_acumulado.index(defic_max)
@@ -412,9 +404,7 @@ if uploaded_file is not None:
 
             c1, c2, c3, c4 = st.columns(4)
             c1.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Disponibilidad ({fecha_corte.strftime("%d/%m/%Y")})</div><div class="kpi-num">${saldo_inicial:,.0f} <span class="badge-green">↑ 2.4%</span></div></div>', unsafe_allow_html=True)
-            # Tarjeta de Runway dinámica
             c2.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Runway Operativo</div><div class="kpi-num">{dias_runway}</div></div>', unsafe_allow_html=True)
-            # Tarjeta de Iliquidez Crítica basada en el saldo acumulado de Excel
             c3.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Iliquidez Crítica</div><div class="kpi-num" style="color:#F87171;">{fecha_iliquidez_exacta} <span class="badge-red">ALERTA</span></div></div>', unsafe_allow_html=True)
             c4.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Déficit Pico ({periodo_defic_max})</div><div class="kpi-num" style="color:#F87171;">${defic_max:,.0f} <span class="badge-red">PICO</span></div></div>', unsafe_allow_html=True)
 
@@ -473,9 +463,11 @@ if uploaded_file is not None:
                 )
                 st.plotly_chart(fig_stack, use_container_width=True)
 
+        # PESTAÑA 3: DETALLE FINANCIERO CON TABLAS ESPACIOSAS
         with tab_matriz_nueva:
             st.subheader("📂 Detalle Financiero: Desglose Estructurado por Concepto")
 
+            # 1. Resumen de Saldos sin índices
             with st.expander("📌 **RESUMEN DE LIQUIDEZ Y SALDOS POR PERIODO**", expanded=True):
                 df_resumen_semanal = pd.DataFrame({"Concepto": ["(+) Total Ingresos", "(-) Total Egresos", "(=) Flujo Neto", "SALDO ACUMULADO FINAL"]})
                 for idx, sem_p in enumerate(semanas_dinamicas):
@@ -486,6 +478,7 @@ if uploaded_file is not None:
                     df_res_fmt[col] = df_res_fmt[col].apply(lambda x: f"${x:,.0f}")
                 st.dataframe(df_res_fmt, use_container_width=True, hide_index=True)
 
+            # 2. Detalle de Ingresos sin índices
             with st.expander("🟢 **DETALLE DE INGRESOS POR CONCEPTO / RUBRO**", expanded=True):
                 df_ing_det = pd.DataFrame(matriz_ingresos, index=semanas_dinamicas).T.reset_index()
                 df_ing_det.rename(columns={'index': 'Concepto / Rubro'}, inplace=True)
@@ -496,6 +489,7 @@ if uploaded_file is not None:
                     df_ing_fmt[col] = df_ing_fmt[col].apply(lambda x: f"${x:,.0f}")
                 st.dataframe(df_ing_fmt, use_container_width=True, hide_index=True)
 
+            # 3. Detalle de Egresos sin índices
             with st.expander("🔴 **DETALLE DE EGRESOS POR CONCEPTO / RUBRO**", expanded=True):
                 df_egr_det = pd.DataFrame(matriz_egresos, index=semanas_dinamicas).T.reset_index()
                 df_egr_det.rename(columns={'index': 'Concepto / Rubro'}, inplace=True)
