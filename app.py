@@ -6,6 +6,7 @@ from datetime import datetime, date
 import re
 import sqlite3
 import os
+import base64
 from supabase import create_client, Client
 
 # =============================================================================
@@ -18,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS Avanzado: Corrección de contraste para etiquetas y pestañas
+# CSS Avanzado: Corrección de contraste para pestañas y estilización de logo
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -39,100 +40,68 @@ st.markdown("""
         margin-bottom: 30px;
         backdrop-filter: blur(10px);
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
     }
     .corporate-logo {
-        max-height: 50px;
+        max-height: 45px;
         width: auto;
         margin-bottom: 15px;
         object-fit: contain;
+        background-color: rgba(255, 255, 255, 0.85); /* Fondo claro para que resalte el texto negro del logo */
+        padding: 8px 15px;
+        border-radius: 8px;
     }
     .corporate-header { font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 5px; letter-spacing: -1px; line-height: 1.2;}
     .corporate-subheader { font-size: 1.05rem; color: #93c5fd; font-weight: 400; }
     
-    /* CORRECCIÓN: Estilización de Métricas Nativas */
+    /* Estilización de Métricas Nativas */
     div[data-testid="metric-container"] {
         background: linear-gradient(145deg, rgba(30, 58, 138, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
         border: 1px solid rgba(147, 197, 253, 0.15);
         border-radius: 16px;
         padding: 20px 25px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-        transition: transform 0.3s ease, border-color 0.3s ease;
     }
-    div[data-testid="metric-container"]:hover {
-        transform: translateY(-5px);
-        border-color: rgba(96, 165, 250, 0.6);
+    [data-testid="stMetricLabel"] * { color: #93c5fd !important; font-size: 0.95rem !important; font-weight: 600 !important; text-transform: uppercase; }
+    [data-testid="stMetricValue"] * { color: #ffffff !important; font-size: 2.2rem !important; font-weight: 800 !important; }
+
+    /* CORRECCIÓN DE PESTAÑAS (TABS) */
+    .stTabs [data-baseweb="tab-list"] {
+        background: rgba(15, 23, 42, 0.8);
+        padding: 8px;
+        border-radius: 12px;
+        border: 1px solid rgba(147, 197, 253, 0.2);
+        gap: 10px;
     }
-    /* Forzamos el color celeste claro en TODAS las etiquetas de las métricas */
-    [data-testid="stMetricLabel"] * {
-        color: #93c5fd !important;
-        font-size: 0.95rem !important;
+    .stTabs [data-baseweb="tab"] {
+        background: transparent !important;
+        border: none !important;
+    }
+    /* Texto de Pestañas Inactivas */
+    .stTabs [data-baseweb="tab"] p {
+        color: #94a3b8 !important; 
         font-weight: 600 !important;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        font-size: 1.05rem !important;
+        transition: color 0.3s ease;
     }
-    /* Forzamos el color blanco en TODOS los valores de las métricas */
-    [data-testid="stMetricValue"] * {
+    .stTabs [data-baseweb="tab"]:hover p {
         color: #ffffff !important;
-        font-size: 2.2rem !important;
+    }
+    /* Pestaña Activa */
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        border-radius: 8px !important;
+    }
+    .stTabs [aria-selected="true"] p {
+        color: #ffffff !important;
         font-weight: 800 !important;
     }
 
-    /* CORRECCIÓN: Pestañas (Tabs) Visibles */
-    .stTabs [data-baseweb="tab-list"] {
-        background: rgba(15, 23, 42, 0.6);
-        padding: 6px;
-        border-radius: 14px;
-        border: 1px solid rgba(147, 197, 253, 0.1);
-        gap: 8px;
-        box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 10px;
-        padding: 12px 24px;
-        border: none !important;
-        background: transparent !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    /* Color para las pestañas inactivas */
-    .stTabs [data-baseweb="tab"] * {
-        color: #94a3b8 !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-    }
-    .stTabs [data-baseweb="tab"]:hover * {
-        color: #e2e8f0 !important;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(255,255,255,0.05) !important;
-    }
-    /* Color para la pestaña activa */
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.5);
-    }
-    .stTabs [aria-selected="true"] * {
-        color: #ffffff !important;
-    }
-
-    /* Títulos de Sección */
-    .section-title {
-        font-size: 1.4rem;
-        font-weight: 700;
-        color: #f1f5f9;
-        margin-top: 25px;
-        margin-bottom: 20px;
-        border-left: 4px solid #60a5fa;
-        padding-left: 12px;
-        letter-spacing: -0.5px;
-    }
+    .section-title { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; margin-top: 25px; margin-bottom: 20px; border-left: 4px solid #60a5fa; padding-left: 12px; }
     </style>
 """, unsafe_allow_html=True)
 
 # =============================================================================
-# 2. MOTOR DE BASE DE DATOS (HISTORIAL)
+# 2. MOTOR DE BASE DE DATOS (HISTORIAL) Y MANEJO DE IMÁGENES
 # =============================================================================
 DB_LOCAL = "cashflow_history.db"
 
@@ -160,6 +129,13 @@ def init_supabase() -> Client:
         return None
 
 supabase = init_supabase()
+
+def get_image_base64(path):
+    """Lee una imagen local y la convierte a base64 para inyectarla en HTML."""
+    if os.path.exists(path):
+        with open(path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode()
+    return ""
 
 def guardar_dia_en_historial(fecha_str, df_procesado):
     if fecha_str not in df_procesado.columns: return
@@ -258,13 +234,18 @@ with st.sidebar:
     st.divider()
 
 # =============================================================================
-# 5. PANTALLA PRINCIPAL CON LOGOTIPO
+# 5. PANTALLA PRINCIPAL CON LOGOTIPO LOCAL
 # =============================================================================
-URL_LOGOTIPO = "https://via.placeholder.com/250x60/1e3a8a/ffffff?text=TU+LOGO+AQUI"
+# Lectura de la imagen provista "image_9e4572.png"
+logo_base64 = get_image_base64("image_9e4572.png")
+if logo_base64:
+    logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="corporate-logo" alt="Logo">'
+else:
+    logo_html = "" # Fallback si no encuentra la imagen
 
 st.markdown(f"""
 <div class="corporate-banner">
-    <img src="{URL_LOGOTIPO}" class="corporate-logo" alt="Logo de la Empresa">
+    {logo_html}
     <div class="corporate-header">CASHFLOW LINK</div>
     <div class="corporate-subheader">Executive Board • Sistema Unificado de Liquidez y Proyecciones</div>
 </div>
@@ -371,18 +352,13 @@ if uploaded_file is not None and hoja_seleccionada is not None:
             fig_line.add_trace(go.Scatter(
                 x=eje_x_fechas, y=arr_saldo_acum, mode='lines+markers', name='Saldo Acumulado', 
                 line=dict(color='#60a5fa', width=4), marker=dict(size=8, color='#3b82f6'), 
-                fill='tozeroy', fillcolor='rgba(96, 165, 250, 0.15)',
-                hovertemplate='%{y:$,.0f}<extra></extra>'
+                fill='tozeroy', fillcolor='rgba(96, 165, 250, 0.15)', hovertemplate='%{y:$,.0f}<extra></extra>'
             ))
             fig_line.add_trace(go.Bar(
-                x=eje_x_fechas, y=arr_posicion_dia, name='Saldo Diario', 
-                marker_color='rgba(148, 163, 184, 0.4)',
-                hovertemplate='%{y:$,.0f}<extra></extra>'
+                x=eje_x_fechas, y=arr_posicion_dia, name='Saldo Diario', marker_color='rgba(148, 163, 184, 0.4)', hovertemplate='%{y:$,.0f}<extra></extra>'
             ))
-            
             fig_line.update_layout(
-                height=480, margin=dict(l=0, r=0, t=10, b=0),
-                hovermode="x unified",
+                height=480, margin=dict(l=0, r=0, t=10, b=0), hovermode="x unified",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color='#e2e8f0')),
                 xaxis=dict(showgrid=False, tickfont=dict(color='#94a3b8')),
                 yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.08)', tickfont=dict(color='#94a3b8')),
@@ -429,18 +405,18 @@ if uploaded_file is not None and hoja_seleccionada is not None:
                 df_ingresos_chart = df_ingresos_chart[(df_ingresos_chart['Suma_Periodo'] > 0) & (df_ingresos_chart[col_concepto] != "")]
                 df_egresos_chart = df_egresos_chart[(df_egresos_chart['Suma_Periodo'] > 0) & (df_egresos_chart[col_concepto] != "")]
 
-                # MEJORA DE GRÁFICOS: Textos afuera, más grandes y detallados
                 c_torta1, c_torta2 = st.columns(2)
+                # CORRECCIÓN EN GRÁFICOS: showlegend=False para eliminar cajas inferiores duplicadas.
                 with c_torta1:
-                    fig_ing = px.pie(df_ingresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.5, color_discrete_sequence=px.colors.sequential.Teal)
+                    fig_ing = px.pie(df_ingresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.6, color_discrete_sequence=px.colors.sequential.Teal)
                     fig_ing.update_traces(textposition='outside', textinfo='label+percent+value', hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
-                    fig_ing.update_layout(title=dict(text="Distribución de Ingresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=True, legend=dict(orientation="h", y=-0.3, font=dict(color="#ffffff")), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=10, l=10, r=10))
+                    fig_ing.update_layout(title=dict(text="Distribución de Ingresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=10, l=10, r=10))
                     st.plotly_chart(fig_ing, use_container_width=True)
 
                 with c_torta2:
-                    fig_egr = px.pie(df_egresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.5, color_discrete_sequence=px.colors.sequential.Reds_r)
+                    fig_egr = px.pie(df_egresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.6, color_discrete_sequence=px.colors.sequential.Reds_r)
                     fig_egr.update_traces(textposition='outside', textinfo='label+percent+value', hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
-                    fig_egr.update_layout(title=dict(text="Distribución de Egresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=True, legend=dict(orientation="h", y=-0.3, font=dict(color="#ffffff")), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=10, l=10, r=10))
+                    fig_egr.update_layout(title=dict(text="Distribución de Egresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=10, l=10, r=10))
                     st.plotly_chart(fig_egr, use_container_width=True)
 
     except Exception as e:
