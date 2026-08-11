@@ -19,16 +19,19 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# CSS Avanzado: Corrección definitiva de pestañas
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     
+    /* Fondo global AZUL MARINO PROFUNDO */
     .stApp, .main { 
         background: radial-gradient(circle at 50% 0%, #1e3a8a 0%, #0f172a 100%) !important; 
         color: #f8fafc !important; 
         font-family: 'Inter', sans-serif !important; 
     }
     
+    /* Banner Superior Corporativo */
     .corporate-banner {
         background: rgba(255, 255, 255, 0.05);
         border-bottom: 1px solid rgba(255, 255, 255, 0.15);
@@ -43,13 +46,14 @@ st.markdown("""
         width: auto;
         margin-bottom: 15px;
         object-fit: contain;
-        background-color: rgba(255, 255, 255, 0.85); 
+        background-color: rgba(255, 255, 255, 0.85);
         padding: 8px 15px;
         border-radius: 8px;
     }
     .corporate-header { font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 5px; letter-spacing: -1px; line-height: 1.2;}
     .corporate-subheader { font-size: 1.05rem; color: #93c5fd; font-weight: 400; }
     
+    /* Estilización de Métricas Nativas */
     div[data-testid="metric-container"] {
         background: linear-gradient(145deg, rgba(30, 58, 138, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
         border: 1px solid rgba(147, 197, 253, 0.15);
@@ -60,6 +64,7 @@ st.markdown("""
     [data-testid="stMetricLabel"] * { color: #93c5fd !important; font-size: 0.95rem !important; font-weight: 600 !important; text-transform: uppercase; }
     [data-testid="stMetricValue"] * { color: #ffffff !important; font-size: 2.2rem !important; font-weight: 800 !important; }
 
+    /* CORRECCIÓN INFALIBLE DE PESTAÑAS (TABS) */
     .stTabs [data-baseweb="tab-list"] {
         background: rgba(15, 23, 42, 0.8);
         padding: 8px;
@@ -67,24 +72,27 @@ st.markdown("""
         border: 1px solid rgba(147, 197, 253, 0.2);
         gap: 10px;
     }
-    .stTabs [data-baseweb="tab"] {
+    .stTabs button[role="tab"] {
         background: transparent !important;
         border: none !important;
+        padding: 10px 20px !important;
+        border-radius: 8px !important;
+        transition: all 0.3s ease;
     }
-    .stTabs [data-baseweb="tab"] p {
-        color: #94a3b8 !important; 
+    /* Texto de Pestañas Inactivas (Celeste Claro) */
+    .stTabs button[role="tab"] * {
+        color: #cbd5e1 !important; 
         font-weight: 600 !important;
         font-size: 1.05rem !important;
-        transition: color 0.3s ease;
     }
-    .stTabs [data-baseweb="tab"]:hover p {
+    .stTabs button[role="tab"]:hover * {
         color: #ffffff !important;
     }
-    .stTabs [aria-selected="true"] {
+    /* Pestaña Activa */
+    .stTabs button[role="tab"][aria-selected="true"] {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-        border-radius: 8px !important;
     }
-    .stTabs [aria-selected="true"] p {
+    .stTabs button[role="tab"][aria-selected="true"] * {
         color: #ffffff !important;
         font-weight: 800 !important;
     }
@@ -226,8 +234,6 @@ if logo_base64:
 else:
     logo_html = ""
 
-# NOTA: Todo este bloque HTML debe ir sin espacios a la izquierda para evitar 
-# que Markdown lo convierta en un bloque de código gris.
 st.markdown(f"""
 <div class="corporate-banner">
 {logo_html}
@@ -388,16 +394,17 @@ if uploaded_file is not None and hoja_seleccionada is not None:
                 df_egresos_chart = df_egresos_chart[(df_egresos_chart['Suma_Periodo'] > 0) & (df_egresos_chart[col_concepto] != "")]
 
                 c_torta1, c_torta2 = st.columns(2)
+                # CORRECCIÓN DE GRÁFICOS: Se aumentan los márgenes 'l' y 'r' a 120 para evitar cortes.
                 with c_torta1:
                     fig_ing = px.pie(df_ingresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.6, color_discrete_sequence=px.colors.sequential.Teal)
                     fig_ing.update_traces(textposition='outside', textinfo='label+percent+value', hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
-                    fig_ing.update_layout(title=dict(text="Distribución de Ingresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=10, l=10, r=10))
+                    fig_ing.update_layout(title=dict(text="Distribución de Ingresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=40, l=120, r=120))
                     st.plotly_chart(fig_ing, use_container_width=True)
 
                 with c_torta2:
                     fig_egr = px.pie(df_egresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.6, color_discrete_sequence=px.colors.sequential.Reds_r)
                     fig_egr.update_traces(textposition='outside', textinfo='label+percent+value', hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
-                    fig_egr.update_layout(title=dict(text="Distribución de Egresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=10, l=10, r=10))
+                    fig_egr.update_layout(title=dict(text="Distribución de Egresos", font=dict(color='#e2e8f0', size=18)), height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=40, l=120, r=120))
                     st.plotly_chart(fig_egr, use_container_width=True)
 
     except Exception as e:
