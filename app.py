@@ -34,14 +34,11 @@ def limpiar_valor_moneda(val):
     
     val_str = str(val)
     
-    # Manejar formatos contables con paréntesis (ej: (100) -> -100)
     if '(' in val_str and ')' in val_str:
         val_str = '-' + val_str.replace('(', '').replace(')', '')
         
-    # Dejar exclusivamente dígitos, puntos, comas y guiones
     val_str = re.sub(r'[^\d\.,\-]', '', val_str)
     
-    # Si el guion quedó al final (ej: 100-), moverlo al principio
     if val_str.endswith('-'):
         val_str = '-' + val_str.replace('-', '')
         
@@ -51,7 +48,6 @@ def limpiar_valor_moneda(val):
     if val_str == '' or val_str == '-':
         return 0.0
         
-    # Manejar los puntos y comas de miles y decimales
     if '.' in val_str and ',' in val_str:
         val_str = val_str.replace('.', '').replace(',', '.')
     elif '.' in val_str and not ',' in val_str:
@@ -65,7 +61,7 @@ def limpiar_valor_moneda(val):
         return 0.0
 
 def formato_moneda_texto(x):
-    """Aplica el formato $ para las tablas."""
+    """Aplica el formato monetario para las tablas."""
     if not isinstance(x, (int, float)):
         return x
     if x == 0:
@@ -75,13 +71,13 @@ def formato_moneda_texto(x):
     return f"${x:,.0f}"
 
 def pintar_negativos(val):
-    """Pinta de rojo los valores negativos."""
+    """Pinta de rojo los valores negativos en la tabla."""
     if isinstance(val, str) and ('-' in val) and ('$' in val):
         return 'color: #ef4444; font-weight: 600;'
     return ''
 
 def normalizar_concepto(texto):
-    """Quita espacios, acentos y mayúsculas para búsquedas 100% infalibles."""
+    """Quita espacios, acentos y mayúsculas para búsquedas infalibles."""
     if pd.isna(texto): 
         return ""
     return re.sub(r'[^a-z0-9]', '', str(texto).lower())
@@ -119,7 +115,11 @@ if uploaded_file is not None and hoja_seleccionada is not None:
         # Limpieza de valores nulos
         df_raw[col_concepto] = df_raw[col_concepto].fillna("").astype(str).replace(['nan', 'None', 'NaN'], '')
         
-        # COLUMNA OCULTA PARA BÚSQUEDA INFALIBLE
+        # ELIMINAR FILAS VACÍAS O "FANTASMA"
+        df_raw = df_raw[df_raw[col_concepto].str.strip() != ""]
+        df_raw = df_raw[~df_raw[col_concepto].str.match(r'^[-_.\s]+$')]
+        
+        # Columna oculta para búsqueda infalible
         df_raw['concepto_norm'] = df_raw[col_concepto].apply(normalizar_concepto)
         
         # Filtrado temporal (Solo fechas >= fecha_corte)
@@ -266,7 +266,6 @@ if uploaded_file is not None and hoja_seleccionada is not None:
 
         st.markdown(f"### 📋 Matriz Detallada (Desde {fecha_corte.strftime('%d/%m/%Y')})")
         
-        # Filtramos la columna 'concepto_norm' para que no se muestre en pantalla
         columnas_a_mostrar = [col_concepto] + cols_fechas
         df_display = df_procesado[columnas_a_mostrar].copy()
         
@@ -275,7 +274,7 @@ if uploaded_file is not None and hoja_seleccionada is not None:
         
         df_estilizado = df_display.style.map(pintar_negativos, subset=cols_fechas)
         
-        st.dataframe(df_estilizado, use_container_width=True, hide_index=True, height=500)
+        st.dataframe(df_estilizado, use_container_width=True, hide_index=True)
 
     except Exception as e:
         st.error(f"Error procesando la información: {e}")
