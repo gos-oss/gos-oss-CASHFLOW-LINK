@@ -53,7 +53,7 @@ def formato_moneda_texto(x):
     return f"${x:,.0f}"
 
 def pintar_negativos(val):
-    """Pinta de rojo los valores negativos en la tabla."""
+    """Pinta de rojo los valores negativos en la tabla para rápida identificación visual."""
     if isinstance(val, str) and ('-' in val) and ('$' in val):
         return 'color: #ef4444; font-weight: 600;'
     return ''
@@ -70,11 +70,12 @@ with st.sidebar:
         excel_file = pd.ExcelFile(uploaded_file)
         hoja_seleccionada = st.selectbox("2. Seleccionar Hoja", excel_file.sheet_names)
     
-    fecha_corte = st.date_input("3. Fecha de Análisis", value=date(2026, 8, 10))
+    # ESTA FECHA AHORA DETERMINA EL INICIO DE TODO EL ANÁLISIS
+    fecha_corte = st.date_input("3. Fecha de Análisis (Inicio de Proyección)", value=date(2026, 8, 10))
     st.divider()
 
 # =============================================================================
-# 4. PANTALLA PRINCIPAL Y LÓGICA DE DATOS
+# 4. PANTALLA PRINCIPAL Y LÓGICA DE FILTRADO DE FECHAS
 # =============================================================================
 st.markdown('<p class="corporate-header">CASHFLOW LINK</p>', unsafe_allow_html=True)
 st.markdown('<p class="corporate-subheader">Panel de Control de Liquidez, Evolución Diaria y Composición de Cartera</p>', unsafe_allow_html=True)
@@ -84,31 +85,48 @@ if uploaded_file is not None and hoja_seleccionada is not None:
         # --- LECTURA DEL ARCHIVO ---
         df_raw = pd.read_excel(uploaded_file, sheet_name=hoja_seleccionada)
         
-        # Limpieza de encabezados de columnas (fechas)
-        nuevas_columnas = []
-        for i, col in enumerate(df_raw.columns):
-            if "Unnamed" in str(col):
-                nuevas_columnas.append(f"Columna_{i}")
-            elif isinstance(col, datetime):
-                nuevas_columnas.append(col.strftime("%d/%m/%Y"))
-            else:
-                col_str = str(col)
-                if "00:00:00" in col_str:
-                    col_str = col_str.split(" ")[0]
-                nuevas_columnas.append(col_str)
-        
-        df_raw.columns = nuevas_columnas
+        # 1. Renombrar la primera columna a "Concepto"
         df_raw.rename(columns={df_raw.columns[0]: "Concepto"}, inplace=True)
         col_concepto = "Concepto"
-        
-        # Limpiar palabras "None" en los conceptos
         df_raw[col_concepto] = df_raw[col_concepto].fillna("").astype(str).replace(['nan', 'None', 'NaN'], '')
         
-        # Filtrar solo columnas de fechas (excluye TOTAL y vacías)
-        cols_fechas = [c for c in df_raw.columns[1:] if "TOTAL" not in str(c).upper() and "Columna_" not in str(c)]
+        # 2. LÓGICA DE FILTRADO TEMPORAL (Solo fechas >= fecha_corte)
+        cols_fechas = []
+        nombres_limpios = {col_concepto: col_concepto}
         
-        # Procesar valores a numéricos limpios
-        df_procesado = df_raw.copy()
+        for col in df_raw.columns[1:]:
+            col_str = str(col).upper()
+            if "TOTAL" in col_str or "UNNAMED" in col_str:
+                continue # Ignorar columnas que no son fechas
+                
+            try:
+                # Convertimos el encabezado de la columna a un objeto Date de Python
+                if isinstance(col, datetime):
+                    fecha_obj = col.date()
+                else:
+                    # Limpiamos ceros y tratamos de parsear
+                    texto_fecha = str(col).split(" ")[0]
+                    fecha_obj = pd.to_datetime(texto_fecha, dayfirst=True).date()
+                
+                # CONDICIÓN DE FILTRO: ¿La columna es igual o más reciente que la configuración?
+                if fecha_obj >= fecha_corte:
+                    fecha_formateada = fecha_obj.strftime("%d/%m/%Y")
+                    nombres_limpios[col] = fecha_formateada
+                    if fecha_formateada not in cols_fechas:
+                        cols_fechas.append(fecha_formateada)
+            except Exception:
+                pass # Si no es una fecha válida, la ignoramos
+
+        # Renombrar columnas válidas en el dataframe
+        df_raw.rename(columns=nombres_limpios, inplace=True)
+        
+        # Validar si quedaron fechas después del filtro
+        if not cols_fechas:
+            st.warning("⚠️ No se encontraron fechas en el Excel que sean iguales o posteriores a la 'Fecha de Análisis' seleccionada.")
+            st.stop()
+
+        # Procesar valores a numéricos limpios solo en las columnas filtradas
+        df_procesado = df_raw[[col_concepto] + cols_fechas].copy()
         for col in cols_fechas:
             df_procesado[col] = df_procesado[col].apply(limpiar_valor_moneda)
 
@@ -121,7 +139,7 @@ if uploaded_file is not None and hoja_seleccionada is not None:
         arr_posicion_dia = row_posicion_dia[cols_fechas].values[0].tolist() if not row_posicion_dia.empty else [0]*len(cols_fechas)
         val_saldo_ini = row_saldo_ini[cols_fechas[0]].values[0] if not row_saldo_ini.empty else 0.0
 
-        # --- CÁLCULO DE DÍAS DE CAJA E ILIQUIDEZ ---
+        # --- CÁLCULO DE DÍAS DE CAJA E ILIQUIDEZ (PROYECCIÓN) ---
         fecha_iliquidez_exacta = "Saludable"
         dias_runway = "+90"
         
@@ -130,7 +148,7 @@ if uploaded_file is not None and hoja_seleccionada is not None:
                 val_saldo = row_saldo_acum[col_fecha].values[0]
                 if val_saldo < 0:
                     try:
-                        fecha_quiebre = pd.to_datetime(col_fecha, format='mixed', dayfirst=True).date()
+                        fecha_quiebre = pd.to_datetime(col_fecha, format='%d/%m/%Y').date()
                         fecha_iliquidez_exacta = fecha_quiebre.strftime("%d/%m/%Y")
                         dias_diff = (fecha_quiebre - fecha_corte).days
                         dias_runway = str(max(0, dias_diff))
@@ -140,11 +158,11 @@ if uploaded_file is not None and hoja_seleccionada is not None:
                     break
 
         # =====================================================================
-        # 5. VISUALIZACIÓN DEL DASHBOARD
+        # 5. VISUALIZACIÓN DEL DASHBOARD (AHORA SOLO VE EL FUTURO)
         # =====================================================================
         
         # --- BLOQUE 1: INDICADORES PRINCIPALES ---
-        st.markdown("### 📌 Indicadores Estratégicos")
+        st.markdown("### 📌 Indicadores Estratégicos (Proyección)")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Disponibilidad Inicial", f"${val_saldo_ini:,.0f}")
         m2.metric("Déficit Máximo Proyectado", f"${min(arr_saldo_acum):,.0f}")
@@ -154,16 +172,16 @@ if uploaded_file is not None and hoja_seleccionada is not None:
         st.divider()
 
         # --- BLOQUE 2: GRÁFICO DE EVOLUCIÓN (LÍNEA) ---
-        st.markdown("### 📈 Evolución del Flujo de Caja")
-        eje_x_fechas = [str(f).split(" ")[0] for f in cols_fechas]
+        st.markdown(f"### 📈 Evolución del Flujo de Caja (Desde {fecha_corte.strftime('%d/%m/%Y')})")
+        eje_x_fechas = [str(f) for f in cols_fechas]
         
         fig_line = go.Figure()
-        # Saldo Acumulado (Línea con área)
+        # Saldo Acumulado
         fig_line.add_trace(go.Scatter(
             x=eje_x_fechas, y=arr_saldo_acum, mode='lines+markers', name='Saldo Acumulado',
             line=dict(color='#3b82f6', width=3), fill='tozeroy', fillcolor='rgba(59, 130, 246, 0.1)'
         ))
-        # Saldo Diario / Posición del Día (Barras en el fondo)
+        # Saldo Diario
         fig_line.add_trace(go.Bar(
             x=eje_x_fechas, y=arr_posicion_dia, name='Saldo Diario (Posición)', marker_color='rgba(16, 185, 129, 0.6)'
         ))
@@ -178,10 +196,9 @@ if uploaded_file is not None and hoja_seleccionada is not None:
 
         st.divider()
 
-        # --- BLOQUE 3: GRÁFICOS DE TORTA (COMPOSICIÓN) ---
-        st.markdown("### 🍩 Participación de Conceptos (Totales Acumulados)")
+        # --- BLOQUE 3: GRÁFICOS DE TORTA (COMPOSICIÓN PROYECTADA) ---
+        st.markdown("### 🍩 Participación de Conceptos (Periodo Proyectado)")
         
-        # Encontrar las filas delimitadoras de ingresos y egresos
         idx_ingresos = df_procesado.index[df_procesado[col_concepto].str.contains("^Total ingresos$", case=False, na=False, regex=True)].tolist()
         idx_egresos = df_procesado.index[df_procesado[col_concepto].str.contains("^Total Egresos$", case=False, na=False, regex=True)].tolist()
         
@@ -189,14 +206,11 @@ if uploaded_file is not None and hoja_seleccionada is not None:
             idx_ing = idx_ingresos[0]
             idx_egr = idx_egresos[0]
             
-            # Calcular el total de cada fila para el periodo completo
             df_procesado['Suma_Periodo'] = df_procesado[cols_fechas].sum(axis=1)
             
-            # Segmentar dataframes
             df_ingresos_chart = df_procesado.iloc[0:idx_ing]
             df_egresos_chart = df_procesado.iloc[idx_ing+1:idx_egr]
             
-            # Filtrar valores en 0 o vacíos
             df_ingresos_chart = df_ingresos_chart[(df_ingresos_chart['Suma_Periodo'] > 0) & (df_ingresos_chart[col_concepto] != "")]
             df_egresos_chart = df_egresos_chart[(df_egresos_chart['Suma_Periodo'] > 0) & (df_egresos_chart[col_concepto] != "")]
 
@@ -219,17 +233,15 @@ if uploaded_file is not None and hoja_seleccionada is not None:
 
         st.divider()
 
-        # --- BLOQUE 4: TABLA DE DETALLE ---
-        st.markdown("### 📋 Matriz Detallada (Datos Reales de Excel)")
+        # --- BLOQUE 4: TABLA DE DETALLE FILTRADA ---
+        st.markdown(f"### 📋 Matriz Detallada (Desde {fecha_corte.strftime('%d/%m/%Y')})")
         
         columnas_a_mostrar = [col_concepto] + cols_fechas
         df_display = df_procesado[columnas_a_mostrar].copy()
         
-        # Aplicar formato de moneda
         for col in cols_fechas:
             df_display[col] = df_display[col].apply(formato_moneda_texto)
         
-        # Estilo para pintar negativos en rojo
         df_estilizado = df_display.style.map(pintar_negativos, subset=cols_fechas)
         
         st.dataframe(df_estilizado, use_container_width=True, hide_index=True, height=500)
