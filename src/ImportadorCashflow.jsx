@@ -2,15 +2,11 @@ import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, Download } from 'lucide-react';
 
-/**
- * Componente para leer archivos Excel, procesar fechas,
- * prorratear montos e impactarlos por semana.
- */
 export default function ImportadorCashflow({ baseIncome, baseExpense, onImportarSemanas }) {
   const [procesando, setProcesando] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Normaliza textos para evitar fallos por mayúsculas o acentos
+  // Normaliza texto eliminando acentos, mayúsculas y caracteres especiales
   const normalizarTexto = (texto) => {
     if (!texto) return "";
     return String(texto)
@@ -20,7 +16,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       .replace(/[^a-z0-9]/g, '');
   };
 
-  // Calcula el inicio de semana (Lunes) dada cualquier fecha ISO
+  // Obtiene la fecha exacta del Lunes para una fecha ISO dada
   const obtenerInicioSemana = (fechaIso) => {
     const dt = new Date(fechaIso + "T00:00:00");
     const day = dt.getDay();
@@ -29,14 +25,14 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     return monday.toISOString().slice(0, 10);
   };
 
-  // Suma días a una fecha para calcular semanas consecutivas en prorrateos
+  // Suma días a una fecha para el cálculo de prorrateos
   const sumarDias = (fechaIso, dias) => {
     const dt = new Date(fechaIso + "T00:00:00");
     dt.setDate(dt.getDate() + dias);
     return dt.toISOString().slice(0, 10);
   };
 
-  // Descarga una plantilla de ejemplo en formato .xlsx
+  // Genera y descarga el archivo Excel modelo
   const descargarPlantilla = () => {
     const ejemplo = [
       { Fecha: "2026-08-11", Concepto: "Cupos Neuquén", Monto: 150000, Semanas_Prorrateo: 1 },
@@ -49,7 +45,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     XLSX.writeFile(libro, "Plantilla_Cashflow.xlsx");
   };
 
-  // Procesa el archivo subido
+  // Lee el archivo Excel subido e impacta las semanas
   const procesarArchivo = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -102,11 +98,12 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
         }
       });
 
-      onImportarSemanas(Object.values(semanas));
-      alert("¡Importación realizada con éxito!");
+      const arregloSemanas = Object.values(semanas);
+      await onImportarSemanas(arregloSemanas);
+      alert("¡Importación e impacto en Supabase completado con éxito!");
     } catch (err) {
       console.error(err);
-      alert("Error leyendo el archivo Excel.");
+      alert("Error al procesar el archivo Excel.");
     } finally {
       setProcesando(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -117,16 +114,16 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     <div style={{ background: '#FBFAF8', padding: 16, border: '1px solid #DEDAD0', borderRadius: 8, marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Importación Masiva</h4>
-          <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Impacta datos por fecha y prorratea automáticamente.</p>
+          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#12181F' }}>Importador Masivo por Fecha / Prorrateo</h4>
+          <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Sube tu archivo para impactar directamente en Supabase.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={descargarPlantilla} style={{ padding: '8px 12px', background: 'transparent', border: '1px solid #C7C2B8', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Download size={14} /> Modelo
+            <Download size={14} /> Plantilla Ejemplo
           </button>
           <input type="file" accept=".xlsx, .xls, .csv" onChange={procesarArchivo} ref={fileInputRef} style={{ display: 'none' }} id="file-input" />
           <label htmlFor="file-input" style={{ padding: '8px 14px', background: '#0E6E5D', color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Upload size={14} /> {procesando ? "Cargando..." : "Subir Excel"}
+            <Upload size={14} /> {procesando ? "Guardando en Supabase..." : "Subir Excel"}
           </label>
         </div>
       </div>
