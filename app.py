@@ -19,19 +19,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS Avanzado: Corrección de contraste para pestañas y estilización de logo
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     
-    /* Fondo global AZUL MARINO PROFUNDO */
     .stApp, .main { 
         background: radial-gradient(circle at 50% 0%, #1e3a8a 0%, #0f172a 100%) !important; 
         color: #f8fafc !important; 
         font-family: 'Inter', sans-serif !important; 
     }
     
-    /* Banner Superior Corporativo */
     .corporate-banner {
         background: rgba(255, 255, 255, 0.05);
         border-bottom: 1px solid rgba(255, 255, 255, 0.15);
@@ -46,14 +43,13 @@ st.markdown("""
         width: auto;
         margin-bottom: 15px;
         object-fit: contain;
-        background-color: rgba(255, 255, 255, 0.85); /* Fondo claro para que resalte el texto negro del logo */
+        background-color: rgba(255, 255, 255, 0.85); 
         padding: 8px 15px;
         border-radius: 8px;
     }
     .corporate-header { font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 5px; letter-spacing: -1px; line-height: 1.2;}
     .corporate-subheader { font-size: 1.05rem; color: #93c5fd; font-weight: 400; }
     
-    /* Estilización de Métricas Nativas */
     div[data-testid="metric-container"] {
         background: linear-gradient(145deg, rgba(30, 58, 138, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
         border: 1px solid rgba(147, 197, 253, 0.15);
@@ -64,7 +60,6 @@ st.markdown("""
     [data-testid="stMetricLabel"] * { color: #93c5fd !important; font-size: 0.95rem !important; font-weight: 600 !important; text-transform: uppercase; }
     [data-testid="stMetricValue"] * { color: #ffffff !important; font-size: 2.2rem !important; font-weight: 800 !important; }
 
-    /* CORRECCIÓN DE PESTAÑAS (TABS) */
     .stTabs [data-baseweb="tab-list"] {
         background: rgba(15, 23, 42, 0.8);
         padding: 8px;
@@ -76,7 +71,6 @@ st.markdown("""
         background: transparent !important;
         border: none !important;
     }
-    /* Texto de Pestañas Inactivas */
     .stTabs [data-baseweb="tab"] p {
         color: #94a3b8 !important; 
         font-weight: 600 !important;
@@ -86,7 +80,6 @@ st.markdown("""
     .stTabs [data-baseweb="tab"]:hover p {
         color: #ffffff !important;
     }
-    /* Pestaña Activa */
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
         border-radius: 8px !important;
@@ -101,7 +94,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =============================================================================
-# 2. MOTOR DE BASE DE DATOS (HISTORIAL) Y MANEJO DE IMÁGENES
+# 2. MOTOR DE BASE DE DATOS E IMÁGENES
 # =============================================================================
 DB_LOCAL = "cashflow_history.db"
 
@@ -131,7 +124,6 @@ def init_supabase() -> Client:
 supabase = init_supabase()
 
 def get_image_base64(path):
-    """Lee una imagen local y la convierte a base64 para inyectarla en HTML."""
     if os.path.exists(path):
         with open(path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode()
@@ -142,22 +134,18 @@ def guardar_dia_en_historial(fecha_str, df_procesado):
     conn = sqlite3.connect(DB_LOCAL)
     cursor = conn.cursor()
     registros_supabase = []
-    
     for _, row in df_procesado.iterrows():
         concepto = row['Concepto']
         concepto_norm = row['concepto_norm']
         monto = float(row[fecha_str])
-        
         cursor.execute("""
             INSERT INTO historico_diario_conceptos (fecha, concepto, concepto_norm, monto)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(fecha, concepto_norm) DO UPDATE SET
                 monto = excluded.monto, concepto = excluded.concepto
         """, (fecha_str, concepto, concepto_norm, monto))
-        
         if supabase:
             registros_supabase.append({"fecha": fecha_str, "concepto": concepto, "concepto_norm": concepto_norm, "monto": monto})
-            
     conn.commit()
     conn.close()
     if supabase and registros_supabase:
@@ -169,20 +157,16 @@ def cargar_fechas_historicas(fecha_corte_obj):
     df_db = pd.read_sql_query("SELECT fecha, concepto, concepto_norm, monto FROM historico_diario_conceptos", conn)
     conn.close()
     if df_db.empty: return pd.DataFrame()
-    
     fechas_validas = []
     for f_str in df_db['fecha'].unique():
         try:
             f_obj = pd.to_datetime(f_str, format='%d/%m/%Y').date()
             if f_obj < fecha_corte_obj: fechas_validas.append((f_obj, f_str))
         except Exception: pass
-            
     if not fechas_validas: return pd.DataFrame()
     fechas_validas.sort(key=lambda x: x[0])
-    
     df_pivot = df_db.pivot(index=['concepto_norm', 'concepto'], columns='fecha', values='monto').reset_index()
     df_pivot.rename(columns={'concepto': 'Concepto'}, inplace=True)
-    
     cols_hist_ordenadas = [f[1] for f in fechas_validas if f[1] in df_pivot.columns]
     cols_finales = ['Concepto', 'concepto_norm'] + cols_hist_ordenadas
     return df_pivot[cols_finales]
@@ -234,26 +218,26 @@ with st.sidebar:
     st.divider()
 
 # =============================================================================
-# 5. PANTALLA PRINCIPAL CON LOGOTIPO LOCAL
+# 5. PANTALLA PRINCIPAL
 # =============================================================================
-# Lectura de la imagen provista "image_9e4572.png"
 logo_base64 = get_image_base64("image_9e4572.png")
 if logo_base64:
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="corporate-logo" alt="Logo">'
 else:
-    logo_html = "" # Fallback si no encuentra la imagen
+    logo_html = ""
 
+# NOTA: Todo este bloque HTML debe ir sin espacios a la izquierda para evitar 
+# que Markdown lo convierta en un bloque de código gris.
 st.markdown(f"""
 <div class="corporate-banner">
-    {logo_html}
-    <div class="corporate-header">CASHFLOW LINK</div>
-    <div class="corporate-subheader">Executive Board • Sistema Unificado de Liquidez y Proyecciones</div>
+{logo_html}
+<div class="corporate-header">CASHFLOW LINK</div>
+<div class="corporate-subheader">Executive Board • Sistema Unificado de Liquidez y Proyecciones</div>
 </div>
 """, unsafe_allow_html=True)
 
 if uploaded_file is not None and hoja_seleccionada is not None:
     try:
-        # LECTURA DEL EXCEL
         df_raw = pd.read_excel(uploaded_file, sheet_name=hoja_seleccionada)
         df_raw.rename(columns={df_raw.columns[0]: "Concepto"}, inplace=True)
         col_concepto = "Concepto"
@@ -285,14 +269,12 @@ if uploaded_file is not None and hoja_seleccionada is not None:
         for col in cols_fechas_excel:
             df_excel_proyeccion[col] = df_excel_proyeccion[col].apply(limpiar_valor_moneda)
 
-        # BOTÓN GUARDAR (BARRA LATERAL)
         with st.sidebar:
             st.markdown("### 💾 Cierre Diario")
             if st.button(f"Confirmar Cierre del {fecha_corte_str}", type="primary", use_container_width=True):
                 guardar_dia_en_historial(fecha_corte_str, df_excel_proyeccion)
                 st.success(f"¡Día {fecha_corte_str} consolidado en el historial!")
 
-        # HISTORIAL + FUSIÓN
         df_historico_db = cargar_fechas_historicas(fecha_corte)
         if not df_historico_db.empty:
             df_procesado = pd.merge(df_historico_db, df_excel_proyeccion, on=['concepto_norm'], how='outer', suffixes=('_hist', '_proj'))
@@ -306,7 +288,6 @@ if uploaded_file is not None and hoja_seleccionada is not None:
         cols_finales = [col_concepto, 'concepto_norm'] + cols_fechas
         df_procesado = df_procesado[cols_finales].fillna(0.0)
 
-        # INDICADORES
         row_saldo_acum = df_procesado[df_procesado['concepto_norm'].str.contains("saldoacumulado", na=False)]
         row_posicion_dia = df_procesado[df_procesado['concepto_norm'].str.contains("posiciondeldia", na=False)]
         row_saldo_ini = df_procesado[df_procesado['concepto_norm'].str.contains("saldoinicial", na=False)]
@@ -355,7 +336,8 @@ if uploaded_file is not None and hoja_seleccionada is not None:
                 fill='tozeroy', fillcolor='rgba(96, 165, 250, 0.15)', hovertemplate='%{y:$,.0f}<extra></extra>'
             ))
             fig_line.add_trace(go.Bar(
-                x=eje_x_fechas, y=arr_posicion_dia, name='Saldo Diario', marker_color='rgba(148, 163, 184, 0.4)', hovertemplate='%{y:$,.0f}<extra></extra>'
+                x=eje_x_fechas, y=arr_posicion_dia, name='Saldo Diario', 
+                marker_color='rgba(148, 163, 184, 0.4)', hovertemplate='%{y:$,.0f}<extra></extra>'
             ))
             fig_line.update_layout(
                 height=480, margin=dict(l=0, r=0, t=10, b=0), hovermode="x unified",
@@ -406,7 +388,6 @@ if uploaded_file is not None and hoja_seleccionada is not None:
                 df_egresos_chart = df_egresos_chart[(df_egresos_chart['Suma_Periodo'] > 0) & (df_egresos_chart[col_concepto] != "")]
 
                 c_torta1, c_torta2 = st.columns(2)
-                # CORRECCIÓN EN GRÁFICOS: showlegend=False para eliminar cajas inferiores duplicadas.
                 with c_torta1:
                     fig_ing = px.pie(df_ingresos_chart, values='Suma_Periodo', names=col_concepto, hole=0.6, color_discrete_sequence=px.colors.sequential.Teal)
                     fig_ing.update_traces(textposition='outside', textinfo='label+percent+value', hovertemplate='%{label}<br>%{value:$,.0f}<extra></extra>')
