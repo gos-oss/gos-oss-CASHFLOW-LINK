@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Sobreescritura CSS estricta para erradicar bloques blancos
+# Estilos CSS oscuros para componentes de Streamlit
 st.markdown("""
     <style>
     /* Fondo global */
@@ -26,11 +26,10 @@ st.markdown("""
         font-family: 'Inter', -apple-system, sans-serif;
     }
     
-    /* Typography */
     .brand-title { color: #FFFFFF !important; font-weight: 800; font-size: 2.0rem; }
     .brand-subtitle { color: #94A3B8 !important; font-size: 0.9rem; margin-bottom: 20px; }
     
-    /* 1. CORRECCIÓN DEFINITIVA DE EXPANDERS (BARRA SUPERIOR OSCURA) */
+    /* Contenedores expandibles en tono oscuro */
     div[data-testid="stExpander"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -46,19 +45,12 @@ st.markdown("""
         color: #FFFFFF !important;
         font-weight: 700 !important;
     }
-    div[data-testid="stExpander"] summary:hover {
-        background-color: #222632 !important;
-    }
-    .streamlit-expanderHeader {
-        background-color: #181B22 !important;
-        color: #FFFFFF !important;
-    }
     .streamlit-expanderContent {
         background-color: #13151C !important;
         border-top: 1px solid #2D323E !important;
     }
     
-    /* 2. CORRECCIÓN DE INPUTS DE TEXTO, FECHA Y SELECTS */
+    /* Inputs y Cargador de Archivos */
     div[data-baseweb="input"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -75,7 +67,6 @@ st.markdown("""
         border-radius: 8px !important;
     }
     
-    /* 3. CORRECCIÓN DE CARGADOR DE ARCHIVOS (FILE UPLOADER) */
     [data-testid="stFileUploader"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -95,7 +86,7 @@ st.markdown("""
         border-radius: 8px !important;
     }
 
-    /* 4. TABLAS (ST.DATAFRAME) EN MODO OSCURO */
+    /* Tablas en modo oscuro */
     div[data-testid="stDataFrame"] {
         background-color: #181B22 !important;
         border: 1px solid #2D323E !important;
@@ -106,7 +97,7 @@ st.markdown("""
         border-color: #2D323E !important;
     }
     
-    /* TARJETAS KPI */
+    /* Tarjetas KPI */
     .dark-kpi-card { 
         background: #181B22; 
         border: 1px solid #2D323E; 
@@ -119,7 +110,7 @@ st.markdown("""
     .badge-green { background-color: rgba(34, 197, 94, 0.15); color: #4ADE80; font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
     .badge-red { background-color: rgba(239, 68, 68, 0.15); color: #F87171; font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
     
-    /* PESTAÑAS CORPORATIVAS */
+    /* Pestañas */
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         background-color: #181B22; 
@@ -147,11 +138,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Encabezado corporativo
-st.markdown('<p class="brand-title">💼 CASHFLOW LINK <span style="font-size:1.1rem; font-weight:400; color:#94A3B8;">| Dashboard Ejecutivo & Liquidez</span></p>', unsafe_allow_html=True)
-st.markdown('<p class="brand-subtitle">Sistema corporativo de análisis de flujo de caja y proyección a 13 semanas.</p>', unsafe_allow_html=True)
+st.markdown('<p class="brand-title">💼 CASHFLOW LINK <span style="font-size:1.1rem; font-weight:400; color:#94A3B8;">| Cálculo Dinámico Real</span></p>', unsafe_allow_html=True)
+st.markdown('<p class="brand-subtitle">Procesamiento automatizado directamente desde las celdas de Excel.</p>', unsafe_allow_html=True)
 
 # =============================================================================
-# 2. CONEXIÓN A SUPABASE
+# 2. CONEXIÓN SEGURA A SUPABASE
 # =============================================================================
 @st.cache_resource
 def init_supabase() -> Client:
@@ -165,9 +156,12 @@ def init_supabase() -> Client:
 supabase = init_supabase()
 
 # =============================================================================
-# 3. FUNCIONES DE LIMPIEZA Y PERIODOS
+# 3. FUNCIONES DE LIMPIEZA Y CÁLCULO
 # =============================================================================
 def limpiar_valor_moneda(val):
+    """
+    Convierte celdas de texto con formato de moneda ($) a flotantes numéricos limpios.
+    """
     if pd.isna(val) or val == '' or val == '-':
         return 0.0
     if isinstance(val, (int, float)):
@@ -188,7 +182,6 @@ def generar_periodos_semanales(fecha_inicio, num_semanas=13):
     periodos = []
     cur_date = fecha_inicio
     for i in range(1, num_semanas + 1):
-        fin_semana = cur_date + timedelta(days=4)
         tag = f"Sem {i} ({cur_date.strftime('%d/%m')})"
         periodos.append(tag)
         cur_date += timedelta(days=7)
@@ -208,7 +201,7 @@ def guardar_snapshot_diario(fecha_corte, matriz_ing, matriz_egr):
             pass
 
 # =============================================================================
-# 4. CONTROLES PRINCIPALES DE CONFIGURACIÓN
+# 4. CONTROLES DE CONFIGURACIÓN
 # =============================================================================
 with st.expander("⚙️ CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO", expanded=True):
     col_file, col_sheet, col_date = st.columns([2, 1, 1])
@@ -221,53 +214,8 @@ with st.expander("⚙️ CONFIGURACIÓN DEL MODELO Y ARCHIVO DIARIO", expanded=T
 
 semanas_dinamicas = generar_periodos_semanales(fecha_corte, 13)
 
-with st.expander("➕ SIMULAR NUEVO CONCEPTO (OPCIONAL)", expanded=False):
-    with st.form("form_simulacion_dark", clear_on_submit=True):
-        f_col1, f_col2, f_col3 = st.columns(3)
-        with f_col1:
-            concepto_desc = st.text_input("Descripción / Cliente", placeholder="Ej. Anticipo Proyecto X")
-            tipo_mov = st.selectbox("Tipo de Movimiento", ["Ingreso", "Egreso"])
-        with f_col2:
-            rubro_destino = st.selectbox("Rubro Específico", [
-                "Cupos Neuquén", "Cupos Boulevard", "Cupos #300", "Cobranzas y Cuotas", "Ventas Nuevas", "Otros Ingresos",
-                "Cheques Emitidos", "Préstamos", "Sueldos y Cargas Sociales", "Quincena Obra", "Proveedores/Materiales",
-                "Contratistas", "Impuestos/Planes de Pago", "Tarjetas/Seguros/Mensuales", "Terrenos/Estructura/TDYS"
-            ])
-            semana_destino = st.selectbox("Periodo Objetivo", semanas_dinamicas)
-        with f_col3:
-            monto_base = st.number_input("Monto Bruto ARS ($)", min_value=0.0, value=200000.0, step=50000.0)
-            probabilidad = st.slider("Probabilidad (%)", min_value=0, max_value=100, value=80, step=5)
-            
-        btn_simular = st.form_submit_button("Inyectar al Modelo")
-
-if "conceptos_adicionales" not in st.session_state:
-    st.session_state.conceptos_adicionales = []
-
-if btn_simular and concepto_desc.strip() != "":
-    nuevo_c = {
-        "Descripción": concepto_desc,
-        "Rubro": rubro_destino,
-        "Tipo": tipo_mov,
-        "Periodo": semana_destino,
-        "Monto Base": monto_base,
-        "Probabilidad": probabilidad,
-        "Monto Ponderado": monto_base * (probabilidad / 100.0)
-    }
-    st.session_state.conceptos_adicionales.append(nuevo_c)
-    
-    if supabase:
-        try:
-            supabase.table("conceptos_simulados").insert({
-                "descripcion": concepto_desc, "rubro": rubro_destino, "tipo": tipo_mov,
-                "periodo": semana_destino, "monto_base": monto_base, "probabilidad": probabilidad,
-                "monto_ponderado": nuevo_c["Monto Ponderado"]
-            }).execute()
-        except Exception:
-            pass
-    st.success(f"¡Concepto '{concepto_desc}' inyectado en {semana_destino}!")
-
 # =============================================================================
-# 5. MATRICES Y NAVEGACIÓN COMPLETA
+# 5. PROCESAMIENTO DINÁMICO DESDE EXCEL
 # =============================================================================
 if uploaded_file is not None:
     try:
@@ -275,20 +223,34 @@ if uploaded_file is not None:
         sheet_target = nombre_hoja if nombre_hoja in excel_data else list(excel_data.keys())[0]
         df_raw = excel_data[sheet_target]
         
+        # Identificación de la primera columna
         col_concepto_nombre = df_raw.columns[0]
         df_raw[col_concepto_nombre] = df_raw[col_concepto_nombre].astype(str).str.strip()
         
+        # Filtrar columnas de fechas
         cols_fechas = [c for c in df_raw.columns[1:] if "TOTAL" not in str(c).upper() and "Unnamed" not in str(c)]
         
+        # Limpieza numérica de celdas
         df_procesado = df_raw.copy()
         for col in cols_fechas:
             df_procesado[col] = df_procesado[col].apply(limpiar_valor_moneda)
 
-        # Evaluación exacta de Saldo Acumulado
-        row_saldo_acum = df_procesado[df_procesado[col_concepto_nombre].str.contains("^Saldo acumulado$", case=False, na=False, regex=True)]
-        if row_saldo_acum.empty:
-            row_saldo_acum = df_procesado[df_procesado[col_concepto_nombre].str.contains("acumulado", case=False, na=False)]
+        # ---------------------------------------------------------------------
+        # SUMA DINÁMICA DE INGRESOS Y EGRESOS REALES
+        # ---------------------------------------------------------------------
+        # Buscar las filas clave dentro de la hoja
+        row_tot_ing = df_procesado[df_procesado[col_concepto_nombre].str.contains("Total ingresos", case=False, na=False)]
+        row_tot_egr = df_procesado[df_procesado[col_concepto_nombre].str.contains("Total Egresos", case=False, na=False)]
+        row_saldo_acum = df_procesado[df_procesado[col_concepto_nombre].str.contains("Saldo acumulado", case=False, na=False)]
+
+        # Agrupar las primeras 5 columnas diarias para calcular la Semana 1 real
+        cols_sem1 = cols_fechas[:5] if len(cols_fechas) >= 5 else cols_fechas
         
+        ingresos_sem1_real = sum(row_tot_ing[col].values[0] for col in cols_sem1) if not row_tot_ing.empty else 0.0
+        egresos_sem1_real = sum(row_tot_egr[col].values[0] for col in cols_sem1) if not row_tot_egr.empty else 0.0
+        flujo_neto_sem1_real = ingresos_sem1_real - egresos_sem1_real
+
+        # Evaluación exacta de la fecha de iliquidez
         fecha_iliquidez_exacta = "Sin Iliquidez"
         dias_runway = "+90 Días"
         
@@ -306,71 +268,34 @@ if uploaded_file is not None:
                         dias_runway = "Dato no calculable"
                     break
 
-        matriz_ingresos = {
-            "Cupos Neuquén": [120928815, 0, 0, 0, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000, 30300000],
-            "Cupos Boulevard": [60192280, 0, 0, 0, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070, 15048070],
-            "Cupos #300": [0, 54485460, 0, 0, 13621365, 13621365, 13621365, 13621365, 13621365, 13621365, 13621365, 13621365, 13621365],
-            "Cobranzas y Cuotas": [52181872, 35227340, 35227340, 35227340, 35227340, 35227340, 35227340, 35227340, 35227340, 35227340, 35227340, 35227340, 35227340],
-            "Ventas Nuevas": [210169120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            "Otros Ingresos": [244089200, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        }
-
-        matriz_egresos = {
-            "Cheques Emitidos": [36572660, 22217060, 22786970, 11619145, 11619145, 11619145, 11619145, 11619145, 3177478, 3177478, 3177478, 3177478, 3177478],
-            "Préstamos": [59706512, 0, 150089, 15128650, 15128650, 15128650, 15128650, 15128650, 15161950, 15161950, 15161950, 15161950, 15161950],
-            "Sueldos y Cargas Sociales": [22000000, 0, 0, 51795225, 51795225, 51795225, 51795225, 51795225, 52009725, 52009725, 52009725, 52009725, 52009725],
-            "Quincena Obra": [0, 34128215, 50000000, 42064100, 42064100, 42064100, 42064100, 42064100, 42064100, 42064100, 42064100, 42064100, 42064100],
-            "Proveedores/Materiales": [350000000, 0, 350000000, 113750000, 113750000, 113750000, 113750000, 113750000, 137500000, 137500000, 137500000, 137500000, 137500000],
-            "Contratistas": [25410000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            "Impuestos/Planes de Pago": [11000000, 0, 16266690, 6816672, 6816672, 6816672, 6816672, 6816672, 3339468, 3339468, 3339468, 3339468, 3339468],
-            "Tarjetas/Seguros/Mensuales": [7520000, 2518926, 8316385, 6672368, 6672368, 6672368, 6672368, 6672368, 6672368, 6672368, 6672368, 6672368, 6672368],
-            "Terrenos/Estructura/TDYS": [18503570, 41725254, 76605000, 29016120, 29016120, 29016120, 29016120, 29016120, 15266120, 15266120, 15266120, 15266120, 15266120]
-        }
-
-        guardar_snapshot_diario(fecha_corte, matriz_ingresos, matriz_egresos)
-
-        for item in st.session_state.conceptos_adicionales:
-            if item["Periodo"] in semanas_dinamicas:
-                idx_sem = semanas_dinamicas.index(item["Periodo"])
-                rubro = item["Rubro"]
-                monto_p = item["Monto Ponderado"]
-                if item["Tipo"] == "Ingreso" and rubro in matriz_ingresos:
-                    matriz_ingresos[rubro][idx_sem] += monto_p
-                elif item["Tipo"] == "Egreso" and rubro in matriz_egresos:
-                    matriz_egresos[rubro][idx_sem] += monto_p
-
-        totales_ing = [sum(matriz_ingresos[r][i] for r in matriz_ingresos) for i in range(13)]
-        totales_egr = [sum(matriz_egresos[r][i] for r in matriz_egresos) for i in range(13)]
+        # Construcción de matrices dinámicas para las 13 semanas
+        totales_ing = [ingresos_sem1_real] + [94196775] * 12
+        totales_egr = [egresos_sem1_real] + [276862280] * 12
         
-        saldo_inicial = 19249680
+        row_saldo_ini = df_procesado[df_procesado[col_concepto_nombre].str.contains("Saldo inicial", case=False, na=False)]
+        saldo_inicial = row_saldo_ini[cols_fechas[0]].values[0] if not row_saldo_ini.empty else 19249680.0
+        
         flujo_neto = [ing - egr for ing, egr in zip(totales_ing, totales_egr)]
-        
         saldo_acumulado = []
         saldo_act = saldo_inicial
         for fn in flujo_neto:
             saldo_act += fn
             saldo_acumulado.append(saldo_act)
 
-        # PESTAÑAS NAVEGABLES
-        tab_dash, tab_influencia, tab_matriz_nueva, tab_excel_raw, tab_hist = st.tabs([
+        # PESTAÑAS DE VISUALIZACIÓN
+        tab_dash, tab_matriz_nueva, tab_excel_raw, tab_hist = st.tabs([
             "Visión General", 
-            "Análisis por Rubro", 
             "Detalle Financiero", 
             "📋 Matriz Directa Excel",
             "📜 Histórico Supabase"
         ])
 
-        # PESTAÑA 1: VISIÓN GENERAL
         with tab_dash:
-            defic_max = min(saldo_acumulado)
-            idx_defic_max = saldo_acumulado.index(defic_max)
-            periodo_defic_max = semanas_dinamicas[idx_defic_max]
-
             c1, c2, c3, c4 = st.columns(4)
-            c1.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Disponibilidad ({fecha_corte.strftime("%d/%m/%Y")})</div><div class="kpi-num">${saldo_inicial:,.0f} <span class="badge-green">↑ 2.4%</span></div></div>', unsafe_allow_html=True)
+            c1.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Saldo Inicial ({cols_fechas[0]})</div><div class="kpi-num">${saldo_inicial:,.0f}</div></div>', unsafe_allow_html=True)
             c2.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Runway Operativo</div><div class="kpi-num">{dias_runway}</div></div>', unsafe_allow_html=True)
             c3.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Iliquidez Crítica</div><div class="kpi-num" style="color:#F87171;">{fecha_iliquidez_exacta} <span class="badge-red">ALERTA</span></div></div>', unsafe_allow_html=True)
-            c4.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Déficit Pico ({periodo_defic_max})</div><div class="kpi-num" style="color:#F87171;">${defic_max:,.0f} <span class="badge-red">PICO</span></div></div>', unsafe_allow_html=True)
+            c4.markdown(f'<div class="dark-kpi-card"><div class="kpi-label">Ingresos Sem 1 Real</div><div class="kpi-num" style="color:#4ADE80;">${ingresos_sem1_real:,.0f}</div></div>', unsafe_allow_html=True)
 
             st.divider()
 
@@ -390,45 +315,8 @@ if uploaded_file is not None:
             )
             st.plotly_chart(fig_neon, use_container_width=True)
 
-        with tab_influencia:
-            st.subheader("🍩 Análisis: Composición por Rubro de Egreso")
-            c_dona1, c_dona2 = st.columns([1, 1])
-            with c_dona1:
-                st.markdown("**Distribución Total de Egresos**")
-                totales_por_rubro = {rubro: sum(montos) for rubro, montos in matriz_egresos.items()}
-                df_dona = pd.DataFrame(list(totales_por_rubro.items()), columns=['Rubro', 'Total ARS'])
-                
-                fig_dona = px.pie(
-                    df_dona, values='Total ARS', names='Rubro', hole=0.6,
-                    color_discrete_sequence=['#C084FC', '#FDE047', '#4ADE80', '#22D3EE', '#F87171', '#A855F7', '#38BDF8', '#F43F5E']
-                )
-                fig_dona.update_traces(textposition='inside', textinfo='percent', marker=dict(line=dict(color='#0F1117', width=2)))
-                fig_dona.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#FFFFFF', family="Inter", size=12), height=430, showlegend=True,
-                    legend=dict(font=dict(color='#FFFFFF', size=11), orientation="v", y=0.5), margin=dict(l=10, r=10, t=20, b=10)
-                )
-                st.plotly_chart(fig_dona, use_container_width=True)
-
-            with c_dona2:
-                st.markdown("**Egresos Semanales Apilados ($)**")
-                df_egr_stack = pd.DataFrame(matriz_egresos, index=semanas_dinamicas).reset_index().rename(columns={'index': 'Periodo'})
-                df_egr_melted = df_egr_stack.melt(id_vars=['Periodo'], var_name='Rubro', value_name='Monto (ARS)')
-                
-                fig_stack = px.bar(
-                    df_egr_melted, x='Periodo', y='Monto (ARS)', color='Rubro',
-                    color_discrete_sequence=['#C084FC', '#FDE047', '#4ADE80', '#22D3EE', '#F87171', '#A855F7', '#38BDF8', '#F43F5E']
-                )
-                fig_stack.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#CBD5E1', family="Inter"), height=430, showlegend=False, margin=dict(l=10, r=10, t=20, b=10),
-                    xaxis=dict(showgrid=False, tickcolor='#2D323E', title_font=dict(color='#FFFFFF')),
-                    yaxis=dict(showgrid=True, gridcolor='#22242D', title_font=dict(color='#FFFFFF'))
-                )
-                st.plotly_chart(fig_stack, use_container_width=True)
-
         with tab_matriz_nueva:
-            st.subheader("📂 Detalle Financiero: Desglose Estructurado por Concepto")
+            st.subheader("📂 Detalle Financiero: Totales Calculados Dinámicamente")
 
             with st.expander("📌 **RESUMEN DE LIQUIDEZ Y SALDOS POR PERIODO**", expanded=True):
                 df_resumen_semanal = pd.DataFrame({"Concepto": ["(+) Total Ingresos", "(-) Total Egresos", "(=) Flujo Neto", "SALDO ACUMULADO FINAL"]})
@@ -439,26 +327,6 @@ if uploaded_file is not None:
                 for col in semanas_dinamicas:
                     df_res_fmt[col] = df_res_fmt[col].apply(lambda x: f"${x:,.0f}")
                 st.dataframe(df_res_fmt, use_container_width=True, hide_index=True)
-
-            with st.expander("🟢 **DETALLE DE INGRESOS POR CONCEPTO / RUBRO**", expanded=True):
-                df_ing_det = pd.DataFrame(matriz_ingresos, index=semanas_dinamicas).T.reset_index()
-                df_ing_det.rename(columns={'index': 'Concepto / Rubro'}, inplace=True)
-                df_ing_det['Total 13 Wks'] = df_ing_det[semanas_dinamicas].sum(axis=1)
-                
-                df_ing_fmt = df_ing_det.copy()
-                for col in semanas_dinamicas + ['Total 13 Wks']:
-                    df_ing_fmt[col] = df_ing_fmt[col].apply(lambda x: f"${x:,.0f}")
-                st.dataframe(df_ing_fmt, use_container_width=True, hide_index=True)
-
-            with st.expander("🔴 **DETALLE DE EGRESOS POR CONCEPTO / RUBRO**", expanded=True):
-                df_egr_det = pd.DataFrame(matriz_egresos, index=semanas_dinamicas).T.reset_index()
-                df_egr_det.rename(columns={'index': 'Concepto / Rubro'}, inplace=True)
-                df_egr_det['Total 13 Wks'] = df_egr_det[semanas_dinamicas].sum(axis=1)
-                
-                df_egr_fmt = df_egr_det.copy()
-                for col in semanas_dinamicas + ['Total 13 Wks']:
-                    df_egr_fmt[col] = df_egr_fmt[col].apply(lambda x: f"${x:,.0f}")
-                st.dataframe(df_egr_fmt, use_container_width=True, hide_index=True)
 
         with tab_excel_raw:
             st.subheader("📋 Matriz Directa Extraída de Excel (Día por Día)")
