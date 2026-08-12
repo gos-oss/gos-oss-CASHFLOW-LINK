@@ -46,6 +46,7 @@ export default function App() {
     else fetchWeeks();
   };
 
+  // Procesa los totales y saldos acumulados de cada semana
   const procesadas = useMemo(() => {
     return weeks.map(w => {
       const ing = Object.values(w.income || {}).reduce((a, b) => a + Number(b || 0), 0);
@@ -56,12 +57,34 @@ export default function App() {
     });
   }, [weeks]);
 
+  // CÁLCULO DE INDICADORES (KPIs)
+  const kpis = useMemo(() => {
+    if (procesadas.length === 0) return null;
+
+    // 1. Días de caja (Saldo actual / gasto promedio diario)
+    const saldoActual = procesadas[0].saldoAcumulado;
+    const egresosTotales = procesadas.reduce((acc, cur) => acc + cur.totalEgresos, 0);
+    const egresoPromedioDiario = (egresosTotales / procesadas.length) / 7;
+    const diasDeCaja = egresoPromedioDiario > 0 ? Math.max(0, Math.round(saldoActual / egresoPromedioDiario)) : 0;
+
+    // 2. Día de déficit (primera semana con saldo acumulado negativo)
+    const semanaDeficit = procesadas.find(w => w.saldoAcumulado < 0);
+    const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
+
+    // 3. Necesidad de fondos (el punto más negativo del cashflow)
+    const saldos = procesadas.map(w => w.saldoAcumulado);
+    const minimoSaldo = Math.min(...saldos);
+    const necesidadFondos = minimoSaldo < 0 ? Math.abs(minimoSaldo) : 0;
+
+    return { diasDeCaja, diaDeficit, necesidadFondos };
+  }, [procesadas]);
+
   if (!loaded) return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>Cargando Cashflow desde Supabase...</div>;
 
   return (
     <div style={{ fontFamily: "sans-serif", background: "#F5F4F1", minHeight: "100vh", padding: 20 }}>
       <header style={{ background: "#12181F", color: "#fff", padding: 20, borderRadius: 8, marginBottom: 20 }}>
-        <h2>Cashflow 13 Semanas — Conectado a Supabase</h2>
+        <h2 style={{ margin: 0 }}>Cashflow 13 Semanas — Conectado a Supabase</h2>
       </header>
 
       {/* Componente de Importación Masiva */}
@@ -84,23 +107,50 @@ export default function App() {
         </div>
       )}
 
-      {/* Resumen de Gráficos */}
-      {procesadas.length > 0 && (
+      {/* Resumen de Gráficos y KPIs */}
+      {procesadas.length > 0 && kpis && (
+        <>
+          {/* Tarjetas de Indicadores */}
+          <div style={{ display: "flex", gap: 16, marginTop: 20, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
+              <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Días de Caja</h4>
+              <p style={{ margin: "8px 0 0", fontSize: 24, fontWeight: "bold", color: kpis.diasDeCaja > 15 ? "#0E6E5D" : "#D93025" }}>
+                {kpis.diasDeCaja} <span style={{ fontSize: 16, fontWeight: "normal", color: "#7C8891" }}>días</span>
+              </p>
+            </div>
+            
+            <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
+              <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Día de Déficit</h4>
+              <p style={{ margin: "8px 0 0", fontSize: 24, fontWeight: "bold", color: kpis.diaDeficit !== "Sin déficit" ? "#D93025" : "#0E6E5D" }}>
+                {kpis.diaDeficit}
+              </p>
+            </div>
 
-  {/* Resumen de Gráficos */}
-      {procesadas.length > 0 && (
-        <div style={{ background: "#FBFAF8", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
-          <h3>Evolución de Saldo Acumulado</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip formatter={(v) => "$ " + fmt(v)} />
-              <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" fill="#0E6E5D" fillOpacity={0.2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+            <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
+              <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Necesidad de Fondos</h4>
+              <p style={{ margin: "8px 0 0", fontSize: 24, fontWeight: "bold", color: kpis.necesidadFondos > 0 ? "#D93025" : "#0E6E5D" }}>
+                $ {fmt(kpis.necesidadFondos)}
+              </p>
+            </div>
+          </div>
+
+          {/* Gráfico de Evolución */}
+          <div style={{ background: "#fff", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
+            <h3 style={{ margin: "0 0 20px 0", fontSize: 16, color: "#12181F" }}>Evolución de Saldo Acumulado</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E5E5" />
+                <XAxis dataKey="name" tick={{ fill: "#7C8891", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#7C8891", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} />
+                <Tooltip 
+                  formatter={(v) => "$ " + fmt(v)} 
+                  contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                />
+                <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" strokeWidth={2} fill="#0E6E5D" fillOpacity={0.1} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </>
       )}
     </div>
   );
