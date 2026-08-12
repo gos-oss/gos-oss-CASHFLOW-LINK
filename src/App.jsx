@@ -71,19 +71,10 @@ export default function App() {
         onImportarSemanas={handleImportarSemanas} 
       />
 
-      {/* Resumen de Gráficos */}
+  {/* Resumen de Gráficos */}
       {procesadas.length > 0 && (
         <div style={{ background: "#FBFAF8", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
-          <h3>Evolución de Saldo Acumulado</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip formatter={(v) => "$ " + fmt(v)} />
-              <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" fill="#0E6E5D" fillOpacity={0.2} />
-            </AreaChart>
-          </ResponsiveContainer>
+          {/* ... contenido del gráfico ... */}
         </div>
       )}
     </div>
