@@ -71,6 +71,22 @@ export default function App() {
         onImportarSemanas={handleImportarSemanas} 
       />
 
+      {/* Estado Vacío / Empty State */}
+      {procesadas.length === 0 && (
+        <div style={{ textAlign: "center", padding: "80px 20px", color: "#7C8891" }}>
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 16, opacity: 0.4 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          <h3 style={{ fontSize: 18, color: "#12181F", marginBottom: 8, fontWeight: 600 }}>Aún no hay proyecciones</h3>
+          <p style={{ fontSize: 14, maxWidth: 450, margin: "0 auto", lineHeight: 1.5 }}>
+            Sube un archivo de Excel usando el botón superior o espera a que se sincronicen los datos desde tu base de datos para visualizar el Cashflow.
+          </p>
+        </div>
+      )}
+
+      {/* Resumen de Gráficos */}
+      {procesadas.length > 0 && (
+
   {/* Resumen de Gráficos */}
       {procesadas.length > 0 && (
         <div style={{ background: "#FBFAF8", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
