@@ -6,17 +6,13 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
   const [procesando, setProcesando] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Normaliza texto eliminando acentos, mayúsculas y caracteres especiales
+  // 1. Limpieza de textos
   const normalizarTexto = (texto) => {
     if (!texto) return "";
-    return String(texto)
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]/g, '');
+    return String(texto).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '');
   };
 
-  // Obtiene la fecha exacta del Lunes para una fecha ISO dada
+  // 2. Encuentra el Lunes de cualquier fecha exacta
   const obtenerInicioSemana = (fechaIso) => {
     const dt = new Date(fechaIso + "T00:00:00");
     const day = dt.getDay();
@@ -25,27 +21,41 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     return monday.toISOString().slice(0, 10);
   };
 
-  // Suma días a una fecha para el cálculo de prorrateos
-  const sumarDias = (fechaIso, dias) => {
-    const dt = new Date(fechaIso + "T00:00:00");
-    dt.setDate(dt.getDate() + dias);
-    return dt.toISOString().slice(0, 10);
+  // 3. NUEVO: Calcula todos los Lunes que existen en un mes específico (ej: "2026-09")
+  const obtenerLunesDelMes = (anioMes) => {
+    const [year, month] = anioMes.split("-").map(Number);
+    const lunes = [];
+    
+    // Recorremos todos los días posibles del mes
+    for (let dia = 1; dia <= 31; dia++) {
+      const fecha = new Date(year, month - 1, dia);
+      if (fecha.getMonth() !== month - 1) break; // Si el mes cambia, detenemos el ciclo
+      
+      // Si el día de la semana es 1 (Lunes), lo guardamos
+      if (fecha.getDay() === 1) {
+        lunes.push(fecha.toISOString().slice(0, 10));
+      }
+    }
+    return lunes;
   };
 
-  // Genera y descarga el archivo Excel modelo
-  const descargarPlantilla = () => {
-    const ejemplo = [
-      { Fecha: "2026-08-11", Concepto: "Cupos Neuquén", Monto: 150000, Semanas_Prorrateo: 1 },
-      { Fecha: "2026-08-11", Concepto: "Proveedores", Monto: 200000, Semanas_Prorrateo: 4 },
-      { Fecha: "2026-08-18", Concepto: "Sueldos oficina", Monto: 80000, Semanas_Prorrateo: 1 }
+  // 4. Descarga del archivo modelo con las dos variables
+  const descargarModeloPresupuesto = () => {
+    const estructuraModelo = [
+      { Concepto: "Sueldos oficina", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-09", Monto_Total: 1000000 },
+      { Concepto: "Proveedores", Tipo_Carga: "Exacta", Mes_o_Fecha: "2026-09-15", Monto_Total: 250000 },
+      { Concepto: "Cupos Neuquén", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-10", Monto_Total: 4000000 }
     ];
-    const hoja = XLSX.utils.json_to_sheet(ejemplo);
+
+    const hoja = XLSX.utils.json_to_sheet(estructuraModelo);
+    hoja['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+    
     const libro = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(libro, hoja, "Plantilla");
-    XLSX.writeFile(libro, "Plantilla_Cashflow.xlsx");
+    XLSX.utils.book_append_sheet(libro, hoja, "Proyecciones");
+    XLSX.writeFile(libro, "Modelo_Proyecciones.xlsx");
   };
 
-  // Lee el archivo Excel subido e impacta las semanas
+  // 5. Procesamiento y matemáticas de distribución
   const procesarArchivo = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -60,19 +70,29 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       const semanas = {};
 
       filas.forEach((fila) => {
-        const fecha = fila.Fecha;
         const concepto = normalizarTexto(fila.Concepto);
-        const montoTotal = Number(fila.Monto) || 0;
-        const prorrateo = Math.max(1, Number(fila.Semanas_Prorrateo) || 1);
+        const tipoCarga = normalizarTexto(fila.Tipo_Carga);
+        const mesOFecha = String(fila.Mes_o_Fecha).trim();
+        const montoTotal = Number(fila.Monto_Total) || 0;
 
-        if (!fecha || montoTotal === 0) return;
+        if (!mesOFecha || montoTotal === 0) return;
 
-        const montoSemanal = montoTotal / prorrateo;
-        const fechaBase = obtenerInicioSemana(fecha);
+        let semanasAImpactar = [];
+        let montoPorSemana = 0;
 
-        for (let i = 0; i < prorrateo; i++) {
-          const weekStart = sumarDias(fechaBase, i * 7);
+        // LÓGICA DE LAS DOS VARIABLES
+        if (tipoCarga.includes("mensual")) {
+          // Extraemos todos los lunes del mes y dividimos el monto
+          semanasAImpactar = obtenerLunesDelMes(mesOFecha);
+          montoPorSemana = montoTotal / semanasAImpactar.length;
+        } else {
+          // Buscamos la única semana a la que pertenece la fecha exacta
+          semanasAImpactar = [obtenerInicioSemana(mesOFecha)];
+          montoPorSemana = montoTotal;
+        }
 
+        // Impactamos el dinero en el objeto temporal
+        semanasAImpactar.forEach(weekStart => {
           if (!semanas[weekStart]) {
             semanas[weekStart] = {
               id: "w_" + Math.random().toString(36).slice(2, 10),
@@ -91,19 +111,20 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
           const eg = baseExpense.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
 
           if (ing) {
-            semanas[weekStart].income[ing.key] = (semanas[weekStart].income[ing.key] || 0) + montoSemanal;
+            semanas[weekStart].income[ing.key] = (semanas[weekStart].income[ing.key] || 0) + montoPorSemana;
           } else if (eg) {
-            semanas[weekStart].expense[eg.key] = (semanas[weekStart].expense[eg.key] || 0) + montoSemanal;
+            semanas[weekStart].expense[eg.key] = (semanas[weekStart].expense[eg.key] || 0) + montoPorSemana;
           }
-        }
+        });
       });
 
-      const arregloSemanas = Object.values(semanas);
-      await onImportarSemanas(arregloSemanas);
-      alert("¡Importación e impacto en Supabase completado con éxito!");
+      // Enviamos a la base de datos (Supabase)
+      await onImportarSemanas(Object.values(semanas));
+      alert("¡Proyecciones calculadas y guardadas con éxito!");
+      
     } catch (err) {
       console.error(err);
-      alert("Error al procesar el archivo Excel.");
+      alert("Error leyendo el archivo. Asegúrate de respetar el modelo.");
     } finally {
       setProcesando(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -114,16 +135,16 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     <div style={{ background: '#FBFAF8', padding: 16, border: '1px solid #DEDAD0', borderRadius: 8, marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#12181F' }}>Importador Masivo por Fecha / Prorrateo</h4>
-          <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Sube tu archivo para impactar directamente en Supabase.</p>
+          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#12181F' }}>Generador de Proyecciones</h4>
+          <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Soporta presupuesto mensual prorrateado y fechas exactas de pago.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={descargarPlantilla} style={{ padding: '8px 12px', background: 'transparent', border: '1px solid #C7C2B8', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Download size={14} /> Plantilla Ejemplo
+          <button onClick={descargarModeloPresupuesto} style={{ padding: '8px 12px', background: 'transparent', border: '1px solid #C7C2B8', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Download size={14} /> Modelo Proyecciones
           </button>
           <input type="file" accept=".xlsx, .xls, .csv" onChange={procesarArchivo} ref={fileInputRef} style={{ display: 'none' }} id="file-input" />
           <label htmlFor="file-input" style={{ padding: '8px 14px', background: '#0E6E5D', color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Upload size={14} /> {procesando ? "Guardando en Supabase..." : "Subir Excel"}
+            <Upload size={14} /> {procesando ? "Calculando..." : "Subir Proyección"}
           </label>
         </div>
       </div>
