@@ -61,17 +61,14 @@ export default function App() {
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
 
-    // 1. Días de caja (Saldo actual / gasto promedio diario)
     const saldoActual = procesadas[0].saldoAcumulado;
     const egresosTotales = procesadas.reduce((acc, cur) => acc + cur.totalEgresos, 0);
     const egresoPromedioDiario = (egresosTotales / procesadas.length) / 7;
     const diasDeCaja = egresoPromedioDiario > 0 ? Math.max(0, Math.round(saldoActual / egresoPromedioDiario)) : 0;
 
-    // 2. Día de déficit (primera semana con saldo acumulado negativo)
     const semanaDeficit = procesadas.find(w => w.saldoAcumulado < 0);
     const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
 
-    // 3. Necesidad de fondos (el punto más negativo del cashflow)
     const saldos = procesadas.map(w => w.saldoAcumulado);
     const minimoSaldo = Math.min(...saldos);
     const necesidadFondos = minimoSaldo < 0 ? Math.abs(minimoSaldo) : 0;
@@ -107,7 +104,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Resumen de Gráficos y KPIs */}
+      {/* Resumen de Gráficos, KPIs y Tabla */}
       {procesadas.length > 0 && kpis && (
         <>
           {/* Tarjetas de Indicadores */}
@@ -149,6 +146,35 @@ export default function App() {
                 <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" strokeWidth={2} fill="#0E6E5D" fillOpacity={0.1} />
               </AreaChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* NUEVO: Tabla de Detalle Semanal */}
+          <div style={{ background: "#fff", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20, overflowX: "auto" }}>
+            <h3 style={{ margin: "0 0 20px 0", fontSize: 16, color: "#12181F" }}>Detalle Semanal</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #E5E5E5", textAlign: "left", color: "#7C8891" }}>
+                  <th style={{ padding: "12px 8px" }}>Semana</th>
+                  <th style={{ padding: "12px 8px" }}>Ingresos</th>
+                  <th style={{ padding: "12px 8px" }}>Egresos</th>
+                  <th style={{ padding: "12px 8px" }}>Flujo Neto</th>
+                  <th style={{ padding: "12px 8px" }}>Saldo Acum.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {procesadas.map((w, index) => (
+                  <tr key={index} style={{ borderBottom: "1px solid #F5F4F1" }}>
+                    <td style={{ padding: "12px 8px", fontWeight: 500 }}>{w.week_start}</td>
+                    <td style={{ padding: "12px 8px", color: "#0E6E5D" }}>$ {fmt(w.totalIngresos)}</td>
+                    <td style={{ padding: "12px 8px", color: "#D93025" }}>$ {fmt(w.totalEgresos)}</td>
+                    <td style={{ padding: "12px 8px", fontWeight: 600, color: w.posicion >= 0 ? "#0E6E5D" : "#D93025" }}>
+                      $ {fmt(w.posicion)}
+                    </td>
+                    <td style={{ padding: "12px 8px", fontWeight: "bold" }}>$ {fmt(w.saldoAcumulado)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </>
       )}
