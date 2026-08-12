@@ -1,5 +1,4 @@
 fastapi
 pandas
 openpyxl
-supabase
 python-multipart
