@@ -229,6 +229,7 @@ async def procesar_archivo_excel(archivo: UploadFile = File(...)):
         contenido = await archivo.read()
         df_raw = pd.read_excel(BytesIO(contenido))
         
+        # 1. Limpieza de nombres de columnas
         df_raw.rename(columns={df_raw.columns[0]: "Concepto"}, inplace=True)
         col_concepto = "Concepto"
         df_raw[col_concepto] = df_raw[col_concepto].fillna("").astype(str)
@@ -240,9 +241,18 @@ async def procesar_archivo_excel(archivo: UploadFile = File(...)):
         for col in cols_fechas:
             df_raw[col] = df_raw[col].apply(limpiar_valor_moneda)
             
+        # 2. Búsqueda de filas clave
         row_saldo_acum = df_raw[df_raw['concepto_norm'].str.contains("saldoacumulado", na=False)]
         row_posicion_dia = df_raw[df_raw['concepto_norm'].str.contains("posiciondeldia", na=False)]
         row_saldo_ini = df_raw[df_raw['concepto_norm'].str.contains("saldoinicial", na=False)]
+        
+        # MODO DIAGNÓSTICO: Si no encuentra la fila, lanza un error con lo que sí encontró
+        if row_saldo_acum.empty:
+            conceptos_leidos = df_raw['concepto_norm'].head(10).tolist()
+            return {
+                "estado": "error", 
+                "mensaje": f"No se encontró la fila 'Saldo Acumulado'. Primeros conceptos leídos en el Excel: {conceptos_leidos}"
+            }
         
         arr_saldo_acum = row_saldo_acum[cols_fechas].values[0].tolist() if not row_saldo_acum.empty else [0]*len(cols_fechas)
         arr_posicion_dia = row_posicion_dia[cols_fechas].values[0].tolist() if not row_posicion_dia.empty else [0]*len(cols_fechas)
