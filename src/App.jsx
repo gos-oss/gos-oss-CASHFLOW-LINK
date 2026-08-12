@@ -27,7 +27,6 @@ export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
-  // Carga inicial de datos desde Supabase
   useEffect(() => {
     fetchWeeks();
   }, []);
@@ -39,14 +38,26 @@ export default function App() {
     setLoaded(true);
   };
 
-  // Guarda semanas importadas en Supabase
   const handleImportarSemanas = async (semanasNuevas) => {
     const { error } = await supabase.from("cashflow_weeks").upsert(semanasNuevas);
     if (error) alert("Error al guardar en Supabase: " + error.message);
     else fetchWeeks();
   };
 
-  // Procesa los totales y saldos acumulados de cada semana
+  // NUEVO: Función para borrar toda la base de datos
+  const handleBorrarDatos = async () => {
+    const confirmacion = window.confirm("¿Estás seguro de que deseas borrar toda la información? El tablero quedará en 0.");
+    if (!confirmacion) return;
+
+    // Le decimos a Supabase que borre todos los registros donde week_start no sea nulo (básicamente todos)
+    const { error } = await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
+    if (error) {
+      alert("Error al limpiar la base de datos: " + error.message);
+    } else {
+      fetchWeeks(); // Recarga la tabla para que quede vacía
+    }
+  };
+
   const procesadas = useMemo(() => {
     return weeks.map(w => {
       const ing = Object.values(w.income || {}).reduce((a, b) => a + Number(b || 0), 0);
@@ -57,22 +68,17 @@ export default function App() {
     });
   }, [weeks]);
 
-  // CÁLCULO DE INDICADORES (KPIs)
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
-
     const saldoActual = procesadas[0].saldoAcumulado;
     const egresosTotales = procesadas.reduce((acc, cur) => acc + cur.totalEgresos, 0);
     const egresoPromedioDiario = (egresosTotales / procesadas.length) / 7;
     const diasDeCaja = egresoPromedioDiario > 0 ? Math.max(0, Math.round(saldoActual / egresoPromedioDiario)) : 0;
-
     const semanaDeficit = procesadas.find(w => w.saldoAcumulado < 0);
     const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
-
     const saldos = procesadas.map(w => w.saldoAcumulado);
     const minimoSaldo = Math.min(...saldos);
     const necesidadFondos = minimoSaldo < 0 ? Math.abs(minimoSaldo) : 0;
-
     return { diasDeCaja, diaDeficit, necesidadFondos };
   }, [procesadas]);
 
@@ -84,14 +90,14 @@ export default function App() {
         <h2 style={{ margin: 0 }}>Cashflow 13 Semanas — Conectado a Supabase</h2>
       </header>
 
-      {/* Componente de Importación Masiva */}
+      {/* Se pasa la función onBorrarDatos al importador */}
       <ImportadorCashflow 
         baseIncome={BASE_INCOME} 
         baseExpense={BASE_EXPENSE} 
         onImportarSemanas={handleImportarSemanas} 
+        onBorrarDatos={handleBorrarDatos}
       />
 
-      {/* Estado Vacío / Empty State */}
       {procesadas.length === 0 && (
         <div style={{ textAlign: "center", padding: "80px 20px", color: "#7C8891" }}>
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 16, opacity: 0.4 }}>
@@ -104,10 +110,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Resumen de Gráficos, KPIs y Tabla */}
       {procesadas.length > 0 && kpis && (
         <>
-          {/* Tarjetas de Indicadores */}
           <div style={{ display: "flex", gap: 16, marginTop: 20, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
               <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Días de Caja</h4>
@@ -115,14 +119,12 @@ export default function App() {
                 {kpis.diasDeCaja} <span style={{ fontSize: 16, fontWeight: "normal", color: "#7C8891" }}>días</span>
               </p>
             </div>
-            
             <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
               <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Día de Déficit</h4>
               <p style={{ margin: "8px 0 0", fontSize: 24, fontWeight: "bold", color: kpis.diaDeficit !== "Sin déficit" ? "#D93025" : "#0E6E5D" }}>
                 {kpis.diaDeficit}
               </p>
             </div>
-
             <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
               <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Necesidad de Fondos</h4>
               <p style={{ margin: "8px 0 0", fontSize: 24, fontWeight: "bold", color: kpis.necesidadFondos > 0 ? "#D93025" : "#0E6E5D" }}>
@@ -131,7 +133,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Gráfico de Evolución */}
           <div style={{ background: "#fff", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
             <h3 style={{ margin: "0 0 20px 0", fontSize: 16, color: "#12181F" }}>Evolución de Saldo Acumulado</h3>
             <ResponsiveContainer width="100%" height={250}>
@@ -139,16 +140,12 @@ export default function App() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E5E5" />
                 <XAxis dataKey="name" tick={{ fill: "#7C8891", fontSize: 12 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "#7C8891", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} />
-                <Tooltip 
-                  formatter={(v) => "$ " + fmt(v)} 
-                  contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                />
+                <Tooltip formatter={(v) => "$ " + fmt(v)} contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
                 <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" strokeWidth={2} fill="#0E6E5D" fillOpacity={0.1} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
-          {/* NUEVO: Tabla de Detalle Semanal */}
           <div style={{ background: "#fff", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20, overflowX: "auto" }}>
             <h3 style={{ margin: "0 0 20px 0", fontSize: 16, color: "#12181F" }}>Detalle Semanal</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
