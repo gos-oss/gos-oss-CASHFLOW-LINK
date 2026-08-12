@@ -21,7 +21,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     return monday.toISOString().slice(0, 10);
   };
 
-  // 3. NUEVO: Calcula todos los Lunes que existen en un mes específico (ej: "2026-09")
+  // 3. Calcula todos los Lunes que existen en un mes específico (ej: "2026-09")
   const obtenerLunesDelMes = (anioMes) => {
     const [year, month] = anioMes.split("-").map(Number);
     const lunes = [];
@@ -39,7 +39,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     return lunes;
   };
 
-  // 4. Descarga del archivo modelo con las dos variables
+  // 4. Descarga del archivo modelo
   const descargarModeloPresupuesto = () => {
     const estructuraModelo = [
       { Concepto: "Sueldos oficina", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-09", Monto_Total: 1000000 },
@@ -72,8 +72,18 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       filas.forEach((fila) => {
         const concepto = normalizarTexto(fila.Concepto);
         const tipoCarga = normalizarTexto(fila.Tipo_Carga);
-        const mesOFecha = String(fila.Mes_o_Fecha).trim();
         const montoTotal = Number(fila.Monto_Total) || 0;
+
+        let mesOFecha = "";
+
+        // ¡NUEVO!: Corrección para fechas seriales de Excel
+        if (typeof fila.Mes_o_Fecha === 'number') {
+          // Excel cuenta días desde el 1 de enero de 1900. Ajustamos la diferencia matemática.
+          const excelDate = new Date(Math.round((fila.Mes_o_Fecha - 25569) * 86400 * 1000));
+          mesOFecha = excelDate.toISOString().slice(0, 10);
+        } else {
+          mesOFecha = String(fila.Mes_o_Fecha).trim();
+        }
 
         if (!mesOFecha || montoTotal === 0) return;
 
