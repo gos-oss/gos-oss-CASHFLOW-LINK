@@ -172,12 +172,13 @@ export default function App() {
         
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 24 }}>
           {/* Panel de Importación */}
-          <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", flex: 2, minWidth: 300 }}>
+         <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", flex: 2, minWidth: 300 }}>
             <ImportadorCashflow 
               baseIncome={BASE_INCOME} 
               baseExpense={BASE_EXPENSE} 
               onImportarSemanas={handleImportarSemanas} 
               onBorrarDatos={handleBorrarDatos}
+              semanasExistentes={weeks} 
             />
           </div>
 
