@@ -119,11 +119,11 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
             montoPorFecha = montoTotal;
           }
 
-          fechasAImpactar.forEach(fechaStart => {
+          echasAImpactar.forEach(fechaStart => {
             if (!periodos[fechaStart]) {
               periodos[fechaStart] = {
-                id: "w_" + Math.random().toString(36).slice(2, 10),
-                week_start: fechaStart, // Ahora guarda la fecha EXACTA
+                id: fechaStart, // NUEVO: La fecha exacta es el ID único. ¡Adiós duplicados!
+                week_start: fechaStart,
                 status: "proyectado",
                 saldo_inicial: 0,
                 saldo_bancos: 0,
