@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-// Íconos modernos para nuestros KPIs
-import { Wallet, CalendarX2, AlertTriangle, TrendingUp } from "lucide-react";
+import { Wallet, CalendarX2, AlertTriangle, TrendingUp, Lightbulb, PlusCircle, XCircle } from "lucide-react";
 
 const BASE_INCOME = [
   { key: "cuposNeuquen", label: "Cupos Neuquen" },
@@ -47,6 +46,10 @@ const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigit
 export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  
+  // NUEVO: Estado para manejar los supuestos/simulaciones
+  const [supuestos, setSupuestos] = useState([]);
+  const [formSupuesto, setFormSupuesto] = useState({ concepto: "", monto: "", fecha: "", tipo: "ingreso" });
 
   useEffect(() => {
     fetchWeeks();
@@ -74,18 +77,67 @@ export default function App() {
       alert("Error al limpiar la base de datos: " + error.message);
     } else {
       fetchWeeks();
+      setSupuestos([]); // Limpiamos simulaciones también
     }
   };
 
+  // NUEVO: Funciones para agregar y quitar simulaciones
+  const agregarSupuesto = () => {
+    if (!formSupuesto.concepto || !formSupuesto.monto || !formSupuesto.fecha) {
+      alert("Por favor, completa todos los campos del supuesto.");
+      return;
+    }
+    setSupuestos([...supuestos, { ...formSupuesto, id: Date.now(), monto: Number(formSupuesto.monto) }]);
+    setFormSupuesto({ concepto: "", monto: "", fecha: "", tipo: "ingreso" });
+  };
+
+  const eliminarSupuesto = (id) => {
+    setSupuestos(supuestos.filter(s => s.id !== id));
+  };
+
+  // MOTOR MATEMÁTICO ACTUALIZADO: Combina base de datos + Supuestos
   const procesadas = useMemo(() => {
-    return weeks.map(w => {
-      const ing = Object.values(w.income || {}).reduce((a, b) => a + Number(b || 0), 0);
-      const eg = Object.values(w.expense || {}).reduce((a, b) => a + Number(b || 0), 0);
-      const pos = ing - eg;
+    // 1. Recopilamos todas las fechas únicas (reales e hipotéticas)
+    const fechasSet = new Set(weeks.map(w => w.week_start));
+    supuestos.forEach(s => fechasSet.add(s.fecha));
+    const fechasArray = Array.from(fechasSet).sort();
+
+    // 2. Procesamos cada fecha combinando los datos
+    return fechasArray.map(fecha => {
+      const w = weeks.find(week => week.week_start === fecha) || { income: {}, expense: {}, saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0 };
+      
+      let ing = Object.values(w.income || {}).reduce((a, b) => a + Number(b || 0), 0);
+      let eg = Object.values(w.expense || {}).reduce((a, b) => a + Number(b || 0), 0);
+
+      // Buscamos simulaciones para este día específico
+      const supuestosDelDia = supuestos.filter(s => s.fecha === fecha);
+      let simIngreso = 0;
+      let simEgreso = 0;
+
+      supuestosDelDia.forEach(s => {
+        if (s.tipo === "ingreso") simIngreso += s.monto;
+        if (s.tipo === "egreso") simEgreso += s.monto;
+      });
+
+      // Sumamos la realidad + la simulación
+      const totalIngresosConSimulacion = ing + simIngreso;
+      const totalEgresosConSimulacion = eg + simEgreso;
+
+      const pos = totalIngresosConSimulacion - totalEgresosConSimulacion;
       const acum = pos + Number(w.saldo_inicial || 0) + Number(w.saldo_bancos || 0) + Number(w.saldo_credimas || 0);
-      return { ...w, totalIngresos: ing, totalEgresos: eg, posicion: pos, saldoAcumulado: acum };
+
+      return { 
+        ...w, 
+        week_start: fecha,
+        totalIngresos: totalIngresosConSimulacion, 
+        totalEgresos: totalEgresosConSimulacion, 
+        posicion: pos, 
+        saldoAcumulado: acum,
+        simIngreso, 
+        simEgreso 
+      };
     });
-  }, [weeks]);
+  }, [weeks, supuestos]);
 
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
@@ -106,7 +158,6 @@ export default function App() {
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
       
-      {/* Barra de Navegación Superior (Top Nav) */}
       <header style={{ background: "#ffffff", borderBottom: "1px solid #E2E8F0", padding: "16px 32px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ background: "#0E6E5D", color: "#fff", padding: 8, borderRadius: 8 }}>
           <TrendingUp size={24} />
@@ -116,7 +167,6 @@ export default function App() {
 
       <main style={{ padding: "32px", maxWidth: 1600, margin: "0 auto" }}>
         
-        {/* Panel de Importación */}
         <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 24 }}>
           <ImportadorCashflow 
             baseIncome={BASE_INCOME} 
@@ -126,24 +176,19 @@ export default function App() {
           />
         </div>
 
-        {/* Estado Vacío */}
         {procesadas.length === 0 && (
           <div style={{ textAlign: "center", padding: "100px 20px", background: "#ffffff", borderRadius: 12, border: "1px dashed #CBD5E1" }}>
             <Wallet size={64} style={{ color: "#94A3B8", marginBottom: 16, opacity: 0.5 }} />
             <h3 style={{ fontSize: 20, color: "#334155", marginBottom: 8, fontWeight: 600 }}>Tu lienzo financiero está vacío</h3>
             <p style={{ fontSize: 15, color: "#64748B", maxWidth: 500, margin: "0 auto", lineHeight: 1.5 }}>
-              Sube tu primer archivo de Excel para generar proyecciones automáticas, calcular tu salud de caja y visualizar tu flujo neto.
+              Sube tu primer archivo de Excel para generar proyecciones automáticas y calcular tu salud de caja.
             </p>
           </div>
         )}
 
-        {/* Tablero Principal (Dashboard) */}
         {procesadas.length > 0 && kpis && (
           <>
-            {/* Fila de KPIs */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24, marginBottom: 24 }}>
-              
-              {/* KPI 1 */}
               <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                   <div style={{ background: "#F0FDF4", padding: 10, borderRadius: 8, color: "#16A34A" }}><Wallet size={20} /></div>
@@ -154,7 +199,6 @@ export default function App() {
                 </p>
               </div>
               
-              {/* KPI 2 */}
               <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                   <div style={{ background: "#FEF2F2", padding: 10, borderRadius: 8, color: "#EF4444" }}><CalendarX2 size={20} /></div>
@@ -165,7 +209,6 @@ export default function App() {
                 </p>
               </div>
 
-              {/* KPI 3 */}
               <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                   <div style={{ background: "#FFFBEB", padding: 10, borderRadius: 8, color: "#D97706" }}><AlertTriangle size={20} /></div>
@@ -177,14 +220,60 @@ export default function App() {
               </div>
             </div>
 
-            {/* Gráfico de Evolución con Estilo Avanzado */}
+            {/* NUEVO: Panel de Simulaciones (Supuestos) */}
+            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 24, marginBottom: 24, border: "1px solid #F1F5F9" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <Lightbulb size={20} color="#D97706" />
+                <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A", fontWeight: 600 }}>Simulador de Escenarios (Supuestos)</h3>
+              </div>
+              <p style={{ color: "#64748B", fontSize: 13, marginBottom: 16 }}>Agrega movimientos hipotéticos para proyectar cómo afectaría tu caja sin modificar tu base de datos real.</p>
+              
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div style={{ flex: 1, minWidth: 150 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Concepto</label>
+                  <input type="text" placeholder="Ej. Venta Inesperada" value={formSupuesto.concepto} onChange={e => setFormSupuesto({...formSupuesto, concepto: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14 }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Monto ($)</label>
+                  <input type="number" placeholder="500000" value={formSupuesto.monto} onChange={e => setFormSupuesto({...formSupuesto, monto: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14 }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Fecha</label>
+                  <input type="date" value={formSupuesto.fecha} onChange={e => setFormSupuesto({...formSupuesto, fecha: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14 }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Tipo</label>
+                  <select value={formSupuesto.tipo} onChange={e => setFormSupuesto({...formSupuesto, tipo: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14, background: "#fff" }}>
+                    <option value="ingreso">Ingreso</option>
+                    <option value="egreso">Egreso</option>
+                  </select>
+                </div>
+                <button onClick={agregarSupuesto} style={{ padding: "8px 16px", background: "#0F172A", color: "#fff", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, height: 38 }}>
+                  <PlusCircle size={16} /> Simular
+                </button>
+              </div>
+
+              {supuestos.length > 0 && (
+                <div style={{ marginTop: 16, background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px dashed #CBD5E1" }}>
+                  <h4 style={{ margin: "0 0 8px 0", fontSize: 12, color: "#64748B", textTransform: "uppercase" }}>Simulaciones Activas:</h4>
+                  <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {supuestos.map(s => (
+                      <li key={s.id} style={{ fontSize: 13, background: "#fff", border: `1px solid ${s.tipo === 'ingreso' ? '#16A34A' : '#EF4444'}`, padding: "4px 8px", borderRadius: 16, display: "flex", alignItems: "center", gap: 6, color: "#334155" }}>
+                        {s.concepto}: ${fmt(s.monto)} ({s.fecha})
+                        <XCircle size={14} color="#94A3B8" cursor="pointer" onClick={() => eliminarSupuesto(s.id)} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
             <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 24, marginBottom: 24 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
                 <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A", fontWeight: 600 }}>Evolución de Saldo Acumulado</h3>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
-                  {/* Definimos el degradado visual */}
                   <defs>
                     <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#0E6E5D" stopOpacity={0.4}/>
@@ -194,16 +283,12 @@ export default function App() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                   <XAxis dataKey="name" tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} dy={10} />
                   <YAxis tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-10} />
-                  <Tooltip 
-                    formatter={(v) => ["$ " + fmt(v), "Saldo"]} 
-                    contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontWeight: 600, color: "#0F172A" }}
-                  />
+                  <Tooltip formatter={(v) => ["$ " + fmt(v), "Saldo"]} contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontWeight: 600, color: "#0F172A" }} />
                   <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" strokeWidth={3} fill="url(#colorSaldo)" activeDot={{ r: 6, strokeWidth: 0, fill: "#0E6E5D" }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Tabla Matricial Mejorada */}
             <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 24, overflowX: "auto" }}>
               <h3 style={{ margin: "0 0 24px 0", fontSize: 16, color: "#0F172A", fontWeight: 600 }}>Desglose de Flujos Diarios</h3>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
@@ -218,51 +303,51 @@ export default function App() {
                 <tbody>
                   {/* --- INGRESOS --- */}
                   <tr>
-                    <td colSpan={procesadas.length + 1} style={{ padding: "16px 16px 8px", fontWeight: 700, color: "#16A34A", fontSize: 11, letterSpacing: "0.05em", background: "#fff", position: "sticky", left: 0 }}>
-                      INGRESOS OPERATIVOS
-                    </td>
+                    <td colSpan={procesadas.length + 1} style={{ padding: "16px 16px 8px", fontWeight: 700, color: "#16A34A", fontSize: 11, letterSpacing: "0.05em", background: "#fff", position: "sticky", left: 0 }}>INGRESOS OPERATIVOS</td>
                   </tr>
                   {BASE_INCOME.map((income) => (
-                    <tr key={income.key} style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "#F8FAFC"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                      <td style={{ padding: "10px 16px", color: "#475569", background: "inherit", position: "sticky", left: 0 }}>{income.label}</td>
+                    <tr key={income.key} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                      <td style={{ padding: "10px 16px", color: "#475569", position: "sticky", left: 0, background: "#fff" }}>{income.label}</td>
                       {procesadas.map((w, index) => (
-                        <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#475569" }}>
-                          $ {fmt(w.income?.[income.key] || 0)}
-                        </td>
+                        <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#475569" }}>$ {fmt(w.income?.[income.key] || 0)}</td>
                       ))}
                     </tr>
                   ))}
-                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F0FDF4" }}>
-                    <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0F172A", background: "#F0FDF4", position: "sticky", left: 0 }}>Total Ingresos</td>
+                  <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F0FDF4" }}>
+                    <td style={{ padding: "10px 16px", color: "#16A34A", fontStyle: "italic", position: "sticky", left: 0, background: "#F0FDF4" }}>+ Simulaciones (Ingresos)</td>
                     {procesadas.map((w, index) => (
-                      <td key={index} style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "#16A34A" }}>
-                        $ {fmt(w.totalIngresos)}
-                      </td>
+                      <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#16A34A" }}>$ {fmt(w.simIngreso)}</td>
+                    ))}
+                  </tr>
+                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F0FDF4" }}>
+                    <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0F172A", background: "#F0FDF4", position: "sticky", left: 0 }}>Total Ingresos (Proyectado)</td>
+                    {procesadas.map((w, index) => (
+                      <td key={index} style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "#16A34A" }}>$ {fmt(w.totalIngresos)}</td>
                     ))}
                   </tr>
 
                   {/* --- EGRESOS --- */}
                   <tr>
-                    <td colSpan={procesadas.length + 1} style={{ padding: "24px 16px 8px", fontWeight: 700, color: "#EF4444", fontSize: 11, letterSpacing: "0.05em", background: "#fff", position: "sticky", left: 0 }}>
-                      EGRESOS OPERATIVOS
-                    </td>
+                    <td colSpan={procesadas.length + 1} style={{ padding: "24px 16px 8px", fontWeight: 700, color: "#EF4444", fontSize: 11, letterSpacing: "0.05em", background: "#fff", position: "sticky", left: 0 }}>EGRESOS OPERATIVOS</td>
                   </tr>
                   {BASE_EXPENSE.map((expense) => (
-                    <tr key={expense.key} style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "#F8FAFC"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                      <td style={{ padding: "10px 16px", color: "#475569", background: "inherit", position: "sticky", left: 0 }}>{expense.label}</td>
+                    <tr key={expense.key} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                      <td style={{ padding: "10px 16px", color: "#475569", position: "sticky", left: 0, background: "#fff" }}>{expense.label}</td>
                       {procesadas.map((w, index) => (
-                        <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#475569" }}>
-                          $ {fmt(w.expense?.[expense.key] || 0)}
-                        </td>
+                        <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#475569" }}>$ {fmt(w.expense?.[expense.key] || 0)}</td>
                       ))}
                     </tr>
                   ))}
-                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#FEF2F2" }}>
-                    <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0F172A", background: "#FEF2F2", position: "sticky", left: 0 }}>Total Egresos</td>
+                  <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FEF2F2" }}>
+                    <td style={{ padding: "10px 16px", color: "#EF4444", fontStyle: "italic", position: "sticky", left: 0, background: "#FEF2F2" }}>+ Simulaciones (Egresos)</td>
                     {procesadas.map((w, index) => (
-                      <td key={index} style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "#EF4444" }}>
-                        $ {fmt(w.totalEgresos)}
-                      </td>
+                      <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#EF4444" }}>$ {fmt(w.simEgreso)}</td>
+                    ))}
+                  </tr>
+                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#FEF2F2" }}>
+                    <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0F172A", background: "#FEF2F2", position: "sticky", left: 0 }}>Total Egresos (Proyectado)</td>
+                    {procesadas.map((w, index) => (
+                      <td key={index} style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "#EF4444" }}>$ {fmt(w.totalEgresos)}</td>
                     ))}
                   </tr>
 
@@ -270,17 +355,13 @@ export default function App() {
                   <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
                     <td style={{ padding: "16px", fontWeight: 600, color: "#0F172A", background: "#fff", position: "sticky", left: 0 }}>Flujo Neto del Período</td>
                     {procesadas.map((w, index) => (
-                      <td key={index} style={{ padding: "16px", textAlign: "right", fontWeight: 600, color: w.posicion >= 0 ? "#16A34A" : "#EF4444" }}>
-                        $ {fmt(w.posicion)}
-                      </td>
+                      <td key={index} style={{ padding: "16px", textAlign: "right", fontWeight: 600, color: w.posicion >= 0 ? "#16A34A" : "#EF4444" }}>$ {fmt(w.posicion)}</td>
                     ))}
                   </tr>
                   <tr style={{ background: "#0F172A", color: "#fff" }}>
                     <td style={{ padding: "16px", fontWeight: 700, background: "#0F172A", position: "sticky", left: 0, borderRadius: "0 0 0 8px" }}>Saldo Acumulado (Caja)</td>
                     {procesadas.map((w, index) => (
-                      <td key={index} style={{ padding: "16px", textAlign: "right", fontWeight: 700 }}>
-                        $ {fmt(w.saldoAcumulado)}
-                      </td>
+                      <td key={index} style={{ padding: "16px", textAlign: "right", fontWeight: 700 }}>$ {fmt(w.saldoAcumulado)}</td>
                     ))}
                   </tr>
                 </tbody>
