@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Wallet, CalendarX2, AlertTriangle, TrendingUp, Lightbulb, PlusCircle, XCircle, Landmark, Banknote } from "lucide-react";
+import { Wallet, CalendarX2, AlertTriangle, TrendingUp, Lightbulb, PlusCircle, XCircle, Landmark, Banknote, CalendarClock } from "lucide-react";
 
 const BASE_INCOME = [
   { key: "cuposNeuquen", label: "Cupos Neuquen" },
@@ -47,9 +47,10 @@ export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   
-  // Estados para los saldos iniciales reales
+  // NUEVO: Agregamos un estado para guardar la fecha exacta del saldo inicial
   const [saldoEfectivo, setSaldoEfectivo] = useState("");
   const [saldoBanco, setSaldoBanco] = useState("");
+  const [fechaSaldo, setFechaSaldo] = useState("");
 
   const [supuestos, setSupuestos] = useState([]);
   const [formSupuesto, setFormSupuesto] = useState({ concepto: "", monto: "", fecha: "", tipo: "ingreso" });
@@ -97,14 +98,20 @@ export default function App() {
     setSupuestos(supuestos.filter(s => s.id !== id));
   };
 
-  // MOTOR MATEMÁTICO ACTUALIZADO: Acumulación real con Saldos Iniciales
+  // MOTOR MATEMÁTICO ACTUALIZADO: Respeta la fecha exacta de tu saldo real
   const procesadas = useMemo(() => {
+    // 1. Recopilamos todas las fechas de la base de datos, los supuestos y la fecha de corte
     const fechasSet = new Set(weeks.map(w => w.week_start));
     supuestos.forEach(s => fechasSet.add(s.fecha));
+    
+    // Si ingresaste una fecha de saldo, la agregamos a la línea de tiempo obligatoriamente
+    if (fechaSaldo) fechasSet.add(fechaSaldo);
+    
+    // Ordenamos cronológicamente
     const fechasArray = Array.from(fechasSet).sort();
 
-    // Comenzamos la bola de nieve con el dinero que tienes hoy
-    let acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+    let acumuladoActual = 0;
+    let saldoFijado = false;
 
     return fechasArray.map(fecha => {
       const w = weeks.find(week => week.week_start === fecha) || { income: {}, expense: {} };
@@ -123,10 +130,20 @@ export default function App() {
 
       const totalIngresosConSimulacion = ing + simIngreso;
       const totalEgresosConSimulacion = eg + simEgreso;
-
       const pos = totalIngresosConSimulacion - totalEgresosConSimulacion;
       
-      // Sumamos el flujo neto del día al saldo que traíamos del día anterior
+      // LÓGICA DE SALDO INICIAL:
+      // Si llegamos a la fecha exacta que indicaste, establecemos el punto de partida aquí.
+      if (fechaSaldo && fecha === fechaSaldo) {
+        acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+        saldoFijado = true;
+      } else if (!fechaSaldo && !saldoFijado) {
+        // Si no indicas fecha, el código mantiene su comportamiento original (lo pone al principio)
+        acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+        saldoFijado = true;
+      }
+
+      // Sumamos el flujo neto del día al acumulado
       acumuladoActual += pos;
 
       return { 
@@ -140,7 +157,7 @@ export default function App() {
         simEgreso 
       };
     });
-  }, [weeks, supuestos, saldoEfectivo, saldoBanco]); // Se recalcula si cambias el saldo inicial
+  }, [weeks, supuestos, saldoEfectivo, saldoBanco, fechaSaldo]); 
 
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
@@ -172,7 +189,7 @@ export default function App() {
         
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 24 }}>
           {/* Panel de Importación */}
-         <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", flex: 2, minWidth: 300 }}>
+          <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", flex: 2, minWidth: 300 }}>
             <ImportadorCashflow 
               baseIncome={BASE_INCOME} 
               baseExpense={BASE_EXPENSE} 
@@ -182,10 +199,20 @@ export default function App() {
             />
           </div>
 
-          {/* NUEVO: Panel de Saldos Iniciales Reales */}
-          <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 20, flex: 1, minWidth: 250, border: "1px solid #F1F5F9" }}>
-             <h3 style={{ margin: "0 0 16px 0", fontSize: 15, color: "#0F172A", fontWeight: 600 }}>Saldos Iniciales Reales</h3>
+          {/* Panel de Saldos Iniciales Reales MEJORADO */}
+          <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 20, flex: 1, minWidth: 300, border: "1px solid #F1F5F9" }}>
+             <h3 style={{ margin: "0 0 16px 0", fontSize: 15, color: "#0F172A", fontWeight: 600 }}>Punto de Partida (Saldos Reales)</h3>
              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <CalendarClock size={18} color="#64748B" />
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Fecha de Corte</label>
+                    {/* Input de Fecha para asignar el día exacto */}
+                    <input type="date" value={fechaSaldo} onChange={e => setFechaSaldo(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 14, outline: "none", background: "transparent", color: "#0F172A" }} />
+                  </div>
+                </div>
+
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Banknote size={18} color="#16A34A" />
                   <div style={{ flex: 1 }}>
@@ -193,6 +220,7 @@ export default function App() {
                     <input type="number" placeholder="Ej: 150000" value={saldoEfectivo} onChange={e => setSaldoEfectivo(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 15, outline: "none", background: "transparent" }} />
                   </div>
                 </div>
+
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Landmark size={18} color="#0284C7" />
                   <div style={{ flex: 1 }}>
