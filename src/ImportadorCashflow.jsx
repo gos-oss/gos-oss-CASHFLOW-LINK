@@ -2,7 +2,8 @@ import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, Download, Trash2 } from 'lucide-react';
 
-export default function ImportadorCashflow({ baseIncome, baseExpense, onImportarSemanas, onBorrarDatos }) {
+// NUEVO: Agregamos semanasExistentes a los parámetros que recibe la función
+export default function ImportadorCashflow({ baseIncome, baseExpense, onImportarSemanas, onBorrarDatos, semanasExistentes = [] }) {
   const [procesando, setProcesando] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -11,7 +12,6 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     return String(texto).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '');
   };
 
-  // Función segura para extraer todos los lunes de un mes (Para presupuestos mensuales)
   const obtenerLunesDelMes = (anioMes) => {
     const [year, month] = anioMes.split("-").map(Number);
     const lunes = [];
@@ -27,7 +27,6 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     return lunes;
   };
 
-  // NUEVO: Funciones matemáticas para proyectar meses futuros exactos
   const sumarMesesExactos = (fechaIso, mesesAdicionales) => {
     const [y, m, d] = fechaIso.split("-").map(Number);
     let newM = m - 1 + mesesAdicionales;
@@ -54,7 +53,6 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     return `${newY}-${mm}`;
   };
 
-  // NUEVO: El modelo descargable ahora incluye la columna "Repeticiones"
   const descargarModeloPresupuesto = () => {
     const estructuraModelo = [
       { Concepto: "Sueldos oficina", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-09", Monto_Total: 1000000, Repeticiones: 3 },
@@ -87,8 +85,6 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
         const concepto = normalizarTexto(fila.Concepto);
         const tipoCarga = normalizarTexto(fila.Tipo_Carga);
         const montoTotal = Number(fila.Monto_Total) || 0;
-        
-        // NUEVO: Lee las repeticiones (Si está vacío, asume 1)
         const repeticiones = Number(fila.Repeticiones) || 1; 
 
         let mesOFechaBase = "";
@@ -102,41 +98,44 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
 
         if (!mesOFechaBase || montoTotal === 0) return;
 
-        // BUCLE DE REPETICIONES AUTOMÁTICAS
         for (let i = 0; i < repeticiones; i++) {
           let fechasAImpactar = [];
           let montoPorFecha = 0;
 
           if (tipoCarga.includes("mensual")) {
-            // Si es mensual, proyecta para el mes correspondiente
             const mesProyectado = sumarMesesAnioMes(mesOFechaBase, i);
             fechasAImpactar = obtenerLunesDelMes(mesProyectado);
             montoPorFecha = montoTotal / fechasAImpactar.length;
           } else {
-            // NUEVO: Si es fecha exacta, respeta el día y suma meses según repetición
             const fechaProyectada = sumarMesesExactos(mesOFechaBase, i);
             fechasAImpactar = [fechaProyectada]; 
             montoPorFecha = montoTotal;
           }
 
-          echasAImpactar.forEach(fechaStart => {
+          fechasAImpactar.forEach(fechaStart => {
             if (!periodos[fechaStart]) {
+              
+              // NUEVO: Verificamos si esta fecha ya existía en la base de datos
+              const semanaPrevia = semanasExistentes.find(w => w.week_start === fechaStart);
+              
               periodos[fechaStart] = {
-                id: fechaStart, // NUEVO: La fecha exacta es el ID único. ¡Adiós duplicados!
+                id: fechaStart,
                 week_start: fechaStart,
                 status: "proyectado",
-                saldo_inicial: 0,
-                saldo_bancos: 0,
-                saldo_credimas: 0,
-                income: {},
-                expense: {},
-                notes: ""
+                saldo_inicial: semanaPrevia?.saldo_inicial || 0,
+                saldo_bancos: semanaPrevia?.saldo_bancos || 0,
+                saldo_credimas: semanaPrevia?.saldo_credimas || 0,
+                // Copiamos los ingresos/egresos previos (si existen) para no borrarlos
+                income: semanaPrevia?.income ? { ...semanaPrevia.income } : {},
+                expense: semanaPrevia?.expense ? { ...semanaPrevia.expense } : {},
+                notes: semanaPrevia?.notes || ""
               };
             }
 
             const ing = baseIncome.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
             const eg = baseExpense.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
 
+            // Sumamos el dinero nuevo al dinero que ya pudiera existir
             if (ing) {
               periodos[fechaStart].income[ing.key] = (periodos[fechaStart].income[ing.key] || 0) + montoPorFecha;
             } else if (eg) {
@@ -153,7 +152,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       if (noReconocidos.size > 0) {
         alert("Atención: Los siguientes conceptos fueron ignorados porque no existen en tu configuración:\n\n" + Array.from(noReconocidos).join(", "));
       } else {
-        alert("¡Proyecciones calculadas y guardadas con éxito!");
+        alert("¡Proyecciones calculadas y guardadas o actualizadas con éxito!");
       }
       
     } catch (err) {
@@ -166,11 +165,11 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
   };
 
   return (
-    <div style={{ background: '#FBFAF8', padding: 16, border: '1px solid #DEDAD0', borderRadius: 8, marginBottom: 20 }}>
+    <div style={{ background: '#FBFAF8', padding: 16, border: '1px solid #DEDAD0', borderRadius: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#12181F' }}>Generador de Proyecciones</h4>
-          <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Soporta carga diaria exacta y repeticiones mensuales automáticas.</p>
+          <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Soporta actualizaciones parciales y proyecciones mensuales.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           
