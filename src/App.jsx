@@ -4,6 +4,42 @@ import ImportadorCashflow from "./ImportadorCashflow";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Wallet, CalendarX2, AlertTriangle, TrendingUp, Lightbulb, PlusCircle, XCircle, Landmark, Banknote, CalendarClock, Save, Settings } from "lucide-react";
 
+// NUEVO: Bloque de estilos CSS avanzados para la tabla
+const customStyles = `
+  .table-container::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .table-container::-webkit-scrollbar-track {
+    background: #F1F5F9;
+    border-radius: 4px;
+  }
+  .table-container::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 4px;
+  }
+  .table-container::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+  }
+  .flujo-table th, .flujo-table td {
+    border-right: 1px solid #F1F5F9;
+  }
+  .flujo-table th:last-child, .flujo-table td:last-child {
+    border-right: none;
+  }
+  .flujo-row:hover td {
+    filter: brightness(0.96);
+    transition: all 0.2s ease;
+  }
+  .sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    box-shadow: 4px 0 8px -2px rgba(0,0,0,0.05);
+    clip-path: inset(0 -10px 0 0); /* Evita que la sombra se vea arriba/abajo */
+  }
+`;
+
 const BASE_INCOME = [
   { key: "cuposNeuquen", label: "Cupos Neuquen" },
   { key: "cuposBoulevard", label: "Cupos Boulevard" },
@@ -188,8 +224,9 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#F1F5F9", minHeight: "100vh" }}>
-      
-      {/* HEADER COMPACTO Y PROFESIONAL */}
+      {/* Inyectamos nuestros estilos CSS */}
+      <style>{customStyles}</style>
+
       <header style={{ background: "#0F172A", borderBottom: "1px solid #1E293B", padding: "12px 32px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ background: "#10B981", color: "#0F172A", padding: 6, borderRadius: 6 }}>
           <TrendingUp size={20} />
@@ -201,7 +238,6 @@ export default function App() {
 
       <main style={{ padding: "24px 32px", maxWidth: 1600, margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px" }}>
         
-        {/* BLOQUE 1: CONTROLES SUPERIORES (Importación + Saldos agrupados) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px" }}>
           <div style={{ background: "#ffffff", borderRadius: 10, border: "1px solid #E2E8F0", overflow: "hidden" }}>
             <ImportadorCashflow 
@@ -252,7 +288,6 @@ export default function App() {
 
         {procesadas.length > 0 && kpis && (
           <>
-            {/* BLOQUE 2: KPIs (Métricas principales) */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
               <div style={{ background: "#fff", padding: "20px 24px", borderRadius: 10, border: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
@@ -286,10 +321,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* BLOQUE 3: GRÁFICO Y SIMULADOR (Diseño de 2 columnas lado a lado) */}
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "24px" }}>
-              
-              {/* Gráfico (70% del ancho) */}
               <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", padding: 24, display: "flex", flexDirection: "column" }}>
                 <h3 style={{ margin: "0 0 20px 0", fontSize: 15, color: "#0F172A", fontWeight: 600 }}>Evolución de Saldo Acumulado</h3>
                 <div style={{ flex: 1, minHeight: 300 }}>
@@ -311,7 +343,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Simulador como Barra Lateral (30% del ancho) */}
               <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", padding: 24, display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                   <Lightbulb size={18} color="#F59E0B" />
@@ -350,7 +381,6 @@ export default function App() {
                     <PlusCircle size={16} /> Añadir Simulación
                   </button>
 
-                  {/* Lista de simulaciones activas (reducida y elegante) */}
                   {supuestos.length > 0 && (
                     <div style={{ marginTop: 12, borderTop: "1px solid #E2E8F0", paddingTop: 12 }}>
                       <h4 style={{ margin: "0 0 8px 0", fontSize: 10, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.5px" }}>Activas ({supuestos.length})</h4>
@@ -371,85 +401,92 @@ export default function App() {
               </div>
             </div>
 
-            {/* BLOQUE 4: TABLA MATRICIAL (Ancho completo) */}
-            <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", overflow: "hidden" }}>
+            {/* LA TABLA DESGLOSE MEJORADA (Se añadieron clases de CSS) */}
+            <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", overflow: "hidden", display: "flex", flexDirection: "column" }}>
               <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
                 <h3 style={{ margin: 0, fontSize: 15, color: "#0F172A", fontWeight: 600 }}>Desglose de Flujos Diarios</h3>
               </div>
-              <div style={{ overflowX: "auto", padding: "0 24px 24px 24px" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
+              
+              {/* Contenedor con la barra de scroll personalizada */}
+              <div className="table-container" style={{ overflowX: "auto", paddingBottom: "8px" }}>
+                <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
                   <thead>
-                    <tr style={{ color: "#64748B" }}>
-                      <th style={{ padding: "16px", textAlign: "left", minWidth: 200, background: "#fff", position: "sticky", left: 0, zIndex: 2, fontWeight: 600 }}>Concepto</th>
+                    <tr style={{ color: "#64748B", borderBottom: "2px solid #E2E8F0" }}>
+                      {/* Columna de concepto mejorada con sombra lateral */}
+                      <th className="sticky-col" style={{ padding: "16px", textAlign: "left", minWidth: 220, background: "#fff", fontWeight: 600, borderRight: "1px solid #E2E8F0" }}>Concepto</th>
                       {procesadas.map((w, index) => (
-                        <th key={index} style={{ padding: "16px", textAlign: "right", minWidth: 100, fontWeight: 600 }}>{w.week_start}</th>
+                        <th key={index} style={{ padding: "16px", textAlign: "right", minWidth: 110, fontWeight: 600 }}>{w.week_start}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
+                    
                     {/* --- INGRESOS --- */}
                     <tr>
-                      <td colSpan={procesadas.length + 1} style={{ padding: "16px 16px 8px", fontWeight: 700, color: "#10B981", fontSize: 10, letterSpacing: "0.5px", background: "#fff", position: "sticky", left: 0 }}>INGRESOS OPERATIVOS</td>
+                      <td className="sticky-col" style={{ padding: "24px 16px 8px", fontWeight: 800, color: "#10B981", fontSize: 10, letterSpacing: "0.5px", background: "#fff", borderRight: "1px solid #E2E8F0" }}>INGRESOS OPERATIVOS</td>
+                      <td colSpan={procesadas.length}></td>
                     </tr>
                     {BASE_INCOME.map((income) => (
-                      <tr key={income.key} style={{ borderBottom: "1px solid #F1F5F9" }}>
-                        <td style={{ padding: "8px 16px", color: "#475569", position: "sticky", left: 0, background: "#fff" }}>{income.label}</td>
+                      <tr key={income.key} className="flujo-row" style={{ borderBottom: "1px solid #F1F5F9" }}>
+                        <td className="sticky-col" style={{ padding: "10px 16px", color: "#475569", background: "#fff", borderRight: "1px solid #E2E8F0" }}>{income.label}</td>
                         {procesadas.map((w, index) => (
-                          <td key={index} style={{ padding: "8px 16px", textAlign: "right", color: "#475569" }}>$ {fmt(w.income?.[income.key] || 0)}</td>
+                          <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#475569" }}>$ {fmt(w.income?.[income.key] || 0)}</td>
                         ))}
                       </tr>
                     ))}
-                    <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#ECFDF5" }}>
-                      <td style={{ padding: "8px 16px", color: "#10B981", fontStyle: "italic", position: "sticky", left: 0, background: "#ECFDF5" }}>+ Simulaciones (Ingresos)</td>
+                    <tr className="flujo-row" style={{ borderBottom: "1px solid #E2E8F0" }}>
+                      <td className="sticky-col" style={{ padding: "10px 16px", color: "#10B981", fontStyle: "italic", background: "#ECFDF5", borderRight: "1px solid #E2E8F0" }}>+ Simulaciones (Ingresos)</td>
                       {procesadas.map((w, index) => (
-                        <td key={index} style={{ padding: "8px 16px", textAlign: "right", color: "#10B981" }}>$ {fmt(w.simIngreso)}</td>
+                        <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#10B981", background: "#ECFDF5" }}>$ {fmt(w.simIngreso)}</td>
                       ))}
                     </tr>
-                    <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F8FAFC" }}>
-                      <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0F172A", background: "#F8FAFC", position: "sticky", left: 0 }}>Total Ingresos</td>
+                    <tr className="flujo-row" style={{ borderBottom: "2px solid #E2E8F0" }}>
+                      <td className="sticky-col" style={{ padding: "14px 16px", fontWeight: 700, color: "#0F172A", background: "#F8FAFC", borderRight: "1px solid #E2E8F0" }}>Total Ingresos</td>
                       {procesadas.map((w, index) => (
-                        <td key={index} style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "#10B981" }}>$ {fmt(w.totalIngresos)}</td>
+                        <td key={index} style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, color: "#10B981", background: "#F8FAFC" }}>$ {fmt(w.totalIngresos)}</td>
                       ))}
                     </tr>
 
                     {/* --- EGRESOS --- */}
                     <tr>
-                      <td colSpan={procesadas.length + 1} style={{ padding: "24px 16px 8px", fontWeight: 700, color: "#EF4444", fontSize: 10, letterSpacing: "0.5px", background: "#fff", position: "sticky", left: 0 }}>EGRESOS OPERATIVOS</td>
+                      <td className="sticky-col" style={{ padding: "32px 16px 8px", fontWeight: 800, color: "#EF4444", fontSize: 10, letterSpacing: "0.5px", background: "#fff", borderRight: "1px solid #E2E8F0" }}>EGRESOS OPERATIVOS</td>
+                      <td colSpan={procesadas.length}></td>
                     </tr>
                     {BASE_EXPENSE.map((expense) => (
-                      <tr key={expense.key} style={{ borderBottom: "1px solid #F1F5F9" }}>
-                        <td style={{ padding: "8px 16px", color: "#475569", position: "sticky", left: 0, background: "#fff" }}>{expense.label}</td>
+                      <tr key={expense.key} className="flujo-row" style={{ borderBottom: "1px solid #F1F5F9" }}>
+                        <td className="sticky-col" style={{ padding: "10px 16px", color: "#475569", background: "#fff", borderRight: "1px solid #E2E8F0" }}>{expense.label}</td>
                         {procesadas.map((w, index) => (
-                          <td key={index} style={{ padding: "8px 16px", textAlign: "right", color: "#475569" }}>$ {fmt(w.expense?.[expense.key] || 0)}</td>
+                          <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#475569" }}>$ {fmt(w.expense?.[expense.key] || 0)}</td>
                         ))}
                       </tr>
                     ))}
-                    <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FEF2F2" }}>
-                      <td style={{ padding: "8px 16px", color: "#EF4444", fontStyle: "italic", position: "sticky", left: 0, background: "#FEF2F2" }}>+ Simulaciones (Egresos)</td>
+                    <tr className="flujo-row" style={{ borderBottom: "1px solid #E2E8F0" }}>
+                      <td className="sticky-col" style={{ padding: "10px 16px", color: "#EF4444", fontStyle: "italic", background: "#FEF2F2", borderRight: "1px solid #E2E8F0" }}>+ Simulaciones (Egresos)</td>
                       {procesadas.map((w, index) => (
-                        <td key={index} style={{ padding: "8px 16px", textAlign: "right", color: "#EF4444" }}>$ {fmt(w.simEgreso)}</td>
+                        <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#EF4444", background: "#FEF2F2" }}>$ {fmt(w.simEgreso)}</td>
                       ))}
                     </tr>
-                    <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F8FAFC" }}>
-                      <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0F172A", background: "#F8FAFC", position: "sticky", left: 0 }}>Total Egresos</td>
+                    <tr className="flujo-row" style={{ borderBottom: "2px solid #E2E8F0" }}>
+                      <td className="sticky-col" style={{ padding: "14px 16px", fontWeight: 700, color: "#0F172A", background: "#F8FAFC", borderRight: "1px solid #E2E8F0" }}>Total Egresos</td>
                       {procesadas.map((w, index) => (
-                        <td key={index} style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "#EF4444" }}>$ {fmt(w.totalEgresos)}</td>
+                        <td key={index} style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, color: "#EF4444", background: "#F8FAFC" }}>$ {fmt(w.totalEgresos)}</td>
                       ))}
                     </tr>
 
                     {/* --- RESULTADOS --- */}
-                    <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
-                      <td style={{ padding: "16px", fontWeight: 600, color: "#0F172A", background: "#fff", position: "sticky", left: 0 }}>Flujo Neto</td>
+                    <tr className="flujo-row" style={{ borderBottom: "1px solid #E2E8F0" }}>
+                      <td className="sticky-col" style={{ padding: "18px 16px", fontWeight: 700, color: "#0F172A", background: "#fff", borderRight: "1px solid #E2E8F0", fontSize: 13 }}>Flujo Neto</td>
                       {procesadas.map((w, index) => (
-                        <td key={index} style={{ padding: "16px", textAlign: "right", fontWeight: 600, color: w.posicion >= 0 ? "#10B981" : "#EF4444" }}>$ {fmt(w.posicion)}</td>
+                        <td key={index} style={{ padding: "18px 16px", textAlign: "right", fontWeight: 700, fontSize: 13, color: w.posicion >= 0 ? "#10B981" : "#EF4444" }}>$ {fmt(w.posicion)}</td>
                       ))}
                     </tr>
-                    <tr style={{ background: "#0F172A", color: "#fff" }}>
-                      <td style={{ padding: "16px", fontWeight: 700, background: "#0F172A", position: "sticky", left: 0 }}>Saldo Acumulado (Caja)</td>
+                    <tr className="flujo-row">
+                      <td className="sticky-col" style={{ padding: "20px 16px", fontWeight: 800, background: "#0F172A", color: "#fff", borderRight: "1px solid #1E293B", fontSize: 13 }}>Saldo Acumulado</td>
                       {procesadas.map((w, index) => (
-                        <td key={index} style={{ padding: "16px", textAlign: "right", fontWeight: 700 }}>$ {fmt(w.saldoAcumulado)}</td>
+                        <td key={index} style={{ padding: "20px 16px", textAlign: "right", fontWeight: 800, background: "#0F172A", color: "#fff", fontSize: 13 }}>$ {fmt(w.saldoAcumulado)}</td>
                       ))}
                     </tr>
+
                   </tbody>
                 </table>
               </div>
