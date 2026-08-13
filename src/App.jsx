@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Wallet, CalendarX2, AlertTriangle, TrendingUp, Lightbulb, PlusCircle, XCircle } from "lucide-react";
+import { Wallet, CalendarX2, AlertTriangle, TrendingUp, Lightbulb, PlusCircle, XCircle, Landmark, Banknote } from "lucide-react";
 
 const BASE_INCOME = [
   { key: "cuposNeuquen", label: "Cupos Neuquen" },
@@ -47,7 +47,10 @@ export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   
-  // NUEVO: Estado para manejar los supuestos/simulaciones
+  // Estados para los saldos iniciales reales
+  const [saldoEfectivo, setSaldoEfectivo] = useState("");
+  const [saldoBanco, setSaldoBanco] = useState("");
+
   const [supuestos, setSupuestos] = useState([]);
   const [formSupuesto, setFormSupuesto] = useState({ concepto: "", monto: "", fecha: "", tipo: "ingreso" });
 
@@ -77,11 +80,10 @@ export default function App() {
       alert("Error al limpiar la base de datos: " + error.message);
     } else {
       fetchWeeks();
-      setSupuestos([]); // Limpiamos simulaciones también
+      setSupuestos([]);
     }
   };
 
-  // NUEVO: Funciones para agregar y quitar simulaciones
   const agregarSupuesto = () => {
     if (!formSupuesto.concepto || !formSupuesto.monto || !formSupuesto.fecha) {
       alert("Por favor, completa todos los campos del supuesto.");
@@ -95,21 +97,21 @@ export default function App() {
     setSupuestos(supuestos.filter(s => s.id !== id));
   };
 
-  // MOTOR MATEMÁTICO ACTUALIZADO: Combina base de datos + Supuestos
+  // MOTOR MATEMÁTICO ACTUALIZADO: Acumulación real con Saldos Iniciales
   const procesadas = useMemo(() => {
-    // 1. Recopilamos todas las fechas únicas (reales e hipotéticas)
     const fechasSet = new Set(weeks.map(w => w.week_start));
     supuestos.forEach(s => fechasSet.add(s.fecha));
     const fechasArray = Array.from(fechasSet).sort();
 
-    // 2. Procesamos cada fecha combinando los datos
+    // Comenzamos la bola de nieve con el dinero que tienes hoy
+    let acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+
     return fechasArray.map(fecha => {
-      const w = weeks.find(week => week.week_start === fecha) || { income: {}, expense: {}, saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0 };
+      const w = weeks.find(week => week.week_start === fecha) || { income: {}, expense: {} };
       
       let ing = Object.values(w.income || {}).reduce((a, b) => a + Number(b || 0), 0);
       let eg = Object.values(w.expense || {}).reduce((a, b) => a + Number(b || 0), 0);
 
-      // Buscamos simulaciones para este día específico
       const supuestosDelDia = supuestos.filter(s => s.fecha === fecha);
       let simIngreso = 0;
       let simEgreso = 0;
@@ -119,12 +121,13 @@ export default function App() {
         if (s.tipo === "egreso") simEgreso += s.monto;
       });
 
-      // Sumamos la realidad + la simulación
       const totalIngresosConSimulacion = ing + simIngreso;
       const totalEgresosConSimulacion = eg + simEgreso;
 
       const pos = totalIngresosConSimulacion - totalEgresosConSimulacion;
-      const acum = pos + Number(w.saldo_inicial || 0) + Number(w.saldo_bancos || 0) + Number(w.saldo_credimas || 0);
+      
+      // Sumamos el flujo neto del día al saldo que traíamos del día anterior
+      acumuladoActual += pos;
 
       return { 
         ...w, 
@@ -132,12 +135,12 @@ export default function App() {
         totalIngresos: totalIngresosConSimulacion, 
         totalEgresos: totalEgresosConSimulacion, 
         posicion: pos, 
-        saldoAcumulado: acum,
+        saldoAcumulado: acumuladoActual,
         simIngreso, 
         simEgreso 
       };
     });
-  }, [weeks, supuestos]);
+  }, [weeks, supuestos, saldoEfectivo, saldoBanco]); // Se recalcula si cambias el saldo inicial
 
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
@@ -167,13 +170,37 @@ export default function App() {
 
       <main style={{ padding: "32px", maxWidth: 1600, margin: "0 auto" }}>
         
-        <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 24 }}>
-          <ImportadorCashflow 
-            baseIncome={BASE_INCOME} 
-            baseExpense={BASE_EXPENSE} 
-            onImportarSemanas={handleImportarSemanas} 
-            onBorrarDatos={handleBorrarDatos}
-          />
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 24 }}>
+          {/* Panel de Importación */}
+          <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", flex: 2, minWidth: 300 }}>
+            <ImportadorCashflow 
+              baseIncome={BASE_INCOME} 
+              baseExpense={BASE_EXPENSE} 
+              onImportarSemanas={handleImportarSemanas} 
+              onBorrarDatos={handleBorrarDatos}
+            />
+          </div>
+
+          {/* NUEVO: Panel de Saldos Iniciales Reales */}
+          <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 20, flex: 1, minWidth: 250, border: "1px solid #F1F5F9" }}>
+             <h3 style={{ margin: "0 0 16px 0", fontSize: 15, color: "#0F172A", fontWeight: 600 }}>Saldos Iniciales Reales</h3>
+             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Banknote size={18} color="#16A34A" />
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Caja Efectivo</label>
+                    <input type="number" placeholder="Ej: 150000" value={saldoEfectivo} onChange={e => setSaldoEfectivo(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 15, outline: "none", background: "transparent" }} />
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Landmark size={18} color="#0284C7" />
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Cuentas Bancarias</label>
+                    <input type="number" placeholder="Ej: 850000" value={saldoBanco} onChange={e => setSaldoBanco(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 15, outline: "none", background: "transparent" }} />
+                  </div>
+                </div>
+             </div>
+          </div>
         </div>
 
         {procesadas.length === 0 && (
@@ -220,7 +247,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* NUEVO: Panel de Simulaciones (Supuestos) */}
             <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 24, marginBottom: 24, border: "1px solid #F1F5F9" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                 <Lightbulb size={20} color="#D97706" />
