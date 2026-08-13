@@ -4,8 +4,9 @@ import ImportadorCashflow from "./ImportadorCashflow";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const BASE_INCOME = [
-  { key: "cuposNeuquen", label: "Cupos Neuquén" },
+  { key: "cuposNeuquen", label: "Cupos Neuquen" },
   { key: "cuposBoulevard", label: "Cupos Boulevard" },
+  { key: "cupoDuo", label: "Cupo + Duo" },
   { key: "cupos300", label: "Cupos #300" },
   { key: "otrosIngresos", label: "Otros ingresos" },
   { key: "posiblesVentas", label: "Posibles ventas" },
@@ -15,9 +16,27 @@ const BASE_INCOME = [
 const BASE_EXPENSE = [
   { key: "socios", label: "Socios" },
   { key: "chequesEmitidos", label: "Cheques emitidos" },
-  { key: "prestamos", label: "Préstamos" },
+  { key: "prestamos", label: "Prestamos" },
   { key: "sueldosOficina", label: "Sueldos oficina" },
-  { key: "cargasSociales", label: "Cargas sociales" },
+  { key: "cargasSociales", label: "Cargas sociales azlepi y sigma" },
+  { key: "quincenaObra", label: "Quincena obra" },
+  { key: "planesImpuestos", label: "Planes de pago/impuestos" },
+  { key: "tarjetas", label: "Tarjetas" },
+  { key: "externos", label: "Externos" },
+  { key: "seguros", label: "Seguros" },
+  { key: "mensuales", label: "Mensuales" },
+  { key: "rentaAnticipada", label: "Renta anticipada" },
+  { key: "bajaClientes", label: "Baja clientes" },
+  { key: "terrenoNeuquen", label: "Terreno Neuquen" },
+  { key: "colonia", label: "Colonia" },
+  { key: "pagosDia", label: "Pagos del dia" },
+  { key: "otros", label: "Otros" },
+  { key: "rrhh", label: "RRHH" },
+  { key: "mkt", label: "MKT" },
+  { key: "tdys", label: "Tdys (ET)" },
+  { key: "cx", label: "CX" },
+  { key: "postVenta", label: "Post venta" },
+  { key: "contratistas", label: "Contratistas" },
   { key: "proveedores", label: "Proveedores" }
 ];
 
@@ -44,17 +63,15 @@ export default function App() {
     else fetchWeeks();
   };
 
-  // NUEVO: Función para borrar toda la base de datos
   const handleBorrarDatos = async () => {
     const confirmacion = window.confirm("¿Estás seguro de que deseas borrar toda la información? El tablero quedará en 0.");
     if (!confirmacion) return;
 
-    // Le decimos a Supabase que borre todos los registros donde week_start no sea nulo (básicamente todos)
     const { error } = await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
     if (error) {
       alert("Error al limpiar la base de datos: " + error.message);
     } else {
-      fetchWeeks(); // Recarga la tabla para que quede vacía
+      fetchWeeks();
     }
   };
 
@@ -90,7 +107,6 @@ export default function App() {
         <h2 style={{ margin: 0 }}>Cashflow 13 Semanas — Conectado a Supabase</h2>
       </header>
 
-      {/* Se pasa la función onBorrarDatos al importador */}
       <ImportadorCashflow 
         baseIncome={BASE_INCOME} 
         baseExpense={BASE_EXPENSE} 
@@ -147,29 +163,81 @@ export default function App() {
           </div>
 
           <div style={{ background: "#fff", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20, overflowX: "auto" }}>
-            <h3 style={{ margin: "0 0 20px 0", fontSize: 16, color: "#12181F" }}>Detalle Semanal</h3>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <h3 style={{ margin: "0 0 20px 0", fontSize: 16, color: "#12181F" }}>Detalle de Flujos (Vista Matricial)</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid #E5E5E5", textAlign: "left", color: "#7C8891" }}>
-                  <th style={{ padding: "12px 8px" }}>Semana</th>
-                  <th style={{ padding: "12px 8px" }}>Ingresos</th>
-                  <th style={{ padding: "12px 8px" }}>Egresos</th>
-                  <th style={{ padding: "12px 8px" }}>Flujo Neto</th>
-                  <th style={{ padding: "12px 8px" }}>Saldo Acum.</th>
+                <tr style={{ borderBottom: "2px solid #E5E5E5", color: "#7C8891" }}>
+                  <th style={{ padding: "12px 16px", textAlign: "left", minWidth: 200, background: "#F9FAFB", position: "sticky", left: 0 }}>Concepto</th>
+                  {procesadas.map((w, index) => (
+                    <th key={index} style={{ padding: "12px 16px", textAlign: "right", minWidth: 110 }}>{w.week_start}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {procesadas.map((w, index) => (
-                  <tr key={index} style={{ borderBottom: "1px solid #F5F4F1" }}>
-                    <td style={{ padding: "12px 8px", fontWeight: 500 }}>{w.week_start}</td>
-                    <td style={{ padding: "12px 8px", color: "#0E6E5D" }}>$ {fmt(w.totalIngresos)}</td>
-                    <td style={{ padding: "12px 8px", color: "#D93025" }}>$ {fmt(w.totalEgresos)}</td>
-                    <td style={{ padding: "12px 8px", fontWeight: 600, color: w.posicion >= 0 ? "#0E6E5D" : "#D93025" }}>
-                      $ {fmt(w.posicion)}
-                    </td>
-                    <td style={{ padding: "12px 8px", fontWeight: "bold" }}>$ {fmt(w.saldoAcumulado)}</td>
+                <tr>
+                  <td colSpan={procesadas.length + 1} style={{ padding: "12px 16px", fontWeight: "bold", background: "#F0FDF4", color: "#0E6E5D" }}>
+                    INGRESOS
+                  </td>
+                </tr>
+                {BASE_INCOME.map((income) => (
+                  <tr key={income.key} style={{ borderBottom: "1px solid #F5F4F1" }}>
+                    <td style={{ padding: "8px 16px", color: "#4B5563", background: "#fff", position: "sticky", left: 0 }}>{income.label}</td>
+                    {procesadas.map((w, index) => (
+                      <td key={index} style={{ padding: "8px 16px", textAlign: "right", color: "#4B5563" }}>
+                        $ {fmt(w.income?.[income.key] || 0)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
+                <tr style={{ borderBottom: "2px solid #E5E5E5", fontWeight: "bold" }}>
+                  <td style={{ padding: "12px 16px", background: "#fff", position: "sticky", left: 0 }}>Total Ingresos</td>
+                  {procesadas.map((w, index) => (
+                    <td key={index} style={{ padding: "12px 16px", textAlign: "right", color: "#0E6E5D" }}>
+                      $ {fmt(w.totalIngresos)}
+                    </td>
+                  ))}
+                </tr>
+
+                <tr>
+                  <td colSpan={procesadas.length + 1} style={{ padding: "12px 16px", fontWeight: "bold", background: "#FEF2F2", color: "#D93025" }}>
+                    EGRESOS
+                  </td>
+                </tr>
+                {BASE_EXPENSE.map((expense) => (
+                  <tr key={expense.key} style={{ borderBottom: "1px solid #F5F4F1" }}>
+                    <td style={{ padding: "8px 16px", color: "#4B5563", background: "#fff", position: "sticky", left: 0 }}>{expense.label}</td>
+                    {procesadas.map((w, index) => (
+                      <td key={index} style={{ padding: "8px 16px", textAlign: "right", color: "#4B5563" }}>
+                        $ {fmt(w.expense?.[expense.key] || 0)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr style={{ borderBottom: "2px solid #E5E5E5", fontWeight: "bold" }}>
+                  <td style={{ padding: "12px 16px", background: "#fff", position: "sticky", left: 0 }}>Total Egresos</td>
+                  {procesadas.map((w, index) => (
+                    <td key={index} style={{ padding: "12px 16px", textAlign: "right", color: "#D93025" }}>
+                      $ {fmt(w.totalEgresos)}
+                    </td>
+                  ))}
+                </tr>
+
+                <tr style={{ borderBottom: "1px solid #F5F4F1", fontWeight: "bold", background: "#F9FAFB" }}>
+                  <td style={{ padding: "12px 16px", background: "#F9FAFB", position: "sticky", left: 0 }}>Flujo Neto</td>
+                  {procesadas.map((w, index) => (
+                    <td key={index} style={{ padding: "12px 16px", textAlign: "right", color: w.posicion >= 0 ? "#0E6E5D" : "#D93025" }}>
+                      $ {fmt(w.posicion)}
+                    </td>
+                  ))}
+                </tr>
+                <tr style={{ fontWeight: "bold", background: "#E5E5E5" }}>
+                  <td style={{ padding: "12px 16px", background: "#E5E5E5", position: "sticky", left: 0 }}>Saldo Acumulado</td>
+                  {procesadas.map((w, index) => (
+                    <td key={index} style={{ padding: "12px 16px", textAlign: "right" }}>
+                      $ {fmt(w.saldoAcumulado)}
+                    </td>
+                  ))}
+                </tr>
               </tbody>
             </table>
           </div>
