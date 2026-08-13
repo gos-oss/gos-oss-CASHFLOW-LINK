@@ -100,7 +100,9 @@ export default function App() {
   const procesadas = useMemo(() => {
     const fechasSet = new Set(weeks.map(w => w.week_start));
     supuestos.forEach(s => fechasSet.add(s.fecha));
+    
     if (fechaSaldo) fechasSet.add(fechaSaldo);
+    
     const fechasArray = Array.from(fechasSet).sort();
 
     let acumuladoActual = 0;
@@ -148,18 +150,16 @@ export default function App() {
     });
   }, [weeks, supuestos, saldoEfectivo, saldoBanco, fechaSaldo]); 
 
-  // NUEVO MOTOR MATEMÁTICO PARA KPIs
+  // NUEVO MOTOR MATEMÁTICO PARA KPIs CON TU FÓRMULA
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
 
     // 1. Días de Caja
     const saldoInicialReal = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
-    
-    // Calculamos el total de días proyectados
     const fechaInicio = new Date(procesadas[0].week_start);
     const fechaFin = new Date(procesadas[procesadas.length - 1].week_start);
     let diasTotalesProyeccion = (fechaFin.getTime() - fechaInicio.getTime()) / (1000 * 3600 * 24);
-    if (diasTotalesProyeccion <= 0) diasTotalesProyeccion = 1; // Prevenir división por 0
+    if (diasTotalesProyeccion <= 0) diasTotalesProyeccion = 1;
 
     const egresosTotales = procesadas.reduce((acc, cur) => acc + cur.totalEgresos, 0);
     const egresoPromedioDiario = egresosTotales / diasTotalesProyeccion;
@@ -169,11 +169,27 @@ export default function App() {
     const semanaDeficit = procesadas.find(w => w.saldoAcumulado < 0);
     const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
 
-    // 3. Necesidad de Fondos (Basado estrictamente en el ÚLTIMO día de proyección)
-    const saldoUltimoDia = procesadas[procesadas.length - 1].saldoAcumulado;
-    const necesidadFondos = saldoUltimoDia < 0 ? Math.abs(saldoUltimoDia) : 0;
+    // 3. NUEVO CÁLCULO: Necesidad Operativa de Fondos (NOF) basado en el último mes
+    const ultimaFecha = procesadas[procesadas.length - 1].week_start; // Ej: "2026-10-31"
+    const ultimoMes = ultimaFecha.substring(0, 7); // Recortamos para obtener el mes: "2026-10"
 
-    return { diasDeCaja, diaDeficit, necesidadFondos };
+    // Filtramos todos los días que coincidan con ese último mes
+    const datosUltimoMes = procesadas.filter(w => w.week_start.startsWith(ultimoMes));
+    
+    // Sumamos los totales de ingresos y egresos de ese mes en particular
+    const ingresosUltimoMes = datosUltimoMes.reduce((acc, cur) => acc + cur.totalIngresos, 0);
+    const egresosUltimoMes = datosUltimoMes.reduce((acc, cur) => acc + cur.totalEgresos, 0);
+
+    const flujoUltimoMes = ingresosUltimoMes - egresosUltimoMes;
+    
+    // Si el flujo es negativo, hay necesidad (faltante). Si es positivo, es 0 necesidad.
+    const deficitUltimoMes = flujoUltimoMes < 0 ? Math.abs(flujoUltimoMes) : 0;
+
+    // Aplicamos exactamente tu fórmula matemática
+    const nofAnual = deficitUltimoMes * 12;
+    const nofMensual = nofAnual / 12;
+
+    return { diasDeCaja, diaDeficit, nofMensual, nofAnual };
   }, [procesadas, saldoEfectivo, saldoBanco]);
 
   if (!loaded) return <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#64748b' }}>Cargando Panel Financiero...</div>;
@@ -265,13 +281,20 @@ export default function App() {
                 </p>
               </div>
 
-              <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                  <div style={{ background: "#FFFBEB", padding: 10, borderRadius: 8, color: "#D97706" }}><AlertTriangle size={20} /></div>
-                  <h4 style={{ margin: 0, color: "#64748B", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Necesidad de Fondos</h4>
+              {/* TARJETA KPI ACTUALIZADA CON TUS FÓRMULAS NOF */}
+              <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                    <div style={{ background: "#FFFBEB", padding: 10, borderRadius: 8, color: "#D97706" }}><AlertTriangle size={20} /></div>
+                    <h4 style={{ margin: 0, color: "#64748B", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>NOF Mensual</h4>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 32, fontWeight: 700, color: kpis.nofMensual > 0 ? "#EF4444" : "#0F172A" }}>
+                    $ {fmt(kpis.nofMensual)}
+                  </p>
                 </div>
-                <p style={{ margin: 0, fontSize: 32, fontWeight: 700, color: kpis.necesidadFondos > 0 ? "#EF4444" : "#0F172A" }}>
-                  $ {fmt(kpis.necesidadFondos)}
+                {/* Muestra la métrica anual en texto pequeño como referencia */}
+                <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#94A3B8", fontWeight: 500 }}>
+                  NOF Anual: $ {fmt(kpis.nofAnual)}
                 </p>
               </div>
             </div>
