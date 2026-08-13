@@ -11,14 +11,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     return String(texto).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '');
   };
 
-  const obtenerInicioSemana = (fechaIso) => {
-    const dt = new Date(fechaIso + "T00:00:00");
-    const day = dt.getDay();
-    const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(dt.setDate(diff));
-    return monday.toISOString().slice(0, 10);
-  };
-
+  // Función segura para extraer todos los lunes de un mes (Para presupuestos mensuales)
   const obtenerLunesDelMes = (anioMes) => {
     const [year, month] = anioMes.split("-").map(Number);
     const lunes = [];
@@ -26,21 +19,51 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       const fecha = new Date(year, month - 1, dia);
       if (fecha.getMonth() !== month - 1) break;
       if (fecha.getDay() === 1) {
-        lunes.push(fecha.toISOString().slice(0, 10));
+        const mm = String(month).padStart(2, '0');
+        const dd = String(dia).padStart(2, '0');
+        lunes.push(`${year}-${mm}-${dd}`);
       }
     }
     return lunes;
   };
 
+  // NUEVO: Funciones matemáticas para proyectar meses futuros exactos
+  const sumarMesesExactos = (fechaIso, mesesAdicionales) => {
+    const [y, m, d] = fechaIso.split("-").map(Number);
+    let newM = m - 1 + mesesAdicionales;
+    let newY = y + Math.floor(newM / 12);
+    newM = newM % 12;
+    if (newM < 0) { newM += 12; }
+    
+    const lastDay = new Date(newY, newM + 1, 0).getDate();
+    const finalD = Math.min(d, lastDay);
+    
+    const mm = String(newM + 1).padStart(2, '0');
+    const dd = String(finalD).padStart(2, '0');
+    return `${newY}-${mm}-${dd}`;
+  };
+
+  const sumarMesesAnioMes = (anioMes, mesesAdicionales) => {
+    const [y, m] = anioMes.split("-").map(Number);
+    let newM = m - 1 + mesesAdicionales;
+    let newY = y + Math.floor(newM / 12);
+    newM = newM % 12;
+    if (newM < 0) { newM += 12; }
+    
+    const mm = String(newM + 1).padStart(2, '0');
+    return `${newY}-${mm}`;
+  };
+
+  // NUEVO: El modelo descargable ahora incluye la columna "Repeticiones"
   const descargarModeloPresupuesto = () => {
     const estructuraModelo = [
-      { Concepto: "Sueldos oficina", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-09", Monto_Total: 1000000 },
-      { Concepto: "Proveedores", Tipo_Carga: "Exacta", Mes_o_Fecha: "2026-09-15", Monto_Total: 250000 },
-      { Concepto: "Cupos Neuquen", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-10", Monto_Total: 4000000 }
+      { Concepto: "Sueldos oficina", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-09", Monto_Total: 1000000, Repeticiones: 3 },
+      { Concepto: "Proveedores", Tipo_Carga: "Exacta", Mes_o_Fecha: "2026-09-15", Monto_Total: 250000, Repeticiones: 1 },
+      { Concepto: "Cupos Neuquen", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-10", Monto_Total: 4000000, Repeticiones: 12 }
     ];
 
     const hoja = XLSX.utils.json_to_sheet(estructuraModelo);
-    hoja['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+    hoja['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Proyecciones");
     XLSX.writeFile(libro, "Modelo_Proyecciones.xlsx");
@@ -57,69 +80,78 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       const hoja = workbook.Sheets[workbook.SheetNames[0]];
       const filas = XLSX.utils.sheet_to_json(hoja);
 
-      const semanas = {};
-      const noReconocidos = new Set(); // Sistema de alerta para palabras no reconocidas
+      const periodos = {};
+      const noReconocidos = new Set(); 
 
       filas.forEach((fila) => {
         const concepto = normalizarTexto(fila.Concepto);
         const tipoCarga = normalizarTexto(fila.Tipo_Carga);
         const montoTotal = Number(fila.Monto_Total) || 0;
+        
+        // NUEVO: Lee las repeticiones (Si está vacío, asume 1)
+        const repeticiones = Number(fila.Repeticiones) || 1; 
 
-        let mesOFecha = "";
+        let mesOFechaBase = "";
 
         if (typeof fila.Mes_o_Fecha === 'number') {
           const excelDate = new Date(Math.round((fila.Mes_o_Fecha - 25569) * 86400 * 1000));
-          mesOFecha = excelDate.toISOString().slice(0, 10);
+          mesOFechaBase = excelDate.toISOString().slice(0, 10);
         } else {
-          mesOFecha = String(fila.Mes_o_Fecha).trim();
+          mesOFechaBase = String(fila.Mes_o_Fecha).trim();
         }
 
-        if (!mesOFecha || montoTotal === 0) return;
+        if (!mesOFechaBase || montoTotal === 0) return;
 
-        let semanasAImpactar = [];
-        let montoPorSemana = 0;
+        // BUCLE DE REPETICIONES AUTOMÁTICAS
+        for (let i = 0; i < repeticiones; i++) {
+          let fechasAImpactar = [];
+          let montoPorFecha = 0;
 
-        if (tipoCarga.includes("mensual")) {
-          semanasAImpactar = obtenerLunesDelMes(mesOFecha);
-          montoPorSemana = montoTotal / semanasAImpactar.length;
-        } else {
-          semanasAImpactar = [obtenerInicioSemana(mesOFecha)];
-          montoPorSemana = montoTotal;
-        }
-
-        semanasAImpactar.forEach(weekStart => {
-          if (!semanas[weekStart]) {
-            semanas[weekStart] = {
-              id: "w_" + Math.random().toString(36).slice(2, 10),
-              week_start: weekStart,
-              status: "proyectado",
-              saldo_inicial: 0,
-              saldo_bancos: 0,
-              saldo_credimas: 0,
-              income: {},
-              expense: {},
-              notes: ""
-            };
-          }
-
-          const ing = baseIncome.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
-          const eg = baseExpense.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
-
-          if (ing) {
-            semanas[weekStart].income[ing.key] = (semanas[weekStart].income[ing.key] || 0) + montoPorSemana;
-          } else if (eg) {
-            semanas[weekStart].expense[eg.key] = (semanas[weekStart].expense[eg.key] || 0) + montoPorSemana;
+          if (tipoCarga.includes("mensual")) {
+            // Si es mensual, proyecta para el mes correspondiente
+            const mesProyectado = sumarMesesAnioMes(mesOFechaBase, i);
+            fechasAImpactar = obtenerLunesDelMes(mesProyectado);
+            montoPorFecha = montoTotal / fechasAImpactar.length;
           } else {
-            noReconocidos.add(fila.Concepto); // Guarda la palabra ignorada
+            // NUEVO: Si es fecha exacta, respeta el día y suma meses según repetición
+            const fechaProyectada = sumarMesesExactos(mesOFechaBase, i);
+            fechasAImpactar = [fechaProyectada]; 
+            montoPorFecha = montoTotal;
           }
-        });
+
+          fechasAImpactar.forEach(fechaStart => {
+            if (!periodos[fechaStart]) {
+              periodos[fechaStart] = {
+                id: "w_" + Math.random().toString(36).slice(2, 10),
+                week_start: fechaStart, // Ahora guarda la fecha EXACTA
+                status: "proyectado",
+                saldo_inicial: 0,
+                saldo_bancos: 0,
+                saldo_credimas: 0,
+                income: {},
+                expense: {},
+                notes: ""
+              };
+            }
+
+            const ing = baseIncome.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
+            const eg = baseExpense.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
+
+            if (ing) {
+              periodos[fechaStart].income[ing.key] = (periodos[fechaStart].income[ing.key] || 0) + montoPorFecha;
+            } else if (eg) {
+              periodos[fechaStart].expense[eg.key] = (periodos[fechaStart].expense[eg.key] || 0) + montoPorFecha;
+            } else {
+              noReconocidos.add(fila.Concepto); 
+            }
+          });
+        }
       });
 
-      await onImportarSemanas(Object.values(semanas));
+      await onImportarSemanas(Object.values(periodos));
       
-      // Muestra la alerta inteligente
       if (noReconocidos.size > 0) {
-        alert("Atención: Los siguientes conceptos fueron ignorados porque no están en tu lista de App.jsx:\n\n" + Array.from(noReconocidos).join(", "));
+        alert("Atención: Los siguientes conceptos fueron ignorados porque no existen en tu configuración:\n\n" + Array.from(noReconocidos).join(", "));
       } else {
         alert("¡Proyecciones calculadas y guardadas con éxito!");
       }
@@ -138,9 +170,10 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#12181F' }}>Generador de Proyecciones</h4>
-          <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Soporta presupuesto mensual prorrateado y fechas exactas de pago.</p>
+          <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Soporta carga diaria exacta y repeticiones mensuales automáticas.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          
           <button onClick={onBorrarDatos} style={{ padding: '8px 12px', background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Trash2 size={14} /> Limpiar Datos
           </button>
