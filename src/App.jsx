@@ -47,7 +47,6 @@ export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   
-  // NUEVO: Agregamos un estado para guardar la fecha exacta del saldo inicial
   const [saldoEfectivo, setSaldoEfectivo] = useState("");
   const [saldoBanco, setSaldoBanco] = useState("");
   const [fechaSaldo, setFechaSaldo] = useState("");
@@ -98,16 +97,10 @@ export default function App() {
     setSupuestos(supuestos.filter(s => s.id !== id));
   };
 
-  // MOTOR MATEMÁTICO ACTUALIZADO: Respeta la fecha exacta de tu saldo real
   const procesadas = useMemo(() => {
-    // 1. Recopilamos todas las fechas de la base de datos, los supuestos y la fecha de corte
     const fechasSet = new Set(weeks.map(w => w.week_start));
     supuestos.forEach(s => fechasSet.add(s.fecha));
-    
-    // Si ingresaste una fecha de saldo, la agregamos a la línea de tiempo obligatoriamente
     if (fechaSaldo) fechasSet.add(fechaSaldo);
-    
-    // Ordenamos cronológicamente
     const fechasArray = Array.from(fechasSet).sort();
 
     let acumuladoActual = 0;
@@ -132,18 +125,14 @@ export default function App() {
       const totalEgresosConSimulacion = eg + simEgreso;
       const pos = totalIngresosConSimulacion - totalEgresosConSimulacion;
       
-      // LÓGICA DE SALDO INICIAL:
-      // Si llegamos a la fecha exacta que indicaste, establecemos el punto de partida aquí.
       if (fechaSaldo && fecha === fechaSaldo) {
         acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
         saldoFijado = true;
       } else if (!fechaSaldo && !saldoFijado) {
-        // Si no indicas fecha, el código mantiene su comportamiento original (lo pone al principio)
         acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
         saldoFijado = true;
       }
 
-      // Sumamos el flujo neto del día al acumulado
       acumuladoActual += pos;
 
       return { 
@@ -159,19 +148,33 @@ export default function App() {
     });
   }, [weeks, supuestos, saldoEfectivo, saldoBanco, fechaSaldo]); 
 
+  // NUEVO MOTOR MATEMÁTICO PARA KPIs
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
-    const saldoActual = procesadas[0].saldoAcumulado;
+
+    // 1. Días de Caja
+    const saldoInicialReal = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+    
+    // Calculamos el total de días proyectados
+    const fechaInicio = new Date(procesadas[0].week_start);
+    const fechaFin = new Date(procesadas[procesadas.length - 1].week_start);
+    let diasTotalesProyeccion = (fechaFin.getTime() - fechaInicio.getTime()) / (1000 * 3600 * 24);
+    if (diasTotalesProyeccion <= 0) diasTotalesProyeccion = 1; // Prevenir división por 0
+
     const egresosTotales = procesadas.reduce((acc, cur) => acc + cur.totalEgresos, 0);
-    const egresoPromedioDiario = (egresosTotales / procesadas.length) / 7;
-    const diasDeCaja = egresoPromedioDiario > 0 ? Math.max(0, Math.round(saldoActual / egresoPromedioDiario)) : 0;
+    const egresoPromedioDiario = egresosTotales / diasTotalesProyeccion;
+    const diasDeCaja = egresoPromedioDiario > 0 ? Math.round(saldoInicialReal / egresoPromedioDiario) : 0;
+
+    // 2. Día de Déficit
     const semanaDeficit = procesadas.find(w => w.saldoAcumulado < 0);
     const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
-    const saldos = procesadas.map(w => w.saldoAcumulado);
-    const minimoSaldo = Math.min(...saldos);
-    const necesidadFondos = minimoSaldo < 0 ? Math.abs(minimoSaldo) : 0;
+
+    // 3. Necesidad de Fondos (Basado estrictamente en el ÚLTIMO día de proyección)
+    const saldoUltimoDia = procesadas[procesadas.length - 1].saldoAcumulado;
+    const necesidadFondos = saldoUltimoDia < 0 ? Math.abs(saldoUltimoDia) : 0;
+
     return { diasDeCaja, diaDeficit, necesidadFondos };
-  }, [procesadas]);
+  }, [procesadas, saldoEfectivo, saldoBanco]);
 
   if (!loaded) return <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#64748b' }}>Cargando Panel Financiero...</div>;
 
@@ -188,7 +191,6 @@ export default function App() {
       <main style={{ padding: "32px", maxWidth: 1600, margin: "0 auto" }}>
         
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 24 }}>
-          {/* Panel de Importación */}
           <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", flex: 2, minWidth: 300 }}>
             <ImportadorCashflow 
               baseIncome={BASE_INCOME} 
@@ -199,7 +201,6 @@ export default function App() {
             />
           </div>
 
-          {/* Panel de Saldos Iniciales Reales MEJORADO */}
           <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 20, flex: 1, minWidth: 300, border: "1px solid #F1F5F9" }}>
              <h3 style={{ margin: "0 0 16px 0", fontSize: 15, color: "#0F172A", fontWeight: 600 }}>Punto de Partida (Saldos Reales)</h3>
              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -208,7 +209,6 @@ export default function App() {
                   <CalendarClock size={18} color="#64748B" />
                   <div style={{ flex: 1 }}>
                     <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Fecha de Corte</label>
-                    {/* Input de Fecha para asignar el día exacto */}
                     <input type="date" value={fechaSaldo} onChange={e => setFechaSaldo(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 14, outline: "none", background: "transparent", color: "#0F172A" }} />
                   </div>
                 </div>
