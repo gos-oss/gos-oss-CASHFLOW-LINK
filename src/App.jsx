@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+// Íconos modernos para nuestros KPIs
+import { Wallet, CalendarX2, AlertTriangle, TrendingUp } from "lucide-react";
 
 const BASE_INCOME = [
   { key: "cuposNeuquen", label: "Cupos Neuquen" },
@@ -99,150 +101,194 @@ export default function App() {
     return { diasDeCaja, diaDeficit, necesidadFondos };
   }, [procesadas]);
 
-  if (!loaded) return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>Cargando Cashflow desde Supabase...</div>;
+  if (!loaded) return <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#64748b' }}>Cargando Panel Financiero...</div>;
 
   return (
-    <div style={{ fontFamily: "sans-serif", background: "#F5F4F1", minHeight: "100vh", padding: 20 }}>
-      <header style={{ background: "#12181F", color: "#fff", padding: 20, borderRadius: 8, marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>Cashflow 13 Semanas — Conectado a Supabase</h2>
+    <div style={{ fontFamily: "'Inter', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+      
+      {/* Barra de Navegación Superior (Top Nav) */}
+      <header style={{ background: "#ffffff", borderBottom: "1px solid #E2E8F0", padding: "16px 32px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ background: "#0E6E5D", color: "#fff", padding: 8, borderRadius: 8 }}>
+          <TrendingUp size={24} />
+        </div>
+        <h2 style={{ margin: 0, color: "#0F172A", fontSize: 20, fontWeight: 600 }}>Cashflow Pro <span style={{ color: "#94A3B8", fontSize: 14, fontWeight: 400 }}>| Conectado a Supabase</span></h2>
       </header>
 
-      <ImportadorCashflow 
-        baseIncome={BASE_INCOME} 
-        baseExpense={BASE_EXPENSE} 
-        onImportarSemanas={handleImportarSemanas} 
-        onBorrarDatos={handleBorrarDatos}
-      />
-
-      {procesadas.length === 0 && (
-        <div style={{ textAlign: "center", padding: "80px 20px", color: "#7C8891" }}>
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 16, opacity: 0.4 }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-          <h3 style={{ fontSize: 18, color: "#12181F", marginBottom: 8, fontWeight: 600 }}>Aún no hay proyecciones</h3>
-          <p style={{ fontSize: 14, maxWidth: 450, margin: "0 auto", lineHeight: 1.5 }}>
-            Sube un archivo de Excel usando el botón superior o espera a que se sincronicen los datos desde tu base de datos para visualizar el Cashflow.
-          </p>
+      <main style={{ padding: "32px", maxWidth: 1600, margin: "0 auto" }}>
+        
+        {/* Panel de Importación */}
+        <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 24 }}>
+          <ImportadorCashflow 
+            baseIncome={BASE_INCOME} 
+            baseExpense={BASE_EXPENSE} 
+            onImportarSemanas={handleImportarSemanas} 
+            onBorrarDatos={handleBorrarDatos}
+          />
         </div>
-      )}
 
-      {procesadas.length > 0 && kpis && (
-        <>
-          <div style={{ display: "flex", gap: 16, marginTop: 20, flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
-              <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Días de Caja</h4>
-              <p style={{ margin: "8px 0 0", fontSize: 24, fontWeight: "bold", color: kpis.diasDeCaja > 15 ? "#0E6E5D" : "#D93025" }}>
-                {kpis.diasDeCaja} <span style={{ fontSize: 16, fontWeight: "normal", color: "#7C8891" }}>días</span>
-              </p>
-            </div>
-            <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
-              <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Día de Déficit</h4>
-              <p style={{ margin: "8px 0 0", fontSize: 24, fontWeight: "bold", color: kpis.diaDeficit !== "Sin déficit" ? "#D93025" : "#0E6E5D" }}>
-                {kpis.diaDeficit}
-              </p>
-            </div>
-            <div style={{ flex: 1, minWidth: 200, background: "#fff", padding: 20, borderRadius: 8, border: "1px solid #DEDAD0" }}>
-              <h4 style={{ margin: 0, color: "#7C8891", fontSize: 13, textTransform: "uppercase" }}>Necesidad de Fondos</h4>
-              <p style={{ margin: "8px 0 0", fontSize: 24, fontWeight: "bold", color: kpis.necesidadFondos > 0 ? "#D93025" : "#0E6E5D" }}>
-                $ {fmt(kpis.necesidadFondos)}
-              </p>
-            </div>
+        {/* Estado Vacío */}
+        {procesadas.length === 0 && (
+          <div style={{ textAlign: "center", padding: "100px 20px", background: "#ffffff", borderRadius: 12, border: "1px dashed #CBD5E1" }}>
+            <Wallet size={64} style={{ color: "#94A3B8", marginBottom: 16, opacity: 0.5 }} />
+            <h3 style={{ fontSize: 20, color: "#334155", marginBottom: 8, fontWeight: 600 }}>Tu lienzo financiero está vacío</h3>
+            <p style={{ fontSize: 15, color: "#64748B", maxWidth: 500, margin: "0 auto", lineHeight: 1.5 }}>
+              Sube tu primer archivo de Excel para generar proyecciones automáticas, calcular tu salud de caja y visualizar tu flujo neto.
+            </p>
           </div>
+        )}
 
-          <div style={{ background: "#fff", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
-            <h3 style={{ margin: "0 0 20px 0", fontSize: 16, color: "#12181F" }}>Evolución de Saldo Acumulado</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E5E5" />
-                <XAxis dataKey="name" tick={{ fill: "#7C8891", fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#7C8891", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} />
-                <Tooltip formatter={(v) => "$ " + fmt(v)} contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
-                <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" strokeWidth={2} fill="#0E6E5D" fillOpacity={0.1} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+        {/* Tablero Principal (Dashboard) */}
+        {procesadas.length > 0 && kpis && (
+          <>
+            {/* Fila de KPIs */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24, marginBottom: 24 }}>
+              
+              {/* KPI 1 */}
+              <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <div style={{ background: "#F0FDF4", padding: 10, borderRadius: 8, color: "#16A34A" }}><Wallet size={20} /></div>
+                  <h4 style={{ margin: 0, color: "#64748B", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Días de Caja</h4>
+                </div>
+                <p style={{ margin: 0, fontSize: 32, fontWeight: 700, color: kpis.diasDeCaja > 15 ? "#0F172A" : "#EF4444" }}>
+                  {kpis.diasDeCaja} <span style={{ fontSize: 16, fontWeight: 500, color: "#94A3B8" }}>días</span>
+                </p>
+              </div>
+              
+              {/* KPI 2 */}
+              <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <div style={{ background: "#FEF2F2", padding: 10, borderRadius: 8, color: "#EF4444" }}><CalendarX2 size={20} /></div>
+                  <h4 style={{ margin: 0, color: "#64748B", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Día de Déficit</h4>
+                </div>
+                <p style={{ margin: 0, fontSize: 32, fontWeight: 700, color: kpis.diaDeficit !== "Sin déficit" ? "#EF4444" : "#0F172A" }}>
+                  {kpis.diaDeficit}
+                </p>
+              </div>
 
-          <div style={{ background: "#fff", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20, overflowX: "auto" }}>
-            <h3 style={{ margin: "0 0 20px 0", fontSize: 16, color: "#12181F" }}>Detalle de Flujos (Vista Matricial)</h3>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #E5E5E5", color: "#7C8891" }}>
-                  <th style={{ padding: "12px 16px", textAlign: "left", minWidth: 200, background: "#F9FAFB", position: "sticky", left: 0 }}>Concepto</th>
-                  {procesadas.map((w, index) => (
-                    <th key={index} style={{ padding: "12px 16px", textAlign: "right", minWidth: 110 }}>{w.week_start}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colSpan={procesadas.length + 1} style={{ padding: "12px 16px", fontWeight: "bold", background: "#F0FDF4", color: "#0E6E5D" }}>
-                    INGRESOS
-                  </td>
-                </tr>
-                {BASE_INCOME.map((income) => (
-                  <tr key={income.key} style={{ borderBottom: "1px solid #F5F4F1" }}>
-                    <td style={{ padding: "8px 16px", color: "#4B5563", background: "#fff", position: "sticky", left: 0 }}>{income.label}</td>
+              {/* KPI 3 */}
+              <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <div style={{ background: "#FFFBEB", padding: 10, borderRadius: 8, color: "#D97706" }}><AlertTriangle size={20} /></div>
+                  <h4 style={{ margin: 0, color: "#64748B", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Necesidad de Fondos</h4>
+                </div>
+                <p style={{ margin: 0, fontSize: 32, fontWeight: 700, color: kpis.necesidadFondos > 0 ? "#EF4444" : "#0F172A" }}>
+                  $ {fmt(kpis.necesidadFondos)}
+                </p>
+              </div>
+            </div>
+
+            {/* Gráfico de Evolución con Estilo Avanzado */}
+            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 24, marginBottom: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A", fontWeight: 600 }}>Evolución de Saldo Acumulado</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
+                  {/* Definimos el degradado visual */}
+                  <defs>
+                    <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0E6E5D" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#0E6E5D" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="name" tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} dy={10} />
+                  <YAxis tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-10} />
+                  <Tooltip 
+                    formatter={(v) => ["$ " + fmt(v), "Saldo"]} 
+                    contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontWeight: 600, color: "#0F172A" }}
+                  />
+                  <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" strokeWidth={3} fill="url(#colorSaldo)" activeDot={{ r: 6, strokeWidth: 0, fill: "#0E6E5D" }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Tabla Matricial Mejorada */}
+            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 24, overflowX: "auto" }}>
+              <h3 style={{ margin: "0 0 24px 0", fontSize: 16, color: "#0F172A", fontWeight: 600 }}>Desglose de Flujos Diarios</h3>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
+                <thead>
+                  <tr style={{ color: "#64748B", borderBottom: "2px solid #E2E8F0" }}>
+                    <th style={{ padding: "12px 16px", textAlign: "left", minWidth: 200, background: "#fff", position: "sticky", left: 0, zIndex: 2, fontWeight: 600 }}>Concepto</th>
                     {procesadas.map((w, index) => (
-                      <td key={index} style={{ padding: "8px 16px", textAlign: "right", color: "#4B5563" }}>
-                        $ {fmt(w.income?.[income.key] || 0)}
+                      <th key={index} style={{ padding: "12px 16px", textAlign: "right", minWidth: 120, fontWeight: 600 }}>{w.week_start}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* --- INGRESOS --- */}
+                  <tr>
+                    <td colSpan={procesadas.length + 1} style={{ padding: "16px 16px 8px", fontWeight: 700, color: "#16A34A", fontSize: 11, letterSpacing: "0.05em", background: "#fff", position: "sticky", left: 0 }}>
+                      INGRESOS OPERATIVOS
+                    </td>
+                  </tr>
+                  {BASE_INCOME.map((income) => (
+                    <tr key={income.key} style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "#F8FAFC"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+                      <td style={{ padding: "10px 16px", color: "#475569", background: "inherit", position: "sticky", left: 0 }}>{income.label}</td>
+                      {procesadas.map((w, index) => (
+                        <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#475569" }}>
+                          $ {fmt(w.income?.[income.key] || 0)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F0FDF4" }}>
+                    <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0F172A", background: "#F0FDF4", position: "sticky", left: 0 }}>Total Ingresos</td>
+                    {procesadas.map((w, index) => (
+                      <td key={index} style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "#16A34A" }}>
+                        $ {fmt(w.totalIngresos)}
                       </td>
                     ))}
                   </tr>
-                ))}
-                <tr style={{ borderBottom: "2px solid #E5E5E5", fontWeight: "bold" }}>
-                  <td style={{ padding: "12px 16px", background: "#fff", position: "sticky", left: 0 }}>Total Ingresos</td>
-                  {procesadas.map((w, index) => (
-                    <td key={index} style={{ padding: "12px 16px", textAlign: "right", color: "#0E6E5D" }}>
-                      $ {fmt(w.totalIngresos)}
-                    </td>
-                  ))}
-                </tr>
 
-                <tr>
-                  <td colSpan={procesadas.length + 1} style={{ padding: "12px 16px", fontWeight: "bold", background: "#FEF2F2", color: "#D93025" }}>
-                    EGRESOS
-                  </td>
-                </tr>
-                {BASE_EXPENSE.map((expense) => (
-                  <tr key={expense.key} style={{ borderBottom: "1px solid #F5F4F1" }}>
-                    <td style={{ padding: "8px 16px", color: "#4B5563", background: "#fff", position: "sticky", left: 0 }}>{expense.label}</td>
+                  {/* --- EGRESOS --- */}
+                  <tr>
+                    <td colSpan={procesadas.length + 1} style={{ padding: "24px 16px 8px", fontWeight: 700, color: "#EF4444", fontSize: 11, letterSpacing: "0.05em", background: "#fff", position: "sticky", left: 0 }}>
+                      EGRESOS OPERATIVOS
+                    </td>
+                  </tr>
+                  {BASE_EXPENSE.map((expense) => (
+                    <tr key={expense.key} style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "#F8FAFC"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+                      <td style={{ padding: "10px 16px", color: "#475569", background: "inherit", position: "sticky", left: 0 }}>{expense.label}</td>
+                      {procesadas.map((w, index) => (
+                        <td key={index} style={{ padding: "10px 16px", textAlign: "right", color: "#475569" }}>
+                          $ {fmt(w.expense?.[expense.key] || 0)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#FEF2F2" }}>
+                    <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0F172A", background: "#FEF2F2", position: "sticky", left: 0 }}>Total Egresos</td>
                     {procesadas.map((w, index) => (
-                      <td key={index} style={{ padding: "8px 16px", textAlign: "right", color: "#4B5563" }}>
-                        $ {fmt(w.expense?.[expense.key] || 0)}
+                      <td key={index} style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "#EF4444" }}>
+                        $ {fmt(w.totalEgresos)}
                       </td>
                     ))}
                   </tr>
-                ))}
-                <tr style={{ borderBottom: "2px solid #E5E5E5", fontWeight: "bold" }}>
-                  <td style={{ padding: "12px 16px", background: "#fff", position: "sticky", left: 0 }}>Total Egresos</td>
-                  {procesadas.map((w, index) => (
-                    <td key={index} style={{ padding: "12px 16px", textAlign: "right", color: "#D93025" }}>
-                      $ {fmt(w.totalEgresos)}
-                    </td>
-                  ))}
-                </tr>
 
-                <tr style={{ borderBottom: "1px solid #F5F4F1", fontWeight: "bold", background: "#F9FAFB" }}>
-                  <td style={{ padding: "12px 16px", background: "#F9FAFB", position: "sticky", left: 0 }}>Flujo Neto</td>
-                  {procesadas.map((w, index) => (
-                    <td key={index} style={{ padding: "12px 16px", textAlign: "right", color: w.posicion >= 0 ? "#0E6E5D" : "#D93025" }}>
-                      $ {fmt(w.posicion)}
-                    </td>
-                  ))}
-                </tr>
-                <tr style={{ fontWeight: "bold", background: "#E5E5E5" }}>
-                  <td style={{ padding: "12px 16px", background: "#E5E5E5", position: "sticky", left: 0 }}>Saldo Acumulado</td>
-                  {procesadas.map((w, index) => (
-                    <td key={index} style={{ padding: "12px 16px", textAlign: "right" }}>
-                      $ {fmt(w.saldoAcumulado)}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                  {/* --- RESULTADOS --- */}
+                  <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
+                    <td style={{ padding: "16px", fontWeight: 600, color: "#0F172A", background: "#fff", position: "sticky", left: 0 }}>Flujo Neto del Período</td>
+                    {procesadas.map((w, index) => (
+                      <td key={index} style={{ padding: "16px", textAlign: "right", fontWeight: 600, color: w.posicion >= 0 ? "#16A34A" : "#EF4444" }}>
+                        $ {fmt(w.posicion)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr style={{ background: "#0F172A", color: "#fff" }}>
+                    <td style={{ padding: "16px", fontWeight: 700, background: "#0F172A", position: "sticky", left: 0, borderRadius: "0 0 0 8px" }}>Saldo Acumulado (Caja)</td>
+                    {procesadas.map((w, index) => (
+                      <td key={index} style={{ padding: "16px", textAlign: "right", fontWeight: 700 }}>
+                        $ {fmt(w.saldoAcumulado)}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </main>
     </div>
   );
 }
