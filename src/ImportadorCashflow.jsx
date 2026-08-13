@@ -36,7 +36,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
     const estructuraModelo = [
       { Concepto: "Sueldos oficina", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-09", Monto_Total: 1000000 },
       { Concepto: "Proveedores", Tipo_Carga: "Exacta", Mes_o_Fecha: "2026-09-15", Monto_Total: 250000 },
-      { Concepto: "Cupos Neuquén", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-10", Monto_Total: 4000000 }
+      { Concepto: "Cupos Neuquen", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-10", Monto_Total: 4000000 }
     ];
 
     const hoja = XLSX.utils.json_to_sheet(estructuraModelo);
@@ -58,6 +58,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       const filas = XLSX.utils.sheet_to_json(hoja);
 
       const semanas = {};
+      const noReconocidos = new Set(); // Sistema de alerta para palabras no reconocidas
 
       filas.forEach((fila) => {
         const concepto = normalizarTexto(fila.Concepto);
@@ -108,12 +109,20 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
             semanas[weekStart].income[ing.key] = (semanas[weekStart].income[ing.key] || 0) + montoPorSemana;
           } else if (eg) {
             semanas[weekStart].expense[eg.key] = (semanas[weekStart].expense[eg.key] || 0) + montoPorSemana;
+          } else {
+            noReconocidos.add(fila.Concepto); // Guarda la palabra ignorada
           }
         });
       });
 
       await onImportarSemanas(Object.values(semanas));
-      alert("¡Proyecciones calculadas y guardadas con éxito!");
+      
+      // Muestra la alerta inteligente
+      if (noReconocidos.size > 0) {
+        alert("Atención: Los siguientes conceptos fueron ignorados porque no están en tu lista de App.jsx:\n\n" + Array.from(noReconocidos).join(", "));
+      } else {
+        alert("¡Proyecciones calculadas y guardadas con éxito!");
+      }
       
     } catch (err) {
       console.error(err);
@@ -132,8 +141,6 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
           <p style={{ margin: 0, fontSize: 12, color: '#7C8891' }}>Soporta presupuesto mensual prorrateado y fechas exactas de pago.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          
-          {/* BOTÓN DE LIMPIAR DATOS */}
           <button onClick={onBorrarDatos} style={{ padding: '8px 12px', background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Trash2 size={14} /> Limpiar Datos
           </button>
