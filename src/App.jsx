@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Wallet, CalendarX2, AlertTriangle, TrendingUp, Lightbulb, PlusCircle, XCircle, Landmark, Banknote, CalendarClock } from "lucide-react";
+import { Wallet, CalendarX2, AlertTriangle, TrendingUp, Lightbulb, PlusCircle, XCircle, Landmark, Banknote, CalendarClock, Save } from "lucide-react";
 
 const BASE_INCOME = [
   { key: "cuposNeuquen", label: "Cupos Neuquen" },
@@ -56,13 +56,40 @@ export default function App() {
 
   useEffect(() => {
     fetchWeeks();
+    fetchSettings(); // NUEVO: Cargamos los saldos al iniciar
   }, []);
 
   const fetchWeeks = async () => {
     const { data, error } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    if (error) console.error("Error al cargar datos:", error);
+    if (error) console.error("Error al cargar proyecciones:", error);
     else setWeeks(data || []);
     setLoaded(true);
+  };
+
+  // NUEVO: Función para leer los saldos desde la base de datos
+  const fetchSettings = async () => {
+    const { data, error } = await supabase.from("cashflow_settings").select("*").eq("id", "general");
+    if (data && data.length > 0) {
+      setFechaSaldo(data[0].fecha_corte || "");
+      setSaldoEfectivo(data[0].saldo_efectivo || "");
+      setSaldoBanco(data[0].saldo_banco || "");
+    }
+  };
+
+  // NUEVO: Función para guardar los saldos en la base de datos
+  const guardarSaldos = async () => {
+    const { error } = await supabase.from("cashflow_settings").upsert({
+      id: "general", // Usamos siempre el mismo ID para actualizar la misma fila
+      fecha_corte: fechaSaldo,
+      saldo_efectivo: Number(saldoEfectivo) || 0,
+      saldo_banco: Number(saldoBanco) || 0
+    });
+
+    if (error) {
+      alert("Error al guardar saldos: " + error.message);
+    } else {
+      alert("¡Saldos iniciales guardados exitosamente!");
+    }
   };
 
   const handleImportarSemanas = async (semanasNuevas) => {
@@ -72,7 +99,7 @@ export default function App() {
   };
 
   const handleBorrarDatos = async () => {
-    const confirmacion = window.confirm("¿Estás seguro de que deseas borrar toda la información? El tablero quedará en 0.");
+    const confirmacion = window.confirm("¿Estás seguro de que deseas borrar toda la información de proyecciones? El tablero quedará en 0.");
     if (!confirmacion) return;
 
     const { error } = await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
@@ -150,11 +177,9 @@ export default function App() {
     });
   }, [weeks, supuestos, saldoEfectivo, saldoBanco, fechaSaldo]); 
 
-  // NUEVO MOTOR MATEMÁTICO PARA KPIs CON TU FÓRMULA
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
 
-    // 1. Días de Caja
     const saldoInicialReal = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
     const fechaInicio = new Date(procesadas[0].week_start);
     const fechaFin = new Date(procesadas[procesadas.length - 1].week_start);
@@ -165,27 +190,19 @@ export default function App() {
     const egresoPromedioDiario = egresosTotales / diasTotalesProyeccion;
     const diasDeCaja = egresoPromedioDiario > 0 ? Math.round(saldoInicialReal / egresoPromedioDiario) : 0;
 
-    // 2. Día de Déficit
     const semanaDeficit = procesadas.find(w => w.saldoAcumulado < 0);
     const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
 
-    // 3. NUEVO CÁLCULO: Necesidad Operativa de Fondos (NOF) basado en el último mes
-    const ultimaFecha = procesadas[procesadas.length - 1].week_start; // Ej: "2026-10-31"
-    const ultimoMes = ultimaFecha.substring(0, 7); // Recortamos para obtener el mes: "2026-10"
+    const ultimaFecha = procesadas[procesadas.length - 1].week_start; 
+    const ultimoMes = ultimaFecha.substring(0, 7); 
 
-    // Filtramos todos los días que coincidan con ese último mes
     const datosUltimoMes = procesadas.filter(w => w.week_start.startsWith(ultimoMes));
-    
-    // Sumamos los totales de ingresos y egresos de ese mes en particular
     const ingresosUltimoMes = datosUltimoMes.reduce((acc, cur) => acc + cur.totalIngresos, 0);
     const egresosUltimoMes = datosUltimoMes.reduce((acc, cur) => acc + cur.totalEgresos, 0);
-
     const flujoUltimoMes = ingresosUltimoMes - egresosUltimoMes;
     
-    // Si el flujo es negativo, hay necesidad (faltante). Si es positivo, es 0 necesidad.
     const deficitUltimoMes = flujoUltimoMes < 0 ? Math.abs(flujoUltimoMes) : 0;
 
-    // Aplicamos exactamente tu fórmula matemática
     const nofAnual = deficitUltimoMes * 12;
     const nofMensual = nofAnual / 12;
 
@@ -217,34 +234,37 @@ export default function App() {
             />
           </div>
 
-          <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 20, flex: 1, minWidth: 300, border: "1px solid #F1F5F9" }}>
-             <h3 style={{ margin: "0 0 16px 0", fontSize: 15, color: "#0F172A", fontWeight: 600 }}>Punto de Partida (Saldos Reales)</h3>
-             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <CalendarClock size={18} color="#64748B" />
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Fecha de Corte</label>
-                    <input type="date" value={fechaSaldo} onChange={e => setFechaSaldo(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 14, outline: "none", background: "transparent", color: "#0F172A" }} />
+          <div style={{ background: "#ffffff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: 20, flex: 1, minWidth: 300, border: "1px solid #F1F5F9", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+             <div>
+               <h3 style={{ margin: "0 0 16px 0", fontSize: 15, color: "#0F172A", fontWeight: 600 }}>Punto de Partida (Saldos Reales)</h3>
+               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <CalendarClock size={18} color="#64748B" />
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Fecha de Corte</label>
+                      <input type="date" value={fechaSaldo} onChange={e => setFechaSaldo(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 14, outline: "none", background: "transparent", color: "#0F172A" }} />
+                    </div>
                   </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Banknote size={18} color="#16A34A" />
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Caja Efectivo</label>
-                    <input type="number" placeholder="Ej: 150000" value={saldoEfectivo} onChange={e => setSaldoEfectivo(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 15, outline: "none", background: "transparent" }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Banknote size={18} color="#16A34A" />
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Caja Efectivo</label>
+                      <input type="number" placeholder="Ej: 150000" value={saldoEfectivo} onChange={e => setSaldoEfectivo(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 15, outline: "none", background: "transparent" }} />
+                    </div>
                   </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Landmark size={18} color="#0284C7" />
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Cuentas Bancarias</label>
-                    <input type="number" placeholder="Ej: 850000" value={saldoBanco} onChange={e => setSaldoBanco(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 15, outline: "none", background: "transparent" }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Landmark size={18} color="#0284C7" />
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: 11, color: "#64748B", fontWeight: 600, textTransform: "uppercase" }}>Cuentas Bancarias</label>
+                      <input type="number" placeholder="Ej: 850000" value={saldoBanco} onChange={e => setSaldoBanco(e.target.value)} style={{ width: "100%", padding: "6px 0", border: "none", borderBottom: "1px solid #CBD5E1", fontSize: 15, outline: "none", background: "transparent" }} />
+                    </div>
                   </div>
-                </div>
+               </div>
              </div>
+             {/* NUEVO: Botón para guardar los saldos en Supabase */}
+             <button onClick={guardarSaldos} style={{ padding: "10px", background: "#0E6E5D", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 16 }}>
+                <Save size={16} /> Guardar Configuración
+             </button>
           </div>
         </div>
 
@@ -281,7 +301,6 @@ export default function App() {
                 </p>
               </div>
 
-              {/* TARJETA KPI ACTUALIZADA CON TUS FÓRMULAS NOF */}
               <div style={{ background: "#fff", padding: 24, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #F1F5F9", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -292,7 +311,6 @@ export default function App() {
                     $ {fmt(kpis.nofMensual)}
                   </p>
                 </div>
-                {/* Muestra la métrica anual en texto pequeño como referencia */}
                 <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#94A3B8", fontWeight: 500 }}>
                   NOF Anual: $ {fmt(kpis.nofAnual)}
                 </p>
