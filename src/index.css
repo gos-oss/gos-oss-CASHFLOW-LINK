@@ -105,6 +105,47 @@ code,
 
 code {
   font-size: 15px;
+  /* --- ESTILOS AVANZADOS PARA LA TABLA DE CASHFLOW --- */
+
+/* 1. Barra de desplazamiento (Scrollbar) elegante */
+.table-container::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.table-container::-webkit-scrollbar-track {
+  background: #F1F5F9;
+  border-radius: 4px;
+}
+.table-container::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* 2. Líneas divisorias verticales sutiles */
+.flujo-table th, .flujo-table td {
+  border-right: 1px solid #F1F5F9;
+}
+.flujo-table th:last-child, .flujo-table td:last-child {
+  border-right: none;
+}
+
+/* 3. Efecto de iluminación al pasar el mouse por la fila */
+.flujo-row:hover td {
+  filter: brightness(0.96);
+  transition: all 0.2s ease;
+}
+
+/* 4. Columna de conceptos congelada con sombra */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 4px 0 8px -2px rgba(0,0,0,0.05);
+  clip-path: inset(0 -10px 0 0);
+}
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
