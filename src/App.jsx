@@ -56,7 +56,7 @@ export default function App() {
 
   useEffect(() => {
     fetchWeeks();
-    fetchSettings(); // NUEVO: Cargamos los saldos al iniciar
+    fetchSettings();
   }, []);
 
   const fetchWeeks = async () => {
@@ -66,7 +66,6 @@ export default function App() {
     setLoaded(true);
   };
 
-  // NUEVO: Función para leer los saldos desde la base de datos
   const fetchSettings = async () => {
     const { data, error } = await supabase.from("cashflow_settings").select("*").eq("id", "general");
     if (data && data.length > 0) {
@@ -76,10 +75,9 @@ export default function App() {
     }
   };
 
-  // NUEVO: Función para guardar los saldos en la base de datos
   const guardarSaldos = async () => {
     const { error } = await supabase.from("cashflow_settings").upsert({
-      id: "general", // Usamos siempre el mismo ID para actualizar la misma fila
+      id: "general",
       fecha_corte: fechaSaldo,
       saldo_efectivo: Number(saldoEfectivo) || 0,
       saldo_banco: Number(saldoBanco) || 0
@@ -113,11 +111,12 @@ export default function App() {
 
   const agregarSupuesto = () => {
     if (!formSupuesto.concepto || !formSupuesto.monto || !formSupuesto.fecha) {
-      alert("Por favor, completa todos los campos del supuesto.");
+      alert("Por favor, completa todos los campos del supuesto (Concepto, Monto y Fecha).");
       return;
     }
     setSupuestos([...supuestos, { ...formSupuesto, id: Date.now(), monto: Number(formSupuesto.monto) }]);
-    setFormSupuesto({ concepto: "", monto: "", fecha: "", tipo: "ingreso" });
+    // Al guardar, reiniciamos el formulario manteniendo el último 'tipo' seleccionado
+    setFormSupuesto({ concepto: "", monto: "", fecha: "", tipo: formSupuesto.tipo });
   };
 
   const eliminarSupuesto = (id) => {
@@ -261,7 +260,6 @@ export default function App() {
                   </div>
                </div>
              </div>
-             {/* NUEVO: Botón para guardar los saldos en Supabase */}
              <button onClick={guardarSaldos} style={{ padding: "10px", background: "#0E6E5D", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 16 }}>
                 <Save size={16} /> Guardar Configuración
              </button>
@@ -322,28 +320,49 @@ export default function App() {
                 <Lightbulb size={20} color="#D97706" />
                 <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A", fontWeight: 600 }}>Simulador de Escenarios (Supuestos)</h3>
               </div>
-              <p style={{ color: "#64748B", fontSize: 13, marginBottom: 16 }}>Agrega movimientos hipotéticos para proyectar cómo afectaría tu caja sin modificar tu base de datos real.</p>
+              <p style={{ color: "#64748B", fontSize: 13, marginBottom: 16 }}>Agrega movimientos hipotéticos seleccionando los conceptos de tu base de datos real.</p>
               
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-                <div style={{ flex: 1, minWidth: 150 }}>
-                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Concepto</label>
-                  <input type="text" placeholder="Ej. Venta Inesperada" value={formSupuesto.concepto} onChange={e => setFormSupuesto({...formSupuesto, concepto: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14 }} />
-                </div>
+                {/* CAMPO TIPO: Lo ponemos primero para que dirija qué conceptos mostrar */}
                 <div style={{ flex: 1, minWidth: 120 }}>
-                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Monto ($)</label>
-                  <input type="number" placeholder="500000" value={formSupuesto.monto} onChange={e => setFormSupuesto({...formSupuesto, monto: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14 }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 120 }}>
-                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Fecha</label>
-                  <input type="date" value={formSupuesto.fecha} onChange={e => setFormSupuesto({...formSupuesto, fecha: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14 }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 120 }}>
-                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Tipo</label>
-                  <select value={formSupuesto.tipo} onChange={e => setFormSupuesto({...formSupuesto, tipo: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14, background: "#fff" }}>
+                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Tipo de Flujo</label>
+                  <select 
+                    value={formSupuesto.tipo} 
+                    // Cuando cambias el tipo, se borra el concepto seleccionado para evitar errores
+                    onChange={e => setFormSupuesto({...formSupuesto, tipo: e.target.value, concepto: ""})} 
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14, background: "#fff" }}
+                  >
                     <option value="ingreso">Ingreso</option>
                     <option value="egreso">Egreso</option>
                   </select>
                 </div>
+
+                {/* CAMPO CONCEPTO: Ahora es un <select> dinámico */}
+                <div style={{ flex: 2, minWidth: 200 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Concepto</label>
+                  <select 
+                    value={formSupuesto.concepto} 
+                    onChange={e => setFormSupuesto({...formSupuesto, concepto: e.target.value})} 
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14, background: "#fff" }}
+                  >
+                    <option value="">-- Selecciona un concepto --</option>
+                    {/* Genera las opciones basándose en si es Ingreso o Egreso */}
+                    {(formSupuesto.tipo === 'ingreso' ? BASE_INCOME : BASE_EXPENSE).map(item => (
+                      <option key={item.key} value={item.label}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Monto ($)</label>
+                  <input type="number" placeholder="500000" value={formSupuesto.monto} onChange={e => setFormSupuesto({...formSupuesto, monto: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14 }} />
+                </div>
+                
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "#475569", marginBottom: 4, fontWeight: 600 }}>Fecha</label>
+                  <input type="date" value={formSupuesto.fecha} onChange={e => setFormSupuesto({...formSupuesto, fecha: e.target.value})} style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 14 }} />
+                </div>
+                
                 <button onClick={agregarSupuesto} style={{ padding: "8px 16px", background: "#0F172A", color: "#fff", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, height: 38 }}>
                   <PlusCircle size={16} /> Simular
                 </button>
