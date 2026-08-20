@@ -3,7 +3,6 @@ import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import TablaMovimientos from "./TablaMovimientos";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import './App.css';
 
 const BASE_INCOME = [
   { key: "cuposNeuquen", label: "Cupos Neuquén" },
