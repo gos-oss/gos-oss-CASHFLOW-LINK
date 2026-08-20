@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
+import TablaMovimientos from "./TablaMovimientos";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import './App.css';
 
@@ -59,30 +60,45 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: "sans-serif", background: "#F5F4F1", minHeight: "100vh", padding: 20 }}>
+      
+      {/* CABECERA */}
       <header style={{ background: "#12181F", color: "#fff", padding: 20, borderRadius: 8, marginBottom: 20 }}>
         <h2>Cashflow 13 Semanas — Azlepi & Sigma</h2>
       </header>
 
+      {/* COMPONENTE DE IMPORTACIÓN MASIVA */}
       <ImportadorCashflow
         baseIncome={BASE_INCOME}
         baseExpense={BASE_EXPENSE}
         onImportarSemanas={handleImportarSemanas}
       />
 
+      {/* ZONA DE GRÁFICOS Y TABLAS (Se muestra solo si hay datos) */}
       {procesadas.length > 0 && (
-        <div style={{ background: "#FBFAF8", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
-          <h3>Evolución de Saldo Acumulado</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip formatter={(v) => "$ " + fmt(v)} />
-              <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" fill="#0E6E5D" fillOpacity={0.2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          {/* GRÁFICO DE EVOLUCIÓN */}
+          <div style={{ background: "#FBFAF8", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
+            <h3>Evolución de Saldo Acumulado</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip formatter={(v) => "$ " + fmt(v)} />
+                <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" fill="#0E6E5D" fillOpacity={0.2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* LA NUEVA TABLA COLAPSABLE */}
+          <TablaMovimientos 
+            semanas={procesadas} 
+            baseIncome={BASE_INCOME} 
+            baseExpense={BASE_EXPENSE} 
+          />
+        </>
       )}
+      
     </div>
   );
 }
