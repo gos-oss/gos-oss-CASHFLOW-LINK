@@ -13,6 +13,15 @@ import {
   ChevronDown, ChevronRight, BarChart3
 } from "lucide-react";
 
+// =========================================================================
+// NUEVOS COLORES ESPECÍFICOS PARA OSCURECER LAS TABLAS
+// =========================================================================
+const colorTablaBg = "#F4F6F8";       // Gris muy claro para el fondo general
+const colorLineaSuave = "#DCE1E8";    // Líneas divisorias (verticales y celdas) más visibles
+const colorLineaFuerte = "#C2CAD4";   // Bordes principales y separadores de totales
+const colorTotalBg = "#E6EAEE";       // Gris un poco más oscuro para la fila de Totales
+const colorHover = "#DEE3E9";         // Color al pasar el mouse por encima
+
 const globalStyles = `
   ${fontImport}
   * { box-sizing: border-box; }
@@ -22,9 +31,12 @@ const globalStyles = `
   ::-webkit-scrollbar-track { background: ${tokens.ruleSoft}; border-radius: 4px; }
   ::-webkit-scrollbar-thumb { background: ${tokens.rule}; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #B9BEB3; }
-  .flujo-table th, .flujo-table td { border-right: 1px solid ${tokens.ruleSoft}; }
+  
+  /* ESTILOS DE LA TABLA ACTUALIZADOS CON LOS NUEVOS COLORES */
+  .flujo-table th, .flujo-table td { border-right: 1px solid ${colorLineaSuave}; }
   .flujo-table th:last-child, .flujo-table td:last-child { border-right: none; }
-  .flujo-row:hover td { background: #FAFBF8; }
+  .flujo-row:hover td { background: ${colorHover} !important; transition: background 0.15s; }
+  
   .sticky-col { position: sticky; left: 0; z-index: 2; box-shadow: 3px 0 6px -3px rgba(14,21,36,0.08); }
   .nav-item { transition: background 0.15s ease, color 0.15s ease; }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid ${tokens.gold}; outline-offset: 1px; }
@@ -39,11 +51,10 @@ const addDaysISO = (dateStr, n) => {
   return d.toISOString().slice(0, 10);
 };
 
-// NUEVO: Agregamos "Plan de Fondos" al menú de navegación
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
   { id: "semanas13", label: "Cash 13 semanas", icon: CalendarRange },
-  { id: "plan-fondos", label: "Plan de Fondos", icon: BarChart3 }, // <--- AQUÍ ESTÁ
+  { id: "plan-fondos", label: "Plan de Fondos", icon: BarChart3 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
   { id: "conceptos", label: "Conceptos", icon: Tag },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
@@ -391,7 +402,7 @@ export default function App() {
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {/* NUEVA PESTAÑA: PLAN DE FONDOS */}
+        {/* PESTAÑA: PLAN DE FONDOS */}
         {tab === "plan-fondos" && (
           <PlanDeFondosTab incomeCats={incomeCats} expenseCats={expenseCats} />
         )}
@@ -405,7 +416,7 @@ export default function App() {
                   display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", 
                   background: mostrarPanel ? tokens.surface : tokens.ink, 
                   color: mostrarPanel ? tokens.text : "#fff", 
-                  border: `1px solid ${mostrarPanel ? tokens.rule : tokens.ink}`, 
+                  border: `1px solid ${mostrarPanel ? colorLineaFuerte : tokens.ink}`, 
                   borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13,
                   transition: "all 0.2s"
                 }}
@@ -416,7 +427,7 @@ export default function App() {
 
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
-                <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22, position: "sticky", top: 32 }}>
+                <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, position: "sticky", top: 32 }}>
                   <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} />
                 </div>
               )}
@@ -436,7 +447,7 @@ export default function App() {
               <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Punto de partida del cálculo y herramientas avanzadas.</p>
             </div>
 
-            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22 }}>
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                 <Settings size={16} color={tokens.textMuted} />
                 <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>Punto de partida (saldos reales)</h3>
@@ -457,7 +468,7 @@ export default function App() {
               </button>
             </div>
 
-            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 4 }}>
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 4 }}>
               <ImportadorCashflow baseIncome={BASE_INCOME} baseExpense={BASE_EXPENSE} onImportarSemanas={handleImportarSemanas} onBorrarDatos={handleBorrarDatos} semanasExistentes={weeks} />
             </div>
           </div>
@@ -467,7 +478,7 @@ export default function App() {
   );
 }
 
-const fieldInputStyle = { width: "100%", padding: "8px 10px", border: `1px solid ${tokens.rule}`, borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box" };
+const fieldInputStyle = { width: "100%", padding: "8px 10px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box" };
 
 function Field({ label, children }) {
   return (
@@ -481,7 +492,7 @@ function Field({ label, children }) {
 function KpiCard({ icon: Icon, label, value, sub, tone }) {
   const color = tone === "neg" ? tokens.negative : tone === "pos" ? tokens.positive : tokens.text;
   return (
-    <div style={{ background: tokens.surface, padding: "20px 22px", borderRadius: 10, border: `1px solid ${tokens.rule}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div style={{ background: tokens.surface, padding: "20px 22px", borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
       <div>
         <div style={{ fontSize: 11, color: tokens.textFaint, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
         <div style={{ fontFamily: tokens.fontMono, fontSize: 25, fontWeight: 600, color, marginTop: 6, letterSpacing: "-0.5px" }}>{value}</div>
@@ -495,7 +506,7 @@ function KpiCard({ icon: Icon, label, value, sub, tone }) {
 }
 
 function ResumenTab({ procesadas, kpis, fmt }) {
-  if (procesadas.length === 0) return (<div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${tokens.rule}` }}>Sin datos cargados.</div>);
+  if (procesadas.length === 0) return (<div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${colorLineaFuerte}` }}>Sin datos cargados.</div>);
   return (
     <>
       <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen</h2></div>
@@ -504,11 +515,11 @@ function ResumenTab({ procesadas, kpis, fmt }) {
         <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit} tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
         <KpiCard icon={AlertTriangle} label="NOF mensual" value={`$ ${fmt(kpis.nofMensual)}`} tone={kpis.nofMensual > 0 ? "neg" : "pos"} />
       </div>
-      <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 24 }}>
+      <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 24 }}>
         <div style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={procesadas.map((w) => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={tokens.ruleSoft} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={colorLineaSuave} />
               <XAxis dataKey="name" tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} dy={10} />
               <YAxis tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-6} width={72} />
               <Tooltip formatter={(v) => ["$ " + fmt(v), "Saldo"]} />
@@ -522,51 +533,48 @@ function ResumenTab({ procesadas, kpis, fmt }) {
 }
 
 // =========================================================================
-// NUEVO COMPONENTE: ESTRUCTURA VISUAL DEL PLAN DE FONDOS
+// PLAN DE FONDOS (Con nuevos colores)
 // =========================================================================
 function PlanDeFondosTab({ incomeCats, expenseCats }) {
-  // Lista fija de los 12 meses
   const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
         <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Plan de Fondos 2026</h2>
-        <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Presupuesto anual estimado mes a mes. En la próxima etapa lo conectaremos a los datos reales.</p>
+        <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Presupuesto anual estimado mes a mes. Próximamente lo conectaremos a la base de datos.</p>
       </div>
       
-      <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, overflow: "hidden" }}>
+      <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
          <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
-            <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
+            <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
               <thead>
-                <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${tokens.rule}` }}>
-                  <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: tokens.surface }}>Concepto</th>
+                <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                  <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto</th>
                   {meses.map(m => (
                     <th key={m} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {/* SECCIÓN INGRESOS */}
                 <tr>
-                  <td colSpan={13} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: tokens.surface }}>INGRESOS</td>
+                  <td colSpan={13} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS</td>
                 </tr>
                 {incomeCats.map(c => (
-                   <tr key={c.key} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                      <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
+                   <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                      <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                       {meses.map(m => (
                         <td key={m} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textFaint, fontFamily: tokens.fontMono }}>$ 0</td>
                       ))}
                    </tr>
                 ))}
 
-                {/* SECCIÓN EGRESOS */}
                 <tr>
-                  <td colSpan={13} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: tokens.surface, borderTop: `2px solid ${tokens.rule}` }}>EGRESOS</td>
+                  <td colSpan={13} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS</td>
                 </tr>
                 {expenseCats.map(c => (
-                   <tr key={c.key} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                      <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
+                   <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                      <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                       {meses.map(m => (
                         <td key={m} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textFaint, fontFamily: tokens.fontMono }}>$ 0</td>
                       ))}
@@ -580,6 +588,9 @@ function PlanDeFondosTab({ incomeCats, expenseCats }) {
   );
 }
 
+// =========================================================================
+// TABLA DE FLUJO DIARIO (Con nuevos colores)
+// =========================================================================
 function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
@@ -601,16 +612,16 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
   };
 
   return (
-    <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "16px 20px", borderBottom: `1px solid ${tokens.rule}`, background: tokens.paper }}>
+    <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "16px 20px", borderBottom: `1px solid ${colorLineaFuerte}`, background: colorTablaBg }}>
         <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos</h3>
         <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Arrastra montos o pasa el mouse sobre ellos para ver las notas.</p>
       </div>
       <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
-        <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
+        <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
           <thead>
-            <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${tokens.rule}` }}>
-              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: tokens.surface }}>Concepto</th>
+            <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
+              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto</th>
               {procesadas.map((w, i) => (
                 <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>{w.week_start}</th>
               ))}
@@ -618,7 +629,7 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
           </thead>
           <tbody>
             
-            <tr onClick={() => setVerIngresos(!verIngresos)} style={{ cursor: "pointer", background: tokens.surface }}>
+            <tr onClick={() => setVerIngresos(!verIngresos)} style={{ cursor: "pointer", background: colorTablaBg }}>
               <td className="sticky-col" style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
                 {verIngresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} INGRESOS
               </td>
@@ -626,8 +637,8 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
             </tr>
 
             {verIngresos && incomeCats.map((c) => (
-              <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
+              <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                 {procesadas.map((w, i) => {
                   const monto = w.income?.[c.key] || 0;
                   const nota = w.parsedNotes?.[`ingreso_${c.key}`];
@@ -641,7 +652,7 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                           {fmt(monto)}
                           {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
                         </div>
-                      ) : <span style={{ color: tokens.rule, fontFamily: tokens.fontMono }}>-</span>}
+                      ) : <span style={{ color: colorLineaFuerte, fontFamily: tokens.fontMono }}>-</span>}
                     </td>
                   );
                 })}
@@ -649,7 +660,7 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
             ))}
             <TotalRow label="Total ingresos" data={procesadas} field="totalIngresos" color={tokens.positive} fmt={fmt} />
 
-            <tr onClick={() => setVerEgresos(!verEgresos)} style={{ cursor: "pointer", background: tokens.surface }}>
+            <tr onClick={() => setVerEgresos(!verEgresos)} style={{ cursor: "pointer", background: colorTablaBg }}>
               <td className="sticky-col" style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
                 {verEgresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} EGRESOS
               </td>
@@ -657,8 +668,8 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
             </tr>
 
             {verEgresos && expenseCats.map((c) => (
-              <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
+              <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                 {procesadas.map((w, i) => {
                   const monto = w.expense?.[c.key] || 0;
                   const nota = w.parsedNotes?.[`egreso_${c.key}`];
@@ -672,7 +683,7 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                           {fmt(monto)}
                           {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
                         </div>
-                      ) : <span style={{ color: tokens.rule, fontFamily: tokens.fontMono }}>-</span>}
+                      ) : <span style={{ color: colorLineaFuerte, fontFamily: tokens.fontMono }}>-</span>}
                     </td>
                   );
                 })}
@@ -680,10 +691,10 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
             ))}
             <TotalRow label="Total egresos" data={procesadas} field="totalEgresos" color={tokens.negative} fmt={fmt} />
 
-            <tr className="flujo-row" style={{ borderBottom: `1px solid ${tokens.rule}` }}>
-              <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: tokens.surface }}>Flujo neto</td>
+            <tr className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaFuerte}` }}>
+              <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Flujo neto</td>
               {procesadas.map((w, i) => (
-                <td key={i} style={{ padding: "16px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: w.posicion >= 0 ? tokens.positive : tokens.negative }}>{fmt(w.posicion)}</td>
+                <td key={i} style={{ padding: "16px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, background: colorTotalBg, color: w.posicion >= 0 ? tokens.positive : tokens.negative }}>{fmt(w.posicion)}</td>
               ))}
             </tr>
             <tr className="flujo-row">
@@ -701,10 +712,10 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
 
 function TotalRow({ label, data, field, color, fmt }) {
   return (
-    <tr className="flujo-row" style={{ borderBottom: `2px solid ${tokens.rule}` }}>
-      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: tokens.paper }}>{label}</td>
+    <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
+      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>{label}</td>
       {data.map((w, i) => (
-        <td key={i} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color, background: tokens.paper, fontFamily: tokens.fontMono }}>{fmt(w[field])}</td>
+        <td key={i} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color, background: colorTotalBg, fontFamily: tokens.fontMono }}>{fmt(w[field])}</td>
       ))}
     </tr>
   );
