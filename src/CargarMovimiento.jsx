@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { PlusCircle, Pencil, Trash2, ListChecks } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ListChecks, MessageSquareText } from "lucide-react";
 import { tokens } from "./tokens";
 
 export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGuardar, onEliminar }) {
@@ -8,6 +8,7 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
   const [fecha, setFecha] = useState("");
   const [monto, setMonto] = useState("");
   const [estado, setEstado] = useState("proyectado");
+  const [nota, setNota] = useState(""); // NUEVO ESTADO PARA LA OBSERVACIÓN
   const [saving, setSaving] = useState(false);
 
   const catalogo = tipo === "ingreso" ? incomeCats : expenseCats;
@@ -20,15 +21,35 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
   const movimientosDelDia = useMemo(() => {
     if (!semanaSeleccionada) return [];
     const items = [];
+    
+    // Leemos las notas guardadas de forma invisible
+    let notasParsed = {};
+    try {
+      notasParsed = JSON.parse(semanaSeleccionada.notes || "{}");
+    } catch(e) {}
+
     Object.entries(semanaSeleccionada.income || {}).forEach(([key, value]) => {
       if (Number(value) === 0) return;
       const known = incomeCats.find((c) => c.key === key);
-      items.push({ tipo: "ingreso", key, label: known ? known.label : key, value });
+      items.push({ 
+        tipo: "ingreso", 
+        key, 
+        label: known ? known.label : key, 
+        value, 
+        nota: notasParsed[`ingreso_${key}`] || "" 
+      });
     });
+    
     Object.entries(semanaSeleccionada.expense || {}).forEach(([key, value]) => {
       if (Number(value) === 0) return;
       const known = expenseCats.find((c) => c.key === key);
-      items.push({ tipo: "egreso", key, label: known ? known.label : key, value });
+      items.push({ 
+        tipo: "egreso", 
+        key, 
+        label: known ? known.label : key, 
+        value, 
+        nota: notasParsed[`egreso_${key}`] || "" 
+      });
     });
     return items;
   }, [semanaSeleccionada, incomeCats, expenseCats]);
@@ -41,16 +62,24 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
     setTipo(item.tipo);
     setConceptoKey(item.key);
     setMonto(String(item.value));
+    setNota(item.nota || ""); // Cargamos la nota al editar
   };
 
   const guardar = async () => {
     if (!fecha) return alert("Elegí una fecha.");
     if (!conceptoKey) return alert("Elegí un concepto (o creá uno nuevo en la pestaña Conceptos).");
     if (monto === "" || isNaN(Number(monto))) return alert("Ingresá un monto válido.");
+    
     setSaving(true);
-    const ok = await onGuardar({ fecha, tipo, key: conceptoKey, monto: Number(monto), estado });
+    // Ahora enviamos también la nota a App.jsx
+    const ok = await onGuardar({ fecha, tipo, key: conceptoKey, monto: Number(monto), estado, nota });
     setSaving(false);
-    if (ok) { setConceptoKey(""); setMonto(""); }
+    
+    if (ok) { 
+      setConceptoKey(""); 
+      setMonto(""); 
+      setNota(""); // Limpiamos la nota tras guardar
+    }
   };
 
   const eliminar = async (item) => {
@@ -101,7 +130,7 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
           {[{ v: "ingreso", c: tokens.positive }, { v: "egreso", c: tokens.negative }].map((o) => (
             <button
               key={o.v}
-              onClick={() => { setTipo(o.v); setConceptoKey(""); }}
+              onClick={() => { setTipo(o.v); setConceptoKey(""); setNota(""); }}
               style={{
                 flex: 1, padding: "7px 0", border: "none", borderRadius: 4, cursor: "pointer",
                 fontFamily: tokens.fontBody, fontSize: 12.5, fontWeight: 600,
@@ -135,6 +164,18 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
         <input type="number" placeholder="0" value={monto} onChange={(e) => setMonto(e.target.value)} style={{ ...inputStyle, fontFamily: tokens.fontMono }} />
       </div>
 
+      {/* NUEVO CAMPO PARA OBSERVACIONES */}
+      <div>
+        <label style={labelStyle}>Observaciones / Nota (Opcional)</label>
+        <input 
+          type="text" 
+          placeholder="Ej: A quién se le debe, factura, etc." 
+          value={nota} 
+          onChange={(e) => setNota(e.target.value)} 
+          style={inputStyle} 
+        />
+      </div>
+
       <button
         onClick={guardar}
         disabled={saving}
@@ -162,7 +203,11 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
                   background: item.tipo === "ingreso" ? tokens.positiveSoft : tokens.negativeSoft,
                   padding: "6px 8px", borderRadius: 4, display: "flex", justifyContent: "space-between", alignItems: "center", color: tokens.text,
                 }}>
-                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>{item.label}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "120px" }}>{item.label}</span>
+                    {/* Indicador visual de que tiene nota */}
+                    {item.nota && <MessageSquareText size={12} color={tokens.textMuted} title={item.nota} />}
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <strong style={{ fontFamily: tokens.fontMono }}>$ {Number(item.value).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</strong>
                     <Pencil size={13} color={tokens.textFaint} cursor="pointer" onClick={() => cargarParaEditar(item)} />
