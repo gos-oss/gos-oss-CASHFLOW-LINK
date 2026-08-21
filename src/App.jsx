@@ -10,6 +10,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
+  ChevronDown, ChevronRight
 } from "lucide-react";
 
 const globalStyles = `
@@ -48,6 +49,7 @@ export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("resumen");
+  const [mostrarPanel, setMostrarPanel] = useState(true); // NUEVO ESTADO PARA LA SOLAPITA
 
   const [saldoEfectivo, setSaldoEfectivo] = useState("");
   const [saldoBanco, setSaldoBanco] = useState("");
@@ -127,10 +129,6 @@ export default function App() {
     await fetchWeeks();
   };
 
-  // ---- Gestión de conceptos (alta / rename / baja), 100% en la app ----
-  // No existe una tabla propia para el catálogo: un concepto "existe" en cuanto
-  // aparece como clave dentro de income/expense de al menos una fecha. Crear un
-  // concepto nuevo simplemente ancla una entrada en $0 en la fecha de hoy.
   const fieldFor = (grupo) => (grupo === "ingreso" ? "income" : "expense");
 
   const agregarConcepto = async (grupo, label) => {
@@ -185,6 +183,7 @@ export default function App() {
 
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
+  
   const procesadas = useMemo(() => {
     const fechasSet = new Set(weeks.map((w) => w.week_start));
     if (fechaSaldo) fechasSet.add(fechaSaldo);
@@ -212,18 +211,11 @@ export default function App() {
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
     const hoy = todayISO();
-
-    // Liquidez actual = saldo acumulado a la fecha de HOY (o a la última fecha
-    // pasada con datos), no el saldo fijo cargado en "Punto de partida". El
-    // punto de partida es solo el ancla desde la que se encadena todo lo que
-    // ya se cargó (cobranzas, pagos, etc.) hasta hoy.
     const saldoInicialReal = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
     const pasadas = procesadas.filter((w) => w.week_start <= hoy);
     const futuras = procesadas.filter((w) => w.week_start > hoy);
     const saldoHoy = pasadas.length ? pasadas[pasadas.length - 1].saldoAcumulado : saldoInicialReal;
 
-    // Días de caja: quema neta (ingresos - egresos) calculada SOLO con lo
-    // proyectado a partir de hoy en adelante, no con todo el historial.
     let diasDeCaja = null, deficitActual = false, sinQuemaNeta = false;
     if (saldoHoy < 0) {
       deficitActual = true;
@@ -245,11 +237,8 @@ export default function App() {
       }
     }
 
-    // Día de déficit: primera fecha desde hoy en adelante en que el saldo
-    // proyectado cae por debajo de cero (los déficits ya pasados no aplican).
     const semanaDeficit = procesadas.find((w) => w.week_start >= hoy && w.saldoAcumulado < 0);
     const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
-
     const ultimaFecha = procesadas[procesadas.length - 1].week_start;
     const ultimoMes = ultimaFecha.substring(0, 7);
     const datosUltimoMes = procesadas.filter((w) => w.week_start.startsWith(ultimoMes));
@@ -278,10 +267,9 @@ export default function App() {
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ padding: "22px 20px 18px", borderBottom: `1px solid ${tokens.inkRule}` }}>
           <div style={{ fontFamily: tokens.fontDisplay, fontSize: 19, fontWeight: 600, letterSpacing: "0.2px" }}>Cashflow</div>
-          <div style={{ fontSize: 11, color: "#8590A6", marginTop: 2, letterSpacing: "0.3px" }}>Azlepi · Sigma · Isaura</div>
+          <div style={{ fontSize: 11, color: "#8590A6", marginTop: 2, letterSpacing: "0.3px" }}>Azlepi · Sigma</div>
         </div>
 
-        {/* Vitals — siempre visibles, sin importar la pestaña activa */}
         <div style={{ padding: "18px 20px", borderBottom: `1px solid ${tokens.inkRule}` }}>
           <div style={{ fontSize: 10, color: "#6B7690", textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 700, marginBottom: 6 }}>Liquidez actual</div>
           <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis && kpis.liquidez < 0 ? "#E0897A" : "#fff" }}>
@@ -315,47 +303,58 @@ export default function App() {
             );
           })}
         </nav>
-
-        <div style={{ padding: "16px 20px", fontSize: 10.5, color: "#5A6478", borderTop: `1px solid ${tokens.inkRule}` }}>
-          {weeks.length} fecha{weeks.length !== 1 ? "s" : ""} con datos
-        </div>
       </aside>
 
       {/* ---------- CANVAS ---------- */}
       <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
+        {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {tab === "resumen" && (
-          <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />
-        )}
-
-        {tab === "semanas13" && (
-          <Cash13Semanas semanas={semanas13} fmt={fmt} />
-        )}
-
+        {/* MODIFICACIÓN: PESTAÑA DE MOVIMIENTOS CON SOLAPITA Y ACORDEÓN */}
         {tab === "movimientos" && (
-          <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 20, alignItems: "start" }}>
-            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22, position: "sticky", top: 32 }}>
-              <CargarMovimiento
-                incomeCats={incomeCats}
-                expenseCats={expenseCats}
-                weeks={weeks}
-                onGuardar={guardarMovimiento}
-                onEliminar={eliminarMovimiento}
-              />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            
+            {/* BOTÓN PARA OCULTAR/MOSTRAR PANEL */}
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button 
+                onClick={() => setMostrarPanel(!mostrarPanel)}
+                style={{ 
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", 
+                  background: mostrarPanel ? tokens.surface : tokens.ink, 
+                  color: mostrarPanel ? tokens.text : "#fff", 
+                  border: `1px solid ${mostrarPanel ? tokens.rule : tokens.ink}`, 
+                  borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13,
+                  transition: "all 0.2s"
+                }}
+              >
+                {mostrarPanel ? "Ocultar panel de carga" : "+ Cargar movimiento"}
+              </button>
             </div>
-            <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} />
+
+            {/* CONTENEDOR DE TABLA Y PANEL */}
+            <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
+              
+              {/* PANEL LATERAL DE CARGA */}
+              {mostrarPanel && (
+                <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22, position: "sticky", top: 32 }}>
+                  <CargarMovimiento
+                    incomeCats={incomeCats}
+                    expenseCats={expenseCats}
+                    weeks={weeks}
+                    onGuardar={guardarMovimiento}
+                    onEliminar={eliminarMovimiento}
+                  />
+                </div>
+              )}
+              
+              {/* TABLA PRINCIPAL COLAPSABLE */}
+              <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} />
+            </div>
           </div>
         )}
 
         {tab === "conceptos" && (
-          <CategoryManager
-            incomeCats={incomeCats}
-            expenseCats={expenseCats}
-            weeks={weeks}
-            onAdd={agregarConcepto}
-            onRename={renombrarConcepto}
-            onDelete={eliminarConcepto}
-          />
+          <CategoryManager incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onAdd={agregarConcepto} onRename={renombrarConcepto} onDelete={eliminarConcepto} />
         )}
 
         {tab === "configuracion" && (
@@ -482,7 +481,11 @@ function ResumenTab({ procesadas, kpis, fmt }) {
   );
 }
 
+// MODIFICACIÓN: NUEVA TABLA CON EFECTO ACORDEÓN
 function FlujoTable({ procesadas, incomeCats, expenseCats, fmt }) {
+  const [verIngresos, setVerIngresos] = useState(true);
+  const [verEgresos, setVerEgresos] = useState(true);
+
   return (
     <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${tokens.rule}`, background: tokens.paper }}>
@@ -499,27 +502,44 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt }) {
             </tr>
           </thead>
           <tbody>
-            <SectionLabel text="INGRESOS" color={tokens.positive} span={procesadas.length} />
-            {incomeCats.map((c) => (
+            
+            {/* CABECERA INGRESOS CLICKEABLE */}
+            <tr onClick={() => setVerIngresos(!verIngresos)} style={{ cursor: "pointer", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBF8"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+              <td className="sticky-col" style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, letterSpacing: "0.5px", background: tokens.surface, fontFamily: tokens.fontBody, display: "flex", alignItems: "center", gap: 6 }}>
+                {verIngresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} INGRESOS
+              </td>
+              <td colSpan={procesadas.length}></td>
+            </tr>
+
+            {/* DETALLE INGRESOS */}
+            {verIngresos && incomeCats.map((c) => (
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                <td className="sticky-col" style={{ padding: "9px 14px", color: tokens.textMuted, background: tokens.surface, fontFamily: tokens.fontBody }}>{c.label}</td>
+                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface, fontFamily: tokens.fontBody }}>{c.label}</td>
                 {procesadas.map((w, i) => (
                   <td key={i} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textMuted, fontFamily: tokens.fontMono }}>{fmt(w.income?.[c.key] || 0)}</td>
                 ))}
               </tr>
             ))}
-            <TotalRow label="Total ingresos" data={procesadas} field="totalIngresos" color={tokens.positive} fmt={fmt} />
+            {verIngresos && <TotalRow label="Total ingresos" data={procesadas} field="totalIngresos" color={tokens.positive} fmt={fmt} />}
 
-            <SectionLabel text="EGRESOS" color={tokens.negative} span={procesadas.length} top />
-            {expenseCats.map((c) => (
+            {/* CABECERA EGRESOS CLICKEABLE */}
+            <tr onClick={() => setVerEgresos(!verEgresos)} style={{ cursor: "pointer", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBF8"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+              <td className="sticky-col" style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, letterSpacing: "0.5px", background: tokens.surface, fontFamily: tokens.fontBody, display: "flex", alignItems: "center", gap: 6 }}>
+                {verEgresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} EGRESOS
+              </td>
+              <td colSpan={procesadas.length}></td>
+            </tr>
+
+            {/* DETALLE EGRESOS */}
+            {verEgresos && expenseCats.map((c) => (
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                <td className="sticky-col" style={{ padding: "9px 14px", color: tokens.textMuted, background: tokens.surface, fontFamily: tokens.fontBody }}>{c.label}</td>
+                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface, fontFamily: tokens.fontBody }}>{c.label}</td>
                 {procesadas.map((w, i) => (
                   <td key={i} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textMuted, fontFamily: tokens.fontMono }}>{fmt(w.expense?.[c.key] || 0)}</td>
                 ))}
               </tr>
             ))}
-            <TotalRow label="Total egresos" data={procesadas} field="totalEgresos" color={tokens.negative} fmt={fmt} />
+            {verEgresos && <TotalRow label="Total egresos" data={procesadas} field="totalEgresos" color={tokens.negative} fmt={fmt} />}
 
             <tr className="flujo-row" style={{ borderBottom: `1px solid ${tokens.rule}` }}>
               <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: tokens.surface, fontSize: 12.5, fontFamily: tokens.fontBody }}>Flujo neto</td>
@@ -537,15 +557,6 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt }) {
         </table>
       </div>
     </div>
-  );
-}
-
-function SectionLabel({ text, color, span, top }) {
-  return (
-    <tr>
-      <td className="sticky-col" style={{ padding: top ? "28px 14px 8px" : "20px 14px 8px", fontWeight: 800, color, fontSize: 10, letterSpacing: "0.5px", background: tokens.surface, fontFamily: tokens.fontBody }}>{text}</td>
-      <td colSpan={span}></td>
-    </tr>
   );
 }
 
