@@ -535,7 +535,9 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                 })}
               </tr>
             ))}
-            {verIngresos && <TotalRow label="Total ingresos" data={procesadas} field="totalIngresos" color={tokens.positive} fmt={fmt} />}
+            
+            {/* ESTA FILA AHORA SIEMPRE SE MUESTRA */}
+            <TotalRow label="Total ingresos" data={procesadas} field="totalIngresos" color={tokens.positive} fmt={fmt} />
 
             <tr onClick={() => setVerEgresos(!verEgresos)} style={{ cursor: "pointer", background: tokens.surface }}>
               <td className="sticky-col" style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
@@ -571,7 +573,9 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                 })}
               </tr>
             ))}
-            {verEgresos && <TotalRow label="Total egresos" data={procesadas} field="totalEgresos" color={tokens.negative} fmt={fmt} />}
+            
+            {/* ESTA FILA AHORA SIEMPRE SE MUESTRA */}
+            <TotalRow label="Total egresos" data={procesadas} field="totalEgresos" color={tokens.negative} fmt={fmt} />
 
             <tr className="flujo-row" style={{ borderBottom: `1px solid ${tokens.rule}` }}>
               <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: tokens.surface }}>Flujo neto</td>
