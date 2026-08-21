@@ -10,7 +10,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
-  ChevronDown, ChevronRight, MessageSquareText
+  ChevronDown, ChevronRight, BarChart3
 } from "lucide-react";
 
 const globalStyles = `
@@ -33,10 +33,17 @@ const globalStyles = `
 
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const addDaysISO = (dateStr, n) => {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
 
+// NUEVO: Agregamos "Plan de Fondos" al menú de navegación
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
   { id: "semanas13", label: "Cash 13 semanas", icon: CalendarRange },
+  { id: "plan-fondos", label: "Plan de Fondos", icon: BarChart3 }, // <--- AQUÍ ESTÁ
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
   { id: "conceptos", label: "Conceptos", icon: Tag },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
@@ -91,13 +98,12 @@ export default function App() {
   };
 
   const handleBorrarDatos = async () => {
-    if (!window.confirm("¿Estás seguro de que deseas borrar toda la información? El tablero quedará en 0.")) return;
+    if (!window.confirm("¿Estás seguro de que deseas borrar toda la información de proyecciones? El tablero quedará en 0.")) return;
     const { error } = await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
-    if (error) alert("Error al limpiar: " + error.message);
+    if (error) alert("Error al limpiar la base de datos: " + error.message);
     else fetchWeeks();
   };
 
-  // MODIFICADO: Ahora recibe y guarda la nota
   const guardarMovimiento = async ({ fecha, tipo, key, monto, estado, nota }) => {
     const existente = weeks.find((w) => w.week_start === fecha);
     const base = existente || {
@@ -106,11 +112,9 @@ export default function App() {
       income: {}, expense: {}, notes: "",
     };
     
-    // Extraer notas existentes
     let currentNotes = {};
     try { currentNotes = JSON.parse(base.notes || "{}"); } catch(e) {}
     
-    // Asignar nueva nota
     const noteKey = `${tipo}_${key}`;
     if (nota && nota.trim() !== "") {
       currentNotes[noteKey] = nota;
@@ -123,7 +127,7 @@ export default function App() {
       status: estado || base.status, 
       income: { ...(base.income || {}) }, 
       expense: { ...(base.expense || {}) },
-      notes: JSON.stringify(currentNotes) // Guardamos el JSON invisible
+      notes: JSON.stringify(currentNotes)
     };
 
     if (tipo === "ingreso") actualizada.income[key] = Number(monto) || 0;
@@ -158,7 +162,6 @@ export default function App() {
     await fetchWeeks();
   };
 
-  // MODIFICADO: El Drag & Drop ahora también mueve la nota al nuevo día
   const moverMovimiento = async (origenFecha, destinoFecha, tipo, key, monto) => {
     if (origenFecha === destinoFecha) return;
     
@@ -171,7 +174,6 @@ export default function App() {
       const field = tipo === "ingreso" ? "income" : "expense";
       delete upOrigen[field][key];
 
-      // Mover nota del origen
       let origenNotes = {};
       try { origenNotes = JSON.parse(origen.notes || "{}"); } catch(e) {}
       const noteKey = `${tipo}_${key}`;
@@ -192,7 +194,6 @@ export default function App() {
     const field2 = tipo === "ingreso" ? "income" : "expense";
     upDestino[field2][key] = (upDestino[field2][key] || 0) + Number(monto);
 
-    // Pegar nota en destino
     if (notaMovida) {
       let destinoNotes = {};
       try { destinoNotes = JSON.parse(destino.notes || "{}"); } catch(e) {}
@@ -211,10 +212,14 @@ export default function App() {
     const key = "custom_" + slugify(label);
     const anchor = new Date().toISOString().slice(0, 10);
     const existente = weeks.find((w) => w.week_start === anchor);
-    const base = existente || { id: anchor, week_start: anchor, status: "proyectado", saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
+    const base = existente || {
+      id: anchor, week_start: anchor, status: "proyectado",
+      saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "",
+    };
     const actualizada = { ...base, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) } };
     if (actualizada[field][key] === undefined) actualizada[field][key] = 0;
-    await supabase.from("cashflow_weeks").upsert(actualizada);
+    const { error } = await supabase.from("cashflow_weeks").upsert(actualizada);
+    if (error) { alert("Error al crear el concepto: " + error.message); return false; }
     await fetchWeeks();
     return true;
   };
@@ -231,7 +236,8 @@ export default function App() {
       obj[newKey] = val;
       return { ...w, [field]: obj };
     });
-    await supabase.from("cashflow_weeks").upsert(updates);
+    const { error } = await supabase.from("cashflow_weeks").upsert(updates);
+    if (error) { alert("Error al renombrar: " + error.message); return false; }
     await fetchWeeks();
     return true;
   };
@@ -245,7 +251,8 @@ export default function App() {
       delete obj[key];
       return { ...w, [field]: obj };
     });
-    await supabase.from("cashflow_weeks").upsert(updates);
+    const { error } = await supabase.from("cashflow_weeks").upsert(updates);
+    if (error) { alert("Error al eliminar: " + error.message); return false; }
     await fetchWeeks();
     return true;
   };
@@ -253,7 +260,6 @@ export default function App() {
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
-  // MODIFICADO: Extrae las notas parseadas para mostrarlas en la tabla
   const procesadas = useMemo(() => {
     const fechasSet = new Set(weeks.map((w) => w.week_start));
     if (fechaSaldo) fechasSet.add(fechaSaldo);
@@ -270,9 +276,13 @@ export default function App() {
       let parsedNotes = {};
       try { parsedNotes = JSON.parse(w.notes || "{}"); } catch(e) {}
 
-      if (fechaSaldo && fecha === fechaSaldo) { acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0); saldoFijado = true; } 
-      else if (!fechaSaldo && !saldoFijado) { acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0); saldoFijado = true; }
-      
+      if (fechaSaldo && fecha === fechaSaldo) {
+        acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+        saldoFijado = true;
+      } else if (!fechaSaldo && !saldoFijado) {
+        acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+        saldoFijado = true;
+      }
       acumuladoActual += pos;
       return { ...w, week_start: fecha, totalIngresos: ing, totalEgresos: eg, posicion: pos, saldoAcumulado: acumuladoActual, parsedNotes };
     });
@@ -287,32 +297,47 @@ export default function App() {
     const saldoHoy = pasadas.length ? pasadas[pasadas.length - 1].saldoAcumulado : saldoInicialReal;
 
     let diasDeCaja = null, deficitActual = false, sinQuemaNeta = false;
-    if (saldoHoy < 0) { deficitActual = true; } 
-    else if (futuras.length === 0) { sinQuemaNeta = true; } 
-    else {
+    if (saldoHoy < 0) {
+      deficitActual = true;
+    } else if (futuras.length === 0) {
+      sinQuemaNeta = true;
+    } else {
       const ingresosFuturos = futuras.reduce((acc, cur) => acc + cur.totalIngresos, 0);
       const egresosFuturos = futuras.reduce((acc, cur) => acc + cur.totalEgresos, 0);
       const flujoNetoFuturo = ingresosFuturos - egresosFuturos;
-      if (flujoNetoFuturo >= 0) { sinQuemaNeta = true; } 
-      else {
+      if (flujoNetoFuturo >= 0) {
+        sinQuemaNeta = true;
+      } else {
         const fechaFin = new Date(futuras[futuras.length - 1].week_start);
         const fechaHoyD = new Date(hoy);
         let diasRestantes = (fechaFin.getTime() - fechaHoyD.getTime()) / (1000 * 3600 * 24);
         if (diasRestantes <= 0) diasRestantes = 1;
-        diasDeCaja = Math.abs(flujoNetoFuturo) > 0 ? Math.round(saldoHoy / (Math.abs(flujoNetoFuturo) / diasRestantes)) : null;
+        const quemaDiaria = Math.abs(flujoNetoFuturo) / diasRestantes;
+        diasDeCaja = quemaDiaria > 0 ? Math.round(saldoHoy / quemaDiaria) : null;
       }
     }
 
     const semanaDeficit = procesadas.find((w) => w.week_start >= hoy && w.saldoAcumulado < 0);
-    const datosUltimoMes = procesadas.filter((w) => w.week_start.startsWith(procesadas[procesadas.length - 1].week_start.substring(0, 7)));
+    const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
+    const ultimaFecha = procesadas[procesadas.length - 1].week_start;
+    const ultimoMes = ultimaFecha.substring(0, 7);
+    const datosUltimoMes = procesadas.filter((w) => w.week_start.startsWith(ultimoMes));
     const flujoUltimoMes = datosUltimoMes.reduce((acc, cur) => acc + cur.totalIngresos, 0) - datosUltimoMes.reduce((acc, cur) => acc + cur.totalEgresos, 0);
+    const nofAnual = (flujoUltimoMes < 0 ? Math.abs(flujoUltimoMes) : 0) * 12;
 
-    return { diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit: semanaDeficit ? semanaDeficit.week_start : "Sin déficit", nofMensual: (flujoUltimoMes < 0 ? Math.abs(flujoUltimoMes) : 0), nofAnual: (flujoUltimoMes < 0 ? Math.abs(flujoUltimoMes) : 0) * 12, liquidez: saldoHoy };
+    return { diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy };
   }, [procesadas, saldoEfectivo, saldoBanco]);
 
   const semanas13 = useSemanas13(procesadas, fechaSaldo, saldoEfectivo, saldoBanco);
 
-  if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: tokens.ink, color: "#fff", fontFamily: tokens.fontBody }}><style>{fontImport}</style>Iniciando entorno seguro…</div>;
+  if (!loaded) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: tokens.ink, color: "#fff", fontFamily: tokens.fontBody }}>
+        <style>{fontImport}</style>
+        Iniciando entorno seguro…
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
@@ -327,9 +352,13 @@ export default function App() {
 
         <div style={{ padding: "18px 20px", borderBottom: `1px solid ${tokens.inkRule}` }}>
           <div style={{ fontSize: 10, color: "#6B7690", textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 700, marginBottom: 6 }}>Liquidez actual</div>
-          <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis && kpis.liquidez < 0 ? "#E0897A" : "#fff" }}>$ {kpis ? fmt(kpis.liquidez) : "—"}</div>
+          <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis && kpis.liquidez < 0 ? "#E0897A" : "#fff" }}>
+            $ {kpis ? fmt(kpis.liquidez) : "—"}
+          </div>
           <div style={{ fontSize: 10, color: "#6B7690", textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 700, margin: "14px 0 6px" }}>Días de caja</div>
-          <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis?.deficitActual ? "#E0897A" : kpis?.sinQuemaNeta ? "#7FD9BE" : "#fff" }}>{!kpis ? "—" : kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} d.`}</div>
+          <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis?.deficitActual ? "#E0897A" : kpis?.sinQuemaNeta ? "#7FD9BE" : "#fff" }}>
+            {!kpis ? "—" : kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} d.`}
+          </div>
         </div>
 
         <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 2 }}>
@@ -337,7 +366,18 @@ export default function App() {
             const Icon = n.icon;
             const active = tab === n.id;
             return (
-              <button key={n.id} onClick={() => setTab(n.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 6, border: "none", cursor: "pointer", textAlign: "left", fontFamily: tokens.fontBody, fontSize: 13.5, fontWeight: active ? 600 : 500, background: active ? tokens.inkSoft : "transparent", color: active ? "#fff" : "#9AA3B8" }}>
+              <button
+                key={n.id}
+                className="nav-item"
+                onClick={() => setTab(n.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 6,
+                  border: "none", cursor: "pointer", textAlign: "left", fontFamily: tokens.fontBody,
+                  fontSize: 13.5, fontWeight: active ? 600 : 500,
+                  background: active ? tokens.inkSoft : "transparent",
+                  color: active ? "#fff" : "#9AA3B8",
+                }}
+              >
                 <Icon size={16} /> {n.label}
               </button>
             );
@@ -347,16 +387,33 @@ export default function App() {
 
       {/* ---------- CANVAS ---------- */}
       <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
+        
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
+
+        {/* NUEVA PESTAÑA: PLAN DE FONDOS */}
+        {tab === "plan-fondos" && (
+          <PlanDeFondosTab incomeCats={incomeCats} expenseCats={expenseCats} />
+        )}
 
         {tab === "movimientos" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={() => setMostrarPanel(!mostrarPanel)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: mostrarPanel ? tokens.surface : tokens.ink, color: mostrarPanel ? tokens.text : "#fff", border: `1px solid ${mostrarPanel ? tokens.rule : tokens.ink}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
+              <button 
+                onClick={() => setMostrarPanel(!mostrarPanel)}
+                style={{ 
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", 
+                  background: mostrarPanel ? tokens.surface : tokens.ink, 
+                  color: mostrarPanel ? tokens.text : "#fff", 
+                  border: `1px solid ${mostrarPanel ? tokens.rule : tokens.ink}`, 
+                  borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13,
+                  transition: "all 0.2s"
+                }}
+              >
                 {mostrarPanel ? "Ocultar panel de carga" : "+ Cargar movimiento"}
               </button>
             </div>
+
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22, position: "sticky", top: 32 }}>
@@ -368,22 +425,40 @@ export default function App() {
           </div>
         )}
 
-        {tab === "conceptos" && <CategoryManager incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onAdd={agregarConcepto} onRename={renombrarConcepto} onDelete={eliminarConcepto} />}
+        {tab === "conceptos" && (
+          <CategoryManager incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onAdd={agregarConcepto} onRename={renombrarConcepto} onDelete={eliminarConcepto} />
+        )}
 
         {tab === "configuracion" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 720 }}>
-            <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2></div>
+            <div>
+              <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2>
+              <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Punto de partida del cálculo y herramientas avanzadas.</p>
+            </div>
+
             <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                 <Settings size={16} color={tokens.textMuted} />
                 <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>Punto de partida (saldos reales)</h3>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                <Field label="Fecha de corte"><input type="date" value={fechaSaldo} onChange={(e) => setFechaSaldo(e.target.value)} style={fieldInputStyle} /></Field>
-                <Field label="Efectivo ($)"><input type="number" value={saldoEfectivo} onChange={(e) => setSaldoEfectivo(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} /></Field>
-                <Field label="Bancos ($)"><input type="number" value={saldoBanco} onChange={(e) => setSaldoBanco(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} /></Field>
+                <Field label="Fecha de corte">
+                  <input type="date" value={fechaSaldo} onChange={(e) => setFechaSaldo(e.target.value)} style={fieldInputStyle} />
+                </Field>
+                <Field label="Efectivo ($)">
+                  <input type="number" value={saldoEfectivo} onChange={(e) => setSaldoEfectivo(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} />
+                </Field>
+                <Field label="Bancos ($)">
+                  <input type="number" value={saldoBanco} onChange={(e) => setSaldoBanco(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} />
+                </Field>
               </div>
-              <button onClick={guardarSaldos} style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}><Save size={15} /> Guardar</button>
+              <button onClick={guardarSaldos} style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>
+                <Save size={15} /> Guardar
+              </button>
+            </div>
+
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 4 }}>
+              <ImportadorCashflow baseIncome={BASE_INCOME} baseExpense={BASE_EXPENSE} onImportarSemanas={handleImportarSemanas} onBorrarDatos={handleBorrarDatos} semanasExistentes={weeks} />
             </div>
           </div>
         )}
@@ -395,7 +470,12 @@ export default function App() {
 const fieldInputStyle = { width: "100%", padding: "8px 10px", border: `1px solid ${tokens.rule}`, borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box" };
 
 function Field({ label, children }) {
-  return <div><label style={{ display: "block", fontSize: 10.5, color: tokens.textFaint, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 5 }}>{label}</label>{children}</div>;
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 10.5, color: tokens.textFaint, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 5 }}>{label}</label>
+      {children}
+    </div>
+  );
 }
 
 function KpiCard({ icon: Icon, label, value, sub, tone }) {
@@ -407,7 +487,9 @@ function KpiCard({ icon: Icon, label, value, sub, tone }) {
         <div style={{ fontFamily: tokens.fontMono, fontSize: 25, fontWeight: 600, color, marginTop: 6, letterSpacing: "-0.5px" }}>{value}</div>
         {sub && <div style={{ fontSize: 11.5, color: tokens.textFaint, marginTop: 4 }}>{sub}</div>}
       </div>
-      <div style={{ background: tokens.paper, padding: 10, borderRadius: 8, color }}><Icon size={19} /></div>
+      <div style={{ background: tokens.paper, padding: 10, borderRadius: 8, color }}>
+        <Icon size={19} />
+      </div>
     </div>
   );
 }
@@ -436,6 +518,65 @@ function ResumenTab({ procesadas, kpis, fmt }) {
         </div>
       </div>
     </>
+  );
+}
+
+// =========================================================================
+// NUEVO COMPONENTE: ESTRUCTURA VISUAL DEL PLAN DE FONDOS
+// =========================================================================
+function PlanDeFondosTab({ incomeCats, expenseCats }) {
+  // Lista fija de los 12 meses
+  const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Plan de Fondos 2026</h2>
+        <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Presupuesto anual estimado mes a mes. En la próxima etapa lo conectaremos a los datos reales.</p>
+      </div>
+      
+      <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, overflow: "hidden" }}>
+         <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
+            <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
+              <thead>
+                <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${tokens.rule}` }}>
+                  <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: tokens.surface }}>Concepto</th>
+                  {meses.map(m => (
+                    <th key={m} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {/* SECCIÓN INGRESOS */}
+                <tr>
+                  <td colSpan={13} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: tokens.surface }}>INGRESOS</td>
+                </tr>
+                {incomeCats.map(c => (
+                   <tr key={c.key} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
+                      <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
+                      {meses.map(m => (
+                        <td key={m} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textFaint, fontFamily: tokens.fontMono }}>$ 0</td>
+                      ))}
+                   </tr>
+                ))}
+
+                {/* SECCIÓN EGRESOS */}
+                <tr>
+                  <td colSpan={13} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: tokens.surface, borderTop: `2px solid ${tokens.rule}` }}>EGRESOS</td>
+                </tr>
+                {expenseCats.map(c => (
+                   <tr key={c.key} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
+                      <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
+                      {meses.map(m => (
+                        <td key={m} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textFaint, fontFamily: tokens.fontMono }}>$ 0</td>
+                      ))}
+                   </tr>
+                ))}
+              </tbody>
+            </table>
+         </div>
+      </div>
+    </div>
   );
 }
 
@@ -489,16 +630,15 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                 <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
                 {procesadas.map((w, i) => {
                   const monto = w.income?.[c.key] || 0;
-                  const nota = w.parsedNotes?.[`ingreso_${c.key}`]; // Aquí leemos si hay nota
+                  const nota = w.parsedNotes?.[`ingreso_${c.key}`];
                   return (
                     <td key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, w.week_start, "ingreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}>
                       {monto > 0 ? (
                         <div className="draggable-chip" draggable onDragStart={(e) => handleDragStart(e, w.week_start, "ingreso", c.key, monto)}
-                          title={nota || undefined} // ¡Esto hace el efecto tooltip flotante!
+                          title={nota || undefined}
                           style={{ position: "relative", cursor: "grab", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
                         >
                           {fmt(monto)}
-                          {/* El puntito dorado que indica que hay una nota */}
                           {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
                         </div>
                       ) : <span style={{ color: tokens.rule, fontFamily: tokens.fontMono }}>-</span>}
@@ -521,16 +661,15 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                 <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
                 {procesadas.map((w, i) => {
                   const monto = w.expense?.[c.key] || 0;
-                  const nota = w.parsedNotes?.[`egreso_${c.key}`]; // Aquí leemos si hay nota
+                  const nota = w.parsedNotes?.[`egreso_${c.key}`];
                   return (
                     <td key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, w.week_start, "egreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}>
                       {monto > 0 ? (
                         <div className="draggable-chip" draggable onDragStart={(e) => handleDragStart(e, w.week_start, "egreso", c.key, monto)}
-                          title={nota || undefined} // ¡Esto hace el efecto tooltip flotante!
+                          title={nota || undefined}
                           style={{ position: "relative", cursor: "grab", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
                         >
                           {fmt(monto)}
-                          {/* El puntito dorado que indica que hay una nota */}
                           {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
                         </div>
                       ) : <span style={{ color: tokens.rule, fontFamily: tokens.fontMono }}>-</span>}
