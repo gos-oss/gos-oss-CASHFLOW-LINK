@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 // =========================================================================
-// CATEGORÍAS FIJAS DEL PLAN DE FONDOS (Extraídas de tu Excel)
+// CATEGORÍAS FIJAS DEL PLAN DE FONDOS
 // =========================================================================
 const PLAN_INCOME_CATS = [
   { key: "custom_cupos-socios", label: "Cupos Socios" },
@@ -129,7 +129,7 @@ const NAV = [
 export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [planFondos, setPlanFondos] = useState({});
-  const [mapping, setMapping] = useState({ ingreso: {}, egreso: {} }); // NUEVO: Estado del Mapeador
+  const [mapping, setMapping] = useState({ ingreso: {}, egreso: {} });
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("resumen");
   const [mostrarPanel, setMostrarPanel] = useState(true);
@@ -308,9 +308,27 @@ export default function App() {
     return true;
   };
 
-  // Conceptos DIARIOS (Los que aparecen en Movimientos)
-  const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
-  const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
+  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
+  const incomeCats = useMemo(() => {
+    const base = discoverCategories(weeks, BASE_INCOME, "income");
+    if (planFondos?.ingreso) {
+      Object.keys(planFondos.ingreso).forEach(key => {
+        if (!base.find(c => c.key === key)) base.push({ key, label: formatLabel(key), custom: true });
+      });
+    }
+    return base;
+  }, [weeks, planFondos]);
+
+  const expenseCats = useMemo(() => {
+    const base = discoverCategories(weeks, BASE_EXPENSE, "expense");
+    if (planFondos?.egreso) {
+      Object.keys(planFondos.egreso).forEach(key => {
+        if (!base.find(c => c.key === key)) base.push({ key, label: formatLabel(key), custom: true });
+      });
+    }
+    return base;
+  }, [weeks, planFondos]);
   
   const procesadas = useMemo(() => {
     const fechasSet = new Set(weeks.map((w) => w.week_start));
@@ -368,7 +386,7 @@ export default function App() {
     <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
       <style>{globalStyles}</style>
 
-      {/* ---------- RIEL DE INSTRUMENTOS (SIDEBAR) ---------- */}
+      {/* ---------- RIEL DE INSTRUMENTOS ---------- */}
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
           <img src="/link-banner.png" alt="LINK" style={{ width: "100%", height: "85px", objectFit: "cover", objectPosition: "left center", display: "block" }} />
@@ -404,7 +422,7 @@ export default function App() {
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {/* PESTAÑA: PLAN DE FONDOS E INTERFAZ DEL MAPEADOR */}
+        {/* PESTAÑA: PLAN DE FONDOS CON INDICADORES */}
         {tab === "plan-fondos" && (
           <PlanDeFondosTab 
             planIncomeCats={PLAN_INCOME_CATS}
@@ -479,6 +497,27 @@ function KpiCard({ icon: Icon, label, value, sub, tone }) {
   );
 }
 
+// NUEVO COMPONENTE: TARJETA DE INDICADOR PARA SEMESTRES
+function SemesterCard({ title, ingresos, egresos, neto, fmt }) {
+  return (
+    <div style={{ background: tokens.surface, padding: "20px", borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, display: "flex", flexDirection: "column" }}>
+      <h4 style={{ margin: "0 0 16px 0", fontSize: 12, color: tokens.textFaint, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{title}</h4>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontSize: 12.5, color: tokens.textMuted }}>Ingresos</span>
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: tokens.positive, fontFamily: tokens.fontMono }}>$ {fmt(ingresos)}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${colorLineaSuave}` }}>
+        <span style={{ fontSize: 12.5, color: tokens.textMuted }}>Egresos</span>
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: tokens.negative, fontFamily: tokens.fontMono }}>$ {fmt(egresos)}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: tokens.text }}>Flujo Neto</span>
+        <span style={{ fontSize: 16, fontWeight: 700, fontFamily: tokens.fontMono, color: neto >= 0 ? tokens.positive : tokens.negative }}>$ {fmt(neto)}</span>
+      </div>
+    </div>
+  );
+}
+
 function ResumenTab({ procesadas, kpis, fmt }) {
   if (procesadas.length === 0) return (<div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${colorLineaFuerte}` }}>Sin datos cargados.</div>);
   return (
@@ -507,7 +546,7 @@ function ResumenTab({ procesadas, kpis, fmt }) {
 }
 
 // =========================================================================
-// PESTAÑA: PLAN DE FONDOS CON MAPEADOR INTEGRADO
+// PESTAÑA: PLAN DE FONDOS CON INDICADORES SEMESTRALES
 // =========================================================================
 function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planGuardado, mappingGuardado, onGuardarPlan, onGuardarMapeo }) {
   const meses = [
@@ -516,7 +555,7 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
     { k: "09", n: "Sep" }, { k: "10", n: "Oct" }, { k: "11", n: "Nov" }, { k: "12", n: "Dic" }
   ];
   
-  const [view, setView] = useState("presupuesto"); // "presupuesto" o "mapeo"
+  const [view, setView] = useState("presupuesto");
   const [editMode, setEditMode] = useState(false);
   const [planDraft, setPlanDraft] = useState({});
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
@@ -552,6 +591,24 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
     catalogo.forEach(c => { total += planDraft?.[tipo]?.[c.key]?.[mesKey] || 0; });
     return total;
   };
+
+  // CÁLCULOS SEMESTRALES
+  const calcSemestre = (tipo, mesesFilter) => {
+    let t = 0;
+    const dataTipo = planDraft?.[tipo] || {};
+    Object.keys(dataTipo).forEach(catKey => {
+      mesesFilter.forEach(m => { t += dataTipo[catKey]?.[m] || 0; });
+    });
+    return t;
+  };
+
+  const keysS1 = ["01", "02", "03", "04", "05", "06"];
+  const keysS2 = ["07", "08", "09", "10", "11", "12"];
+
+  const ingS1 = calcSemestre("ingreso", keysS1);
+  const ingS2 = calcSemestre("ingreso", keysS2);
+  const egS1 = calcSemestre("egreso", keysS1);
+  const egS2 = calcSemestre("egreso", keysS2);
 
   const guardarTodo = () => {
     if (view === "presupuesto") {
@@ -604,78 +661,85 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
         </div>
       </div>
       
-      {/* VISTA 1: TABLA DE PRESUPUESTO */}
       {view === "presupuesto" && (
-        <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
-           <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
-              <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
-                <thead>
-                  <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                    <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Categoría del Plan</th>
-                    {meses.map(m => <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m.n}</th>)}
-                    <th style={{ padding: 14, textAlign: "right", minWidth: 100, fontFamily: tokens.fontMono, color: tokens.text }}>Total Anual</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS (Presupuesto)</td></tr>
-                  {planIncomeCats.map(c => (
-                     <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                        <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
-                        {meses.map(m => {
-                          const val = planDraft?.ingreso?.[c.key]?.[m.k] || "";
-                          return (
-                            <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                              {editMode ? (
-                                <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
-                              ) : (
-                                <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
-                     </tr>
-                  ))}
-                  <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                    <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos Presupuestados</td>
-                    {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
-                    <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
-                  </tr>
+        <>
+          {/* NUEVOS INDICADORES SEMESTRALES */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
+            <SemesterCard title="Primer Semestre (Ene - Jun)" ingresos={ingS1} egresos={egS1} neto={ingS1 - egS1} fmt={fmt} />
+            <SemesterCard title="Segundo Semestre (Jul - Dic)" ingresos={ingS2} egresos={egS2} neto={ingS2 - egS2} fmt={fmt} />
+            <SemesterCard title="Total Acumulado Anual" ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} />
+          </div>
 
-                  <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS (Presupuesto)</td></tr>
-                  {planExpenseCats.map(c => (
-                     <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                        <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
-                        {meses.map(m => {
-                          const val = planDraft?.egreso?.[c.key]?.[m.k] || "";
-                          return (
-                            <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                              {editMode ? (
-                                <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
-                              ) : (
-                                <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
-                     </tr>
-                  ))}
-                  <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                    <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos Presupuestados</td>
-                    {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
-                    <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
-                  </tr>
-                </tbody>
-              </table>
-           </div>
-        </div>
+          <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
+             <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
+                <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
+                  <thead>
+                    <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                      <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Categoría del Plan</th>
+                      {meses.map(m => <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m.n}</th>)}
+                      <th style={{ padding: 14, textAlign: "right", minWidth: 100, fontFamily: tokens.fontMono, color: tokens.text }}>Total Anual</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS (Presupuesto)</td></tr>
+                    {planIncomeCats.map(c => (
+                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
+                          {meses.map(m => {
+                            const val = planDraft?.ingreso?.[c.key]?.[m.k] || "";
+                            return (
+                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                ) : (
+                                  <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
+                       </tr>
+                    ))}
+                    <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos Presupuestados</td>
+                      {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
+                      <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
+                    </tr>
+
+                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS (Presupuesto)</td></tr>
+                    {planExpenseCats.map(c => (
+                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
+                          {meses.map(m => {
+                            const val = planDraft?.egreso?.[c.key]?.[m.k] || "";
+                            return (
+                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                ) : (
+                                  <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
+                       </tr>
+                    ))}
+                    <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos Presupuestados</td>
+                      {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
+                      <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
+                    </tr>
+                  </tbody>
+                </table>
+             </div>
+          </div>
+        </>
       )}
 
       {/* VISTA 2: INTERFAZ DEL MAPEADOR */}
       {view === "mapeo" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          
           <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 24 }}>
             <h3 style={{ margin: "0 0 16px 0", color: tokens.positive, fontSize: 14 }}>Vincular INGRESOS</h3>
             {dailyIncomeCats.map(c => (
@@ -707,7 +771,6 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
               </div>
             ))}
           </div>
-
         </div>
       )}
     </div>
