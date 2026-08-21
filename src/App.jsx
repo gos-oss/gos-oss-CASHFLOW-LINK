@@ -1,42 +1,88 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
-import TablaMovimientos from "./TablaMovimientos";
+import CargarMovimiento from "./CargarMovimiento";
+import CategoryManager from "./CategoryManager";
+import Cash13Semanas, { useSemanas13 } from "./Cash13Semanas";
+import { tokens, fontImport } from "./tokens";
+import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  Wallet, CalendarX2, AlertTriangle, Save, Settings,
+  ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
+} from "lucide-react";
 
-const BASE_INCOME = [
-  { key: "cuposNeuquen", label: "Cupos Neuquén" },
-  { key: "cuposBoulevard", label: "Cupos Boulevard" },
-  { key: "cupos300", label: "Cupos #300" },
-  { key: "otrosIngresos", label: "Otros ingresos" },
-  { key: "posiblesVentas", label: "Posibles ventas" },
-  { key: "cobranzasCuotas", label: "Cobranzas cuotas" }
-];
-
-const BASE_EXPENSE = [
-  { key: "socios", label: "Socios" },
-  { key: "chequesEmitidos", label: "Cheques emitidos" },
-  { key: "prestamos", label: "Préstamos" },
-  { key: "sueldosOficina", label: "Sueldos oficina" },
-  { key: "cargasSociales", label: "Cargas sociales" },
-  { key: "proveedores", label: "Proveedores" }
-];
+const globalStyles = `
+  ${fontImport}
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  ::-webkit-scrollbar { height: 8px; width: 8px; }
+  ::-webkit-scrollbar-track { background: ${tokens.ruleSoft}; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: ${tokens.rule}; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #B9BEB3; }
+  .flujo-table th, .flujo-table td { border-right: 1px solid ${tokens.ruleSoft}; }
+  .flujo-table th:last-child, .flujo-table td:last-child { border-right: none; }
+  .flujo-row:hover td { background: #FAFBF8; }
+  .sticky-col { position: sticky; left: 0; z-index: 2; box-shadow: 3px 0 6px -3px rgba(14,21,36,0.08); }
+  .nav-item { transition: background 0.15s ease, color 0.15s ease; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid ${tokens.gold}; outline-offset: 1px; }
+`;
 
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const addDaysISO = (dateStr, n) => {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+const NAV = [
+  { id: "resumen", label: "Resumen", icon: Compass },
+  { id: "semanas13", label: "Cash 13 semanas", icon: CalendarRange },
+  { id: "movimientos", label: "Movimientos", icon: ListChecks },
+  { id: "conceptos", label: "Conceptos", icon: Tag },
+  { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
+];
 
 export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [tab, setTab] = useState("resumen");
+
+  const [saldoEfectivo, setSaldoEfectivo] = useState("");
+  const [saldoBanco, setSaldoBanco] = useState("");
+  const [fechaSaldo, setFechaSaldo] = useState("");
 
   useEffect(() => {
     fetchWeeks();
+    fetchSettings();
   }, []);
 
   const fetchWeeks = async () => {
     const { data, error } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    if (error) console.error("Error al cargar datos:", error);
+    if (error) console.error("Error al cargar proyecciones:", error);
     else setWeeks(data || []);
     setLoaded(true);
+  };
+
+  const fetchSettings = async () => {
+    const { data } = await supabase.from("cashflow_settings").select("*").eq("id", "general");
+    if (data && data.length > 0) {
+      setFechaSaldo(data[0].fecha_corte || "");
+      setSaldoEfectivo(data[0].saldo_efectivo || "");
+      setSaldoBanco(data[0].saldo_banco || "");
+    }
+  };
+
+  const guardarSaldos = async () => {
+    const { error } = await supabase.from("cashflow_settings").upsert({
+      id: "general",
+      fecha_corte: fechaSaldo,
+      saldo_efectivo: Number(saldoEfectivo) || 0,
+      saldo_banco: Number(saldoBanco) || 0,
+    });
+    if (error) alert("Error al guardar saldos: " + error.message);
+    else alert("¡Saldos iniciales guardados!");
   };
 
   const handleImportarSemanas = async (semanasNuevas) => {
@@ -45,59 +91,471 @@ export default function App() {
     else fetchWeeks();
   };
 
+  const handleBorrarDatos = async () => {
+    if (!window.confirm("¿Estás seguro de que deseas borrar toda la información de proyecciones? El tablero quedará en 0.")) return;
+    const { error } = await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
+    if (error) alert("Error al limpiar la base de datos: " + error.message);
+    else fetchWeeks();
+  };
+
+  // ---- Movimientos puntuales (reemplazan la carga por Excel para el día a día) ----
+  const guardarMovimiento = async ({ fecha, tipo, key, monto, estado }) => {
+    const existente = weeks.find((w) => w.week_start === fecha);
+    const base = existente || {
+      id: fecha, week_start: fecha, status: estado,
+      saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0,
+      income: {}, expense: {}, notes: "",
+    };
+    const actualizada = { ...base, status: estado || base.status, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) } };
+    if (tipo === "ingreso") actualizada.income[key] = Number(monto) || 0;
+    else actualizada.expense[key] = Number(monto) || 0;
+
+    const { error } = await supabase.from("cashflow_weeks").upsert(actualizada);
+    if (error) { alert("Error al guardar el movimiento: " + error.message); return false; }
+    await fetchWeeks();
+    return true;
+  };
+
+  const eliminarMovimiento = async (fecha, tipo, key) => {
+    const existente = weeks.find((w) => w.week_start === fecha);
+    if (!existente) return;
+    const actualizada = { ...existente, income: { ...(existente.income || {}) }, expense: { ...(existente.expense || {}) } };
+    if (tipo === "ingreso") delete actualizada.income[key];
+    else delete actualizada.expense[key];
+    const { error } = await supabase.from("cashflow_weeks").upsert(actualizada);
+    if (error) { alert("Error al eliminar el movimiento: " + error.message); return; }
+    await fetchWeeks();
+  };
+
+  // ---- Gestión de conceptos (alta / rename / baja), 100% en la app ----
+  // No existe una tabla propia para el catálogo: un concepto "existe" en cuanto
+  // aparece como clave dentro de income/expense de al menos una fecha. Crear un
+  // concepto nuevo simplemente ancla una entrada en $0 en la fecha de hoy.
+  const fieldFor = (grupo) => (grupo === "ingreso" ? "income" : "expense");
+
+  const agregarConcepto = async (grupo, label) => {
+    const field = fieldFor(grupo);
+    const key = "custom_" + slugify(label);
+    const anchor = new Date().toISOString().slice(0, 10);
+    const existente = weeks.find((w) => w.week_start === anchor);
+    const base = existente || {
+      id: anchor, week_start: anchor, status: "proyectado",
+      saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "",
+    };
+    const actualizada = { ...base, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) } };
+    if (actualizada[field][key] === undefined) actualizada[field][key] = 0;
+    const { error } = await supabase.from("cashflow_weeks").upsert(actualizada);
+    if (error) { alert("Error al crear el concepto: " + error.message); return false; }
+    await fetchWeeks();
+    return true;
+  };
+
+  const renombrarConcepto = async (grupo, oldKey, newLabel) => {
+    const field = fieldFor(grupo);
+    const newKey = "custom_" + slugify(newLabel);
+    const afectadas = weeks.filter((w) => w[field] && Object.prototype.hasOwnProperty.call(w[field], oldKey));
+    if (afectadas.length === 0) return agregarConcepto(grupo, newLabel);
+    const updates = afectadas.map((w) => {
+      const obj = { ...(w[field] || {}) };
+      const val = obj[oldKey];
+      delete obj[oldKey];
+      obj[newKey] = val;
+      return { ...w, [field]: obj };
+    });
+    const { error } = await supabase.from("cashflow_weeks").upsert(updates);
+    if (error) { alert("Error al renombrar: " + error.message); return false; }
+    await fetchWeeks();
+    return true;
+  };
+
+  const eliminarConcepto = async (grupo, key) => {
+    const field = fieldFor(grupo);
+    const afectadas = weeks.filter((w) => w[field] && Object.prototype.hasOwnProperty.call(w[field], key));
+    if (afectadas.length === 0) return true;
+    const updates = afectadas.map((w) => {
+      const obj = { ...(w[field] || {}) };
+      delete obj[key];
+      return { ...w, [field]: obj };
+    });
+    const { error } = await supabase.from("cashflow_weeks").upsert(updates);
+    if (error) { alert("Error al eliminar: " + error.message); return false; }
+    await fetchWeeks();
+    return true;
+  };
+
+  const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
+  const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   const procesadas = useMemo(() => {
-    return weeks.map(w => {
+    const fechasSet = new Set(weeks.map((w) => w.week_start));
+    if (fechaSaldo) fechasSet.add(fechaSaldo);
+    const fechasArray = Array.from(fechasSet).sort();
+    let acumuladoActual = 0;
+    let saldoFijado = false;
+
+    return fechasArray.map((fecha) => {
+      const w = weeks.find((week) => week.week_start === fecha) || { income: {}, expense: {} };
       const ing = Object.values(w.income || {}).reduce((a, b) => a + Number(b || 0), 0);
       const eg = Object.values(w.expense || {}).reduce((a, b) => a + Number(b || 0), 0);
       const pos = ing - eg;
-      const acum = pos + Number(w.saldo_inicial || 0) + Number(w.saldo_bancos || 0) + Number(w.saldo_credimas || 0);
-      return { ...w, totalIngresos: ing, totalEgresos: eg, posicion: pos, saldoAcumulado: acum };
+      if (fechaSaldo && fecha === fechaSaldo) {
+        acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+        saldoFijado = true;
+      } else if (!fechaSaldo && !saldoFijado) {
+        acumuladoActual = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+        saldoFijado = true;
+      }
+      acumuladoActual += pos;
+      return { ...w, week_start: fecha, totalIngresos: ing, totalEgresos: eg, posicion: pos, saldoAcumulado: acumuladoActual };
     });
-  }, [weeks]);
+  }, [weeks, saldoEfectivo, saldoBanco, fechaSaldo]);
 
-  if (!loaded) return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>Cargando Cashflow desde Supabase...</div>;
+  const kpis = useMemo(() => {
+    if (procesadas.length === 0) return null;
+    const hoy = todayISO();
+
+    // Liquidez actual = saldo acumulado a la fecha de HOY (o a la última fecha
+    // pasada con datos), no el saldo fijo cargado en "Punto de partida". El
+    // punto de partida es solo el ancla desde la que se encadena todo lo que
+    // ya se cargó (cobranzas, pagos, etc.) hasta hoy.
+    const saldoInicialReal = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
+    const pasadas = procesadas.filter((w) => w.week_start <= hoy);
+    const futuras = procesadas.filter((w) => w.week_start > hoy);
+    const saldoHoy = pasadas.length ? pasadas[pasadas.length - 1].saldoAcumulado : saldoInicialReal;
+
+    // Días de caja: quema neta (ingresos - egresos) calculada SOLO con lo
+    // proyectado a partir de hoy en adelante, no con todo el historial.
+    let diasDeCaja = null, deficitActual = false, sinQuemaNeta = false;
+    if (saldoHoy < 0) {
+      deficitActual = true;
+    } else if (futuras.length === 0) {
+      sinQuemaNeta = true;
+    } else {
+      const ingresosFuturos = futuras.reduce((acc, cur) => acc + cur.totalIngresos, 0);
+      const egresosFuturos = futuras.reduce((acc, cur) => acc + cur.totalEgresos, 0);
+      const flujoNetoFuturo = ingresosFuturos - egresosFuturos;
+      if (flujoNetoFuturo >= 0) {
+        sinQuemaNeta = true;
+      } else {
+        const fechaFin = new Date(futuras[futuras.length - 1].week_start);
+        const fechaHoyD = new Date(hoy);
+        let diasRestantes = (fechaFin.getTime() - fechaHoyD.getTime()) / (1000 * 3600 * 24);
+        if (diasRestantes <= 0) diasRestantes = 1;
+        const quemaDiaria = Math.abs(flujoNetoFuturo) / diasRestantes;
+        diasDeCaja = quemaDiaria > 0 ? Math.round(saldoHoy / quemaDiaria) : null;
+      }
+    }
+
+    // Día de déficit: primera fecha desde hoy en adelante en que el saldo
+    // proyectado cae por debajo de cero (los déficits ya pasados no aplican).
+    const semanaDeficit = procesadas.find((w) => w.week_start >= hoy && w.saldoAcumulado < 0);
+    const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
+
+    const ultimaFecha = procesadas[procesadas.length - 1].week_start;
+    const ultimoMes = ultimaFecha.substring(0, 7);
+    const datosUltimoMes = procesadas.filter((w) => w.week_start.startsWith(ultimoMes));
+    const flujoUltimoMes = datosUltimoMes.reduce((acc, cur) => acc + cur.totalIngresos, 0) - datosUltimoMes.reduce((acc, cur) => acc + cur.totalEgresos, 0);
+    const nofAnual = (flujoUltimoMes < 0 ? Math.abs(flujoUltimoMes) : 0) * 12;
+
+    return { diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy };
+  }, [procesadas, saldoEfectivo, saldoBanco]);
+
+  const semanas13 = useSemanas13(procesadas, fechaSaldo, saldoEfectivo, saldoBanco);
+
+  if (!loaded) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: tokens.ink, color: "#fff", fontFamily: tokens.fontBody }}>
+        <style>{fontImport}</style>
+        Iniciando entorno seguro…
+      </div>
+    );
+  }
 
   return (
-    <div style={{ fontFamily: "sans-serif", background: "#F5F4F1", minHeight: "100vh", padding: 20 }}>
-      
-      {/* CABECERA */}
-      <header style={{ background: "#12181F", color: "#fff", padding: 20, borderRadius: 8, marginBottom: 20 }}>
-        <h2>Cashflow 13 Semanas — Azlepi & Sigma</h2>
-      </header>
+    <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
+      <style>{globalStyles}</style>
 
-      {/* COMPONENTE DE IMPORTACIÓN MASIVA */}
-      <ImportadorCashflow
-        baseIncome={BASE_INCOME}
-        baseExpense={BASE_EXPENSE}
-        onImportarSemanas={handleImportarSemanas}
-      />
+      {/* ---------- RIEL DE INSTRUMENTOS ---------- */}
+      <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
+        <div style={{ padding: "22px 20px 18px", borderBottom: `1px solid ${tokens.inkRule}` }}>
+          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 19, fontWeight: 600, letterSpacing: "0.2px" }}>Cashflow</div>
+          <div style={{ fontSize: 11, color: "#8590A6", marginTop: 2, letterSpacing: "0.3px" }}>Azlepi · Sigma · Isaura</div>
+        </div>
 
-      {/* ZONA DE GRÁFICOS Y TABLAS (Se muestra solo si hay datos) */}
-      {procesadas.length > 0 && (
-        <>
-          {/* GRÁFICO DE EVOLUCIÓN */}
-          <div style={{ background: "#FBFAF8", border: "1px solid #DEDAD0", borderRadius: 8, padding: 20, marginTop: 20 }}>
-            <h3>Evolución de Saldo Acumulado</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={procesadas.map(w => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip formatter={(v) => "$ " + fmt(v)} />
-                <Area type="monotone" dataKey="saldo" stroke="#0E6E5D" fill="#0E6E5D" fillOpacity={0.2} />
-              </AreaChart>
-            </ResponsiveContainer>
+        {/* Vitals — siempre visibles, sin importar la pestaña activa */}
+        <div style={{ padding: "18px 20px", borderBottom: `1px solid ${tokens.inkRule}` }}>
+          <div style={{ fontSize: 10, color: "#6B7690", textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 700, marginBottom: 6 }}>Liquidez actual</div>
+          <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis && kpis.liquidez < 0 ? "#E0897A" : "#fff" }}>
+            $ {kpis ? fmt(kpis.liquidez) : "—"}
           </div>
+          <div style={{ fontSize: 10, color: "#6B7690", textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 700, margin: "14px 0 6px" }}>Días de caja</div>
+          <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis?.deficitActual ? "#E0897A" : kpis?.sinQuemaNeta ? "#7FD9BE" : "#fff" }}>
+            {!kpis ? "—" : kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} d.`}
+          </div>
+        </div>
 
-          {/* LA NUEVA TABLA COLAPSABLE */}
-          <TablaMovimientos 
-            semanas={procesadas} 
-            baseIncome={BASE_INCOME} 
-            baseExpense={BASE_EXPENSE} 
+        <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 2 }}>
+          {NAV.map((n) => {
+            const Icon = n.icon;
+            const active = tab === n.id;
+            return (
+              <button
+                key={n.id}
+                className="nav-item"
+                onClick={() => setTab(n.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 6,
+                  border: "none", cursor: "pointer", textAlign: "left", fontFamily: tokens.fontBody,
+                  fontSize: 13.5, fontWeight: active ? 600 : 500,
+                  background: active ? tokens.inkSoft : "transparent",
+                  color: active ? "#fff" : "#9AA3B8",
+                }}
+              >
+                <Icon size={16} /> {n.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div style={{ padding: "16px 20px", fontSize: 10.5, color: "#5A6478", borderTop: `1px solid ${tokens.inkRule}` }}>
+          {weeks.length} fecha{weeks.length !== 1 ? "s" : ""} con datos
+        </div>
+      </aside>
+
+      {/* ---------- CANVAS ---------- */}
+      <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
+
+        {tab === "resumen" && (
+          <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />
+        )}
+
+        {tab === "semanas13" && (
+          <Cash13Semanas semanas={semanas13} fmt={fmt} />
+        )}
+
+        {tab === "movimientos" && (
+          <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 20, alignItems: "start" }}>
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22, position: "sticky", top: 32 }}>
+              <CargarMovimiento
+                incomeCats={incomeCats}
+                expenseCats={expenseCats}
+                weeks={weeks}
+                onGuardar={guardarMovimiento}
+                onEliminar={eliminarMovimiento}
+              />
+            </div>
+            <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} />
+          </div>
+        )}
+
+        {tab === "conceptos" && (
+          <CategoryManager
+            incomeCats={incomeCats}
+            expenseCats={expenseCats}
+            weeks={weeks}
+            onAdd={agregarConcepto}
+            onRename={renombrarConcepto}
+            onDelete={eliminarConcepto}
           />
-        </>
-      )}
-      
+        )}
+
+        {tab === "configuracion" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 720 }}>
+            <div>
+              <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2>
+              <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Punto de partida del cálculo y herramientas avanzadas.</p>
+            </div>
+
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                <Settings size={16} color={tokens.textMuted} />
+                <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>Punto de partida (saldos reales)</h3>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                <Field label="Fecha de corte">
+                  <input type="date" value={fechaSaldo} onChange={(e) => setFechaSaldo(e.target.value)} style={fieldInputStyle} />
+                </Field>
+                <Field label="Efectivo ($)">
+                  <input type="number" value={saldoEfectivo} onChange={(e) => setSaldoEfectivo(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} />
+                </Field>
+                <Field label="Bancos ($)">
+                  <input type="number" value={saldoBanco} onChange={(e) => setSaldoBanco(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} />
+                </Field>
+              </div>
+              <button onClick={guardarSaldos} style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>
+                <Save size={15} /> Guardar
+              </button>
+            </div>
+
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 4 }}>
+              <ImportadorCashflow baseIncome={BASE_INCOME} baseExpense={BASE_EXPENSE} onImportarSemanas={handleImportarSemanas} onBorrarDatos={handleBorrarDatos} semanasExistentes={weeks} />
+            </div>
+          </div>
+        )}
+      </main>
     </div>
+  );
+}
+
+const fieldInputStyle = {
+  width: "100%", padding: "8px 10px", border: `1px solid ${tokens.rule}`, borderRadius: 5,
+  fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box",
+};
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 10.5, color: tokens.textFaint, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 5 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function KpiCard({ icon: Icon, label, value, sub, tone }) {
+  const color = tone === "neg" ? tokens.negative : tone === "pos" ? tokens.positive : tokens.text;
+  return (
+    <div style={{ background: tokens.surface, padding: "20px 22px", borderRadius: 10, border: `1px solid ${tokens.rule}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div>
+        <div style={{ fontSize: 11, color: tokens.textFaint, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
+        <div style={{ fontFamily: tokens.fontMono, fontSize: 25, fontWeight: 600, color, marginTop: 6, letterSpacing: "-0.5px" }}>{value}</div>
+        {sub && <div style={{ fontSize: 11.5, color: tokens.textFaint, marginTop: 4 }}>{sub}</div>}
+      </div>
+      <div style={{ background: tokens.paper, padding: 10, borderRadius: 8, color }}>
+        <Icon size={19} />
+      </div>
+    </div>
+  );
+}
+
+function ResumenTab({ procesadas, kpis, fmt }) {
+  if (procesadas.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${tokens.rule}` }}>
+        <Wallet size={40} style={{ color: tokens.textFaint, marginBottom: 16, opacity: 0.6 }} />
+        <h3 style={{ fontFamily: tokens.fontDisplay, fontSize: 19, color: tokens.text, marginBottom: 8, fontWeight: 600 }}>Área de trabajo vacía</h3>
+        <p style={{ fontSize: 13.5, color: tokens.textMuted, maxWidth: 380, margin: "0 auto", lineHeight: 1.6 }}>
+          Cargá tu primer movimiento en la pestaña "Movimientos" para ver el tablero completo.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div>
+        <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen</h2>
+        <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Posición de caja proyectada sobre {procesadas.length} fechas cargadas.</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
+        <KpiCard icon={Wallet} label="Días de caja"
+          value={kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} días`}
+          sub={kpis.deficitActual ? "el saldo ya es negativo" : "a ritmo de quema promedio"}
+          tone={kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? "neg" : "pos"} />
+        <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit}
+          sub={kpis.diaDeficit !== "Sin déficit" ? "primera fecha en negativo" : "no se proyecta déficit"}
+          tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
+        <KpiCard icon={AlertTriangle} label="NOF mensual" value={`$ ${fmt(kpis.nofMensual)}`}
+          sub={`Anual: $ ${fmt(kpis.nofAnual)}`} tone={kpis.nofMensual > 0 ? "neg" : "pos"} />
+      </div>
+
+      <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 24 }}>
+        <h3 style={{ margin: "0 0 18px 0", fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>Evolución de saldo acumulado</h3>
+        <div style={{ height: 320 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={procesadas.map((w) => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
+              <defs>
+                <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={tokens.positive} stopOpacity={0.28} />
+                  <stop offset="95%" stopColor={tokens.positive} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={tokens.ruleSoft} />
+              <XAxis dataKey="name" tick={{ fill: tokens.textFaint, fontSize: 11, fontFamily: tokens.fontMono }} axisLine={false} tickLine={false} dy={10} />
+              <YAxis tick={{ fill: tokens.textFaint, fontSize: 11, fontFamily: tokens.fontMono }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-6} width={72} />
+              <Tooltip formatter={(v) => ["$ " + fmt(v), "Saldo"]} contentStyle={{ borderRadius: 6, border: `1px solid ${tokens.rule}`, fontSize: 12.5, fontFamily: tokens.fontBody, fontWeight: 600 }} />
+              <Area type="monotone" dataKey="saldo" stroke={tokens.positive} strokeWidth={2.5} fill="url(#colorSaldo)" activeDot={{ r: 5, strokeWidth: 0, fill: tokens.ink }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function FlujoTable({ procesadas, incomeCats, expenseCats, fmt }) {
+  return (
+    <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "16px 20px", borderBottom: `1px solid ${tokens.rule}`, background: tokens.paper }}>
+        <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos</h3>
+      </div>
+      <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
+        <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
+          <thead>
+            <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${tokens.rule}` }}>
+              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: tokens.surface, fontWeight: 700, fontFamily: tokens.fontBody }}>Concepto</th>
+              {procesadas.map((w, i) => (
+                <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontWeight: 600, fontFamily: tokens.fontMono }}>{w.week_start}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <SectionLabel text="INGRESOS" color={tokens.positive} span={procesadas.length} />
+            {incomeCats.map((c) => (
+              <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
+                <td className="sticky-col" style={{ padding: "9px 14px", color: tokens.textMuted, background: tokens.surface, fontFamily: tokens.fontBody }}>{c.label}</td>
+                {procesadas.map((w, i) => (
+                  <td key={i} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textMuted, fontFamily: tokens.fontMono }}>{fmt(w.income?.[c.key] || 0)}</td>
+                ))}
+              </tr>
+            ))}
+            <TotalRow label="Total ingresos" data={procesadas} field="totalIngresos" color={tokens.positive} fmt={fmt} />
+
+            <SectionLabel text="EGRESOS" color={tokens.negative} span={procesadas.length} top />
+            {expenseCats.map((c) => (
+              <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
+                <td className="sticky-col" style={{ padding: "9px 14px", color: tokens.textMuted, background: tokens.surface, fontFamily: tokens.fontBody }}>{c.label}</td>
+                {procesadas.map((w, i) => (
+                  <td key={i} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textMuted, fontFamily: tokens.fontMono }}>{fmt(w.expense?.[c.key] || 0)}</td>
+                ))}
+              </tr>
+            ))}
+            <TotalRow label="Total egresos" data={procesadas} field="totalEgresos" color={tokens.negative} fmt={fmt} />
+
+            <tr className="flujo-row" style={{ borderBottom: `1px solid ${tokens.rule}` }}>
+              <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: tokens.surface, fontSize: 12.5, fontFamily: tokens.fontBody }}>Flujo neto</td>
+              {procesadas.map((w, i) => (
+                <td key={i} style={{ padding: "16px 14px", textAlign: "right", fontWeight: 700, fontSize: 12.5, fontFamily: tokens.fontMono, color: w.posicion >= 0 ? tokens.positive : tokens.negative }}>{fmt(w.posicion)}</td>
+              ))}
+            </tr>
+            <tr className="flujo-row">
+              <td className="sticky-col" style={{ padding: "18px 14px", fontWeight: 700, background: tokens.ink, color: "#fff", fontSize: 12.5, fontFamily: tokens.fontBody }}>Saldo acumulado</td>
+              {procesadas.map((w, i) => (
+                <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: tokens.ink, color: "#fff", fontSize: 12.5, fontFamily: tokens.fontMono }}>{fmt(w.saldoAcumulado)}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SectionLabel({ text, color, span, top }) {
+  return (
+    <tr>
+      <td className="sticky-col" style={{ padding: top ? "28px 14px 8px" : "20px 14px 8px", fontWeight: 800, color, fontSize: 10, letterSpacing: "0.5px", background: tokens.surface, fontFamily: tokens.fontBody }}>{text}</td>
+      <td colSpan={span}></td>
+    </tr>
+  );
+}
+
+function TotalRow({ label, data, field, color, fmt }) {
+  return (
+    <tr className="flujo-row" style={{ borderBottom: `2px solid ${tokens.rule}` }}>
+      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: tokens.paper, fontFamily: tokens.fontBody, fontSize: 12 }}>{label}</td>
+      {data.map((w, i) => (
+        <td key={i} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color, background: tokens.paper, fontFamily: tokens.fontMono }}>{fmt(w[field])}</td>
+      ))}
+    </tr>
   );
 }

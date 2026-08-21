@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, Download, Trash2 } from 'lucide-react';
 
+// NUEVO: Agregamos semanasExistentes a los parámetros que recibe la función
 export default function ImportadorCashflow({ baseIncome, baseExpense, onImportarSemanas, onBorrarDatos, semanasExistentes = [] }) {
   const [procesando, setProcesando] = useState(false);
   const fileInputRef = useRef(null);
@@ -55,7 +56,8 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
   const descargarModeloPresupuesto = () => {
     const estructuraModelo = [
       { Concepto: "Sueldos oficina", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-09", Monto_Total: 1000000, Repeticiones: 3 },
-      { Concepto: "Proveedores", Tipo_Carga: "Exacta", Mes_o_Fecha: "2026-09-15", Monto_Total: 250000, Repeticiones: 1 }
+      { Concepto: "Proveedores", Tipo_Carga: "Exacta", Mes_o_Fecha: "2026-09-15", Monto_Total: 250000, Repeticiones: 1 },
+      { Concepto: "Cupos Neuquen", Tipo_Carga: "Mensual", Mes_o_Fecha: "2026-10", Monto_Total: 4000000, Repeticiones: 12 }
     ];
 
     const hoja = XLSX.utils.json_to_sheet(estructuraModelo);
@@ -76,8 +78,7 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
       const hoja = workbook.Sheets[workbook.SheetNames[0]];
       const filas = XLSX.utils.sheet_to_json(hoja);
 
-      // 1. Objeto temporal para agrupar únicamente lo que viene en el Excel
-      const excelData = {};
+      const periodos = {};
       const noReconocidos = new Set(); 
 
       filas.forEach((fila) => {
@@ -112,18 +113,33 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
           }
 
           fechasAImpactar.forEach(fechaStart => {
-            if (!excelData[fechaStart]) {
-              excelData[fechaStart] = { income: {}, expense: {} };
+            if (!periodos[fechaStart]) {
+              
+              // NUEVO: Verificamos si esta fecha ya existía en la base de datos
+              const semanaPrevia = semanasExistentes.find(w => w.week_start === fechaStart);
+              
+              periodos[fechaStart] = {
+                id: fechaStart,
+                week_start: fechaStart,
+                status: "proyectado",
+                saldo_inicial: semanaPrevia?.saldo_inicial || 0,
+                saldo_bancos: semanaPrevia?.saldo_bancos || 0,
+                saldo_credimas: semanaPrevia?.saldo_credimas || 0,
+                // Copiamos los ingresos/egresos previos (si existen) para no borrarlos
+                income: semanaPrevia?.income ? { ...semanaPrevia.income } : {},
+                expense: semanaPrevia?.expense ? { ...semanaPrevia.expense } : {},
+                notes: semanaPrevia?.notes || ""
+              };
             }
 
             const ing = baseIncome.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
             const eg = baseExpense.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
 
-            // Sumamos DENTRO del mismo archivo Excel por si tienes dos filas iguales en el documento
+            // Sumamos el dinero nuevo al dinero que ya pudiera existir
             if (ing) {
-              excelData[fechaStart].income[ing.key] = (excelData[fechaStart].income[ing.key] || 0) + montoPorFecha;
+              periodos[fechaStart].income[ing.key] = (periodos[fechaStart].income[ing.key] || 0) + montoPorFecha;
             } else if (eg) {
-              excelData[fechaStart].expense[eg.key] = (excelData[fechaStart].expense[eg.key] || 0) + montoPorFecha;
+              periodos[fechaStart].expense[eg.key] = (periodos[fechaStart].expense[eg.key] || 0) + montoPorFecha;
             } else {
               noReconocidos.add(fila.Concepto); 
             }
@@ -131,43 +147,12 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
         }
       });
 
-      // 2. FUSIÓN INTELIGENTE: Reemplazamos la base de datos con los datos del Excel
-      const periodosArray = Object.keys(excelData).map(fechaStart => {
-        // Traemos lo que ya existía en la base de datos para no borrar otros conceptos
-        const semanaPrevia = semanasExistentes.find(w => w.week_start === fechaStart);
-        
-        const objFinal = {
-          id: fechaStart,
-          week_start: fechaStart,
-          status: "proyectado",
-          saldo_inicial: semanaPrevia?.saldo_inicial || 0,
-          saldo_bancos: semanaPrevia?.saldo_bancos || 0,
-          saldo_credimas: semanaPrevia?.saldo_credimas || 0,
-          income: semanaPrevia?.income ? { ...semanaPrevia.income } : {},
-          expense: semanaPrevia?.expense ? { ...semanaPrevia.expense } : {},
-          notes: semanaPrevia?.notes || ""
-        };
-
-        // LÓGICA DE PROTECCIÓN: Sobrescribimos (reemplazamos) el valor viejo por el nuevo
-        // Así, si subes el mismo archivo, simplemente reemplaza el número por el mismo número, sin duplicarlo.
-        Object.keys(excelData[fechaStart].income).forEach(key => {
-          objFinal.income[key] = excelData[fechaStart].income[key];
-        });
-        
-        Object.keys(excelData[fechaStart].expense).forEach(key => {
-          objFinal.expense[key] = excelData[fechaStart].expense[key];
-        });
-
-        return objFinal;
-      });
-
-      // 3. Enviamos los datos limpios y seguros a Supabase
-      await onImportarSemanas(periodosArray);
+      await onImportarSemanas(Object.values(periodos));
       
       if (noReconocidos.size > 0) {
         alert("Atención: Los siguientes conceptos fueron ignorados porque no existen en tu configuración:\n\n" + Array.from(noReconocidos).join(", "));
       } else {
-        alert("¡Proyecciones calculadas y actualizadas con éxito!");
+        alert("¡Proyecciones calculadas y guardadas o actualizadas con éxito!");
       }
       
     } catch (err) {
@@ -180,24 +165,24 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
   };
 
   return (
-    <div style={{ padding: 16, border: 'none', borderRadius: 10 }}>
+    <div style={{ padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Importador Seguro</h4>
-          <p style={{ margin: 0, fontSize: 12, color: '#64748B' }}>Sube tu Excel. Reemplaza sin duplicar.</p>
+          <h4 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: '#0F1729', fontFamily: "'Inter', sans-serif" }}>Carga masiva (opcional)</h4>
+          <p style={{ margin: 0, fontSize: 12, color: '#5B6570', fontFamily: "'Inter', sans-serif" }}>Solo para lotes recurrentes/mensuales. El día a día se carga desde "Movimientos", sin archivos.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           
-          <button onClick={onBorrarDatos} style={{ padding: '8px 12px', background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Trash2 size={14} /> Limpiar Todo
+          <button onClick={onBorrarDatos} style={{ padding: '8px 12px', background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Trash2 size={14} /> Limpiar Datos
           </button>
           
-          <button onClick={descargarModeloPresupuesto} style={{ padding: '8px 12px', background: '#F8FAFC', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Download size={14} /> Modelo
+          <button onClick={descargarModeloPresupuesto} style={{ padding: '8px 12px', background: 'transparent', border: '1px solid #C7C2B8', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Download size={14} /> Modelo Proyecciones
           </button>
           
           <input type="file" accept=".xlsx, .xls, .csv" onChange={procesarArchivo} ref={fileInputRef} style={{ display: 'none' }} id="file-input" />
-          <label htmlFor="file-input" style={{ padding: '8px 14px', background: '#10B981', color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <label htmlFor="file-input" style={{ padding: '8px 14px', background: '#0E6E5D', color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Upload size={14} /> {procesando ? "Calculando..." : "Subir Proyección"}
           </label>
         </div>
