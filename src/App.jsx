@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 // =========================================================================
-// CATEGORÍAS FIJAS DEL PLAN DE FONDOS
+// CATEGORÍAS FIJAS DEL PLAN DE FONDOS (Corregidas según "Acumulado Semestral")
 // =========================================================================
 const PLAN_INCOME_CATS = [
   { key: "custom_cupos-socios", label: "Cupos Socios" },
@@ -25,54 +25,29 @@ const PLAN_INCOME_CATS = [
 ];
 
 const PLAN_EXPENSE_CATS = [
-  { key: "custom_300", label: "#300" },
-  { key: "custom_boulevard", label: "BOULEVARD" },
-  { key: "custom_torre-green", label: "TORRE GREEN" },
-  { key: "custom_total-proyectos", label: "Total Proyectos" },
-  { key: "custom_honorarios-profesionales", label: "Honorarios Profesionales" },
-  { key: "custom_beneficios-al-personal", label: "Beneficios al personal" },
-  { key: "custom_sueldos", label: "Sueldos" },
-  { key: "custom_quincenas", label: "Quincenas" },
-  { key: "custom_cargas-sociales", label: "Cargas Sociales" },
-  { key: "custom_impuestos", label: "Impuestos" },
-  { key: "custom_gastos-administrativos", label: "Gastos Administrativos" },
-  { key: "custom_mkt", label: "MKT" },
-  { key: "custom_tdys-et", label: "TDYS / ET" },
-  { key: "custom_cx", label: "CX" },
-  { key: "custom_renta-anticipada", label: "Renta Anticipada" },
-  { key: "custom_inveriones", label: "Inversiones" },
-  { key: "custom_colonia", label: "Colonia" },
-  { key: "custom_terreno-neuquen", label: "Terreno Neuquen" },
-  { key: "custom_pasivos-financieros", label: "Pasivos Financieros" }
+  { key: "custom_proyectos", label: "Proyectos" },
+  { key: "custom_rrhh", label: "RRHH" },
+  { key: "custom_administracion", label: "Administración" },
+  { key: "custom_inversiones", label: "Inversiones" },
+  { key: "custom_pasivos-financieros", label: "Pasivos Financieros" },
+  { key: "custom_seguros", label: "Seguros" }
 ];
 
 const DEFAULT_PLAN_2026 = {
   "ingreso": {
-    "custom_cupos-socios": {"01":188542320,"02":188542320,"03":188542320,"04":188542320,"05":188542320,"06":188542320,"07":233273820,"08":233273820,"09":233273820,"10":233273820,"11":233273820,"12":233273820},
-    "custom_cuotas-mensuales": {"01":216094107,"02":210193926,"03":207243836,"04":208718881,"05":210931449,"06":221256765,"07":166503716,"08":394424755,"09":391424755,"10":138308205,"11":135987535,"12":120871098},
-    "custom_ventas-cdo": {"01":516840002,"02":752453282,"03":512761659,"04":962711702,"05":400627107,"06":171320000},
-    "custom_pesa": {"05":389439154,"06":241673234,"07":241673234,"08":241673234,"09":241673234}
+    "custom_cupos-socios": { "01": 188542320, "02": 188542320, "03": 188542320, "04": 188542320, "05": 188542320, "06": 188542320, "07": 233273820, "08": 233273820, "09": 233273820, "10": 233273820, "11": 233273820, "12": 233273820 },
+    "custom_cuotas-mensuales": { "01": 216094107, "02": 210193927, "03": 207243837, "04": 208718882, "05": 210931449, "06": 221256765, "07": 166503716, "08": 394424755, "09": 391424755, "10": 138308206, "11": 135987535, "12": 120871098 },
+    "custom_ventas-cdo": { "01": 516840002, "02": 752453282, "03": 512761659, "04": 962711702, "05": 400627107, "06": 171320000 },
+    "custom_pesa": { "05": 389439155, "06": 241673234, "07": 241673234, "08": 241673234, "09": 241673234 },
+    "custom_aportes": {}
   },
   "egreso": {
-    "custom_300": {"01":338750367,"02":341402956,"03":351451571,"04":323396575,"05":349360723,"06":381597416,"07":239231587,"08":427253165,"09":478307496,"10":346223605,"11":61743905,"12":24056733},
-    "custom_boulevard": {"01":62700179,"02":61378658,"03":58844236,"04":67877643,"05":57414095,"06":51240969,"07":94977865,"08":26023452,"09":32721590,"10":57372797,"11":80564095,"12":91755464},
-    "custom_torre-green": {"07":22809604,"08":61198826,"09":14141417,"10":27916521,"11":25659567,"12":26684937},
-    "custom_total-proyectos": {"01":527696545,"02":516555380,"03":506392973,"04":515654521,"05":462546515,"06":611412024,"07":691180690,"08":797872530,"09":739456322,"10":431512924,"11":167967568,"12":142497135},
-    "custom_honorarios-profesionales": {"01":815400,"02":586308,"03":586308,"04":586308,"05":641670,"06":641670,"07":1030574,"08":1030574,"09":1030574,"10":1030574,"11":1030574,"12":1030574},
-    "custom_beneficios-al-personal": {"01":1512989,"02":2068094,"03":3975000,"04":4447092,"05":4407825,"06":4370807,"07":4926249,"08":5055175,"09":5188864,"10":5327503,"11":5471289,"12":5620425},
-    "custom_sueldos": {"01":96571996,"02":110954017,"03":122599891,"04":80279020,"05":127138050,"06":81132700,"07":116780000,"08":116780000,"09":116780000,"10":116780000,"11":116780000,"12":175170000},
-    "custom_quincenas": {"01":230138339,"02":242610573,"03":260287172,"04":232004035,"05":300612641,"06":177810700,"07":177810700,"08":177810700,"09":177810700,"10":177810700,"11":177810700,"12":266716050},
-    "custom_cargas-sociales": {"01":38221573,"02":40466058,"03":43840882,"04":36442188,"05":43169975,"06":64754962,"07":43169975,"08":43169975,"09":43169975,"10":43169975,"11":43169975,"12":64754962},
-    "custom_impuestos": {"01":15183743,"02":25735751,"03":19013033,"04":47981409,"05":43607327,"06":56085227,"07":29705257,"08":29705257,"09":29705257,"10":29705257,"11":29705257,"12":29705257},
-    "custom_gastos-administrativos": {"01":42551217,"02":43270727,"03":42799236,"04":43500683,"05":42896722,"06":43610439,"07":39229498,"08":47587785,"09":39970287,"10":47709366,"11":39272959,"12":47892738},
-    "custom_mkt": {"01":5945904,"02":3830673,"03":5955607,"04":3231846,"05":3598221,"06":5199111,"07":6800000,"08":6800000,"09":6800000,"10":6800000,"11":6800000,"12":6800000},
-    "custom_tdys-et": {"01":1881775,"02":420000,"03":24807980,"04":46431909,"05":62542064,"06":114724634,"07":133510892,"08":184574569,"09":145976936,"10":169023331,"11":139194229,"12":30880038},
-    "custom_cx": {"01":1403000,"02":1403000,"03":1403000,"04":1438000,"05":5053000,"06":2223000,"07":2483000,"08":4168000,"09":3203000,"10":2679000,"11":2229000,"12":1944000},
-    "custom_renta-anticipada": {"01":14765397,"02":17093485,"03":19436097,"04":20455239,"05":20779362,"06":21532944,"07":23890639,"08":19027980,"09":12262559,"10":3622358,"11":2820493,"12":2820493},
-    "custom_inveriones": {"01":80318625,"02":78125625,"03":77029125,"04":77577375,"05":78399750,"06":82237500,"07":82003500,"08":82003500,"09":82003500,"10":82003500,"11":7003500,"12":7003500},
-    "custom_colonia": {"01":7068625,"02":6875625,"03":6779125,"04":6827375,"05":6899750,"06":7237500,"07":7003500,"08":7003500,"09":7003500,"10":7003500,"11":7003500,"12":7003500},
-    "custom_terreno-neuquen": {"01":73250000,"02":71250000,"03":70250000,"04":70750000,"05":71500000,"06":75000000,"07":75000000,"08":75000000,"09":75000000,"10":75000000},
-    "custom_pasivos-financieros": {"01":57268446,"02":55950406,"03":55291386,"04":55620896,"05":73580580,"06":76742101,"07":76742101,"08":79132921,"09":76742101,"10":76742101,"11":76742101,"12":76742101}
+    "custom_proyectos": { "01": 527696546, "02": 516555380, "03": 506392974, "04": 515654521, "05": 462546516, "06": 611412024, "07": 691180691, "08": 797872530, "09": 739456323, "10": 431512925, "11": 167967569, "12": 142497135 },
+    "custom_rrhh": { "01": 369633317, "02": 397685053, "03": 441780756, "04": 358521345, "05": 475970162, "06": 331050035, "07": 359717500, "08": 343916425, "09": 343980114, "10": 344578753, "11": 344262539, "12": 513292012 },
+    "custom_administracion": { "01": 82469483, "02": 92452971, "03": 114416954, "04": 163553088, "05": 179058699, "06": 245285356, "07": 236069287, "08": 292313592, "09": 238368041, "10": 260249313, "11": 220946940, "12": 121042528 },
+    "custom_inversiones": { "01": 80318625, "02": 78125625, "03": 77029125, "04": 77577375, "05": 78399750, "06": 82237500, "07": 82003500, "08": 82003500, "09": 82003500, "10": 82003500, "11": 7003500, "12": 7003500 },
+    "custom_pasivos-financieros": { "01": 57268446, "02": 55950406, "03": 55291386, "04": 55620896, "05": 73580581, "06": 76742101, "07": 76742101, "08": 79132921, "09": 76742101, "10": 76742101, "11": 76742101, "12": 76742101 },
+    "custom_seguros": { "01": 4688126, "02": 4688126, "03": 4688126, "04": 4688126, "05": 4688126, "06": 4688126, "07": 4688126, "08": 4688126, "09": 4688126, "10": 4688126, "11": 4688126, "12": 4688126 }
   }
 };
 
@@ -153,15 +128,23 @@ export default function App() {
       setSaldoBanco(sData[0].saldo_banco || "");
     }
 
+    // CARGA EL PLAN DE FONDOS
+    // Si la base de datos de Plan de Fondos está vacía, guarda y usa el DEFAULT que acabamos de corregir
     const { data: pData } = await supabase.from("cashflow_plan").select("*").in("id", ["2026", "mapping"]);
     if (pData) {
       const planRow = pData.find(r => r.id === "2026");
       const mapRow = pData.find(r => r.id === "mapping");
       
-      if (planRow && Object.keys(planRow.data || {}).length > 0) setPlanFondos(planRow.data);
-      else setPlanFondos(DEFAULT_PLAN_2026);
+      if (planRow && Object.keys(planRow.data || {}).length > 0) {
+        setPlanFondos(planRow.data);
+      } else {
+        setPlanFondos(DEFAULT_PLAN_2026);
+        await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
+      }
       
       if (mapRow) setMapping(mapRow.data || { ingreso: {}, egreso: {} });
+    } else {
+      setPlanFondos(DEFAULT_PLAN_2026);
     }
 
     setLoaded(true);
@@ -310,25 +293,9 @@ export default function App() {
 
   const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
-  const incomeCats = useMemo(() => {
-    const base = discoverCategories(weeks, BASE_INCOME, "income");
-    if (planFondos?.ingreso) {
-      Object.keys(planFondos.ingreso).forEach(key => {
-        if (!base.find(c => c.key === key)) base.push({ key, label: formatLabel(key), custom: true });
-      });
-    }
-    return base;
-  }, [weeks, planFondos]);
-
-  const expenseCats = useMemo(() => {
-    const base = discoverCategories(weeks, BASE_EXPENSE, "expense");
-    if (planFondos?.egreso) {
-      Object.keys(planFondos.egreso).forEach(key => {
-        if (!base.find(c => c.key === key)) base.push({ key, label: formatLabel(key), custom: true });
-      });
-    }
-    return base;
-  }, [weeks, planFondos]);
+  // Diarios (los que usas en el Cashflow día a día)
+  const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
+  const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
   const procesadas = useMemo(() => {
     const fechasSet = new Set(weeks.map((w) => w.week_start));
@@ -386,7 +353,7 @@ export default function App() {
     <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
       <style>{globalStyles}</style>
 
-      {/* ---------- RIEL DE INSTRUMENTOS ---------- */}
+      {/* ---------- RIEL DE INSTRUMENTOS (SIDEBAR) ---------- */}
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
           <img src="/link-banner.png" alt="LINK" style={{ width: "100%", height: "85px", objectFit: "cover", objectPosition: "left center", display: "block" }} />
@@ -422,7 +389,7 @@ export default function App() {
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {/* PESTAÑA: PLAN DE FONDOS CON INDICADORES */}
+        {/* PESTAÑA: PLAN DE FONDOS CON INDICADORES SEMESTRALES */}
         {tab === "plan-fondos" && (
           <PlanDeFondosTab 
             planIncomeCats={PLAN_INCOME_CATS}
@@ -497,7 +464,6 @@ function KpiCard({ icon: Icon, label, value, sub, tone }) {
   );
 }
 
-// NUEVO COMPONENTE: TARJETA DE INDICADOR PARA SEMESTRES
 function SemesterCard({ title, ingresos, egresos, neto, fmt }) {
   return (
     <div style={{ background: tokens.surface, padding: "20px", borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, display: "flex", flexDirection: "column" }}>
@@ -592,7 +558,6 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
     return total;
   };
 
-  // CÁLCULOS SEMESTRALES
   const calcSemestre = (tipo, mesesFilter) => {
     let t = 0;
     const dataTipo = planDraft?.[tipo] || {};
@@ -623,7 +588,6 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       
-      {/* CABECERA Y BOTONERA */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>
@@ -663,7 +627,6 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
       
       {view === "presupuesto" && (
         <>
-          {/* NUEVOS INDICADORES SEMESTRALES */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
             <SemesterCard title="Primer Semestre (Ene - Jun)" ingresos={ingS1} egresos={egS1} neto={ingS1 - egS1} fmt={fmt} />
             <SemesterCard title="Segundo Semestre (Jul - Dic)" ingresos={ingS2} egresos={egS2} neto={ingS2 - egS2} fmt={fmt} />
@@ -737,7 +700,6 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
         </>
       )}
 
-      {/* VISTA 2: INTERFAZ DEL MAPEADOR */}
       {view === "mapeo" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
           <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 24 }}>
