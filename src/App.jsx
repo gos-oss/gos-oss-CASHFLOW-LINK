@@ -16,7 +16,11 @@ import {
 const globalStyles = `
   ${fontImport}
   * { box-sizing: border-box; }
-  body { margin: 0; }
+  body { margin: 0; padding: 0; background: ${tokens.paper}; }
+  
+  /* ESTA REGLA EXPANDE LA PANTALLA Y ANULA EL LÍMITE DE VITE */
+  #root { max-width: 100% !important; margin: 0 !important; padding: 0 !important; text-align: left !important; width: 100vw !important; overflow-x: hidden; }
+  
   ::-webkit-scrollbar { height: 8px; width: 8px; }
   ::-webkit-scrollbar-track { background: ${tokens.ruleSoft}; border-radius: 4px; }
   ::-webkit-scrollbar-thumb { background: ${tokens.rule}; border-radius: 4px; }
@@ -129,11 +133,9 @@ export default function App() {
     await fetchWeeks();
   };
 
-  // NUEVA FUNCIÓN PARA EL DRAG AND DROP
   const moverMovimiento = async (origenFecha, destinoFecha, tipo, key, monto) => {
     if (origenFecha === destinoFecha) return;
     
-    // 1. Quitar de la fecha origen
     const origen = weeks.find((w) => w.week_start === origenFecha);
     if (origen) {
       const upOrigen = { ...origen, income: { ...(origen.income || {}) }, expense: { ...(origen.expense || {}) } };
@@ -142,7 +144,6 @@ export default function App() {
       await supabase.from("cashflow_weeks").upsert(upOrigen);
     }
 
-    // 2. Agregar a la fecha destino
     const destino = weeks.find((w) => w.week_start === destinoFecha) || {
       id: destinoFecha, week_start: destinoFecha, status: "proyectado",
       saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0,
@@ -153,7 +154,6 @@ export default function App() {
     upDestino[field2][key] = (upDestino[field2][key] || 0) + Number(monto);
     await supabase.from("cashflow_weeks").upsert(upDestino);
 
-    // Refrescar datos
     await fetchWeeks();
   };
 
@@ -362,7 +362,6 @@ export default function App() {
                   <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} />
                 </div>
               )}
-              {/* PASAMOS LA FUNCIÓN DE MOVER A LA TABLA */}
               <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} />
             </div>
           </div>
@@ -464,12 +463,10 @@ function ResumenTab({ procesadas, kpis, fmt }) {
   );
 }
 
-// NUEVA TABLA CON EVENTOS DRAG AND DROP
 function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
 
-  // Funciones para manejar el arrastre
   const handleDragStart = (e, origenFecha, tipo, key, monto) => {
     e.dataTransfer.setData("application/json", JSON.stringify({ origenFecha, tipo, key, monto }));
   };
