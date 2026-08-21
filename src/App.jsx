@@ -27,6 +27,7 @@ const globalStyles = `
   .sticky-col { position: sticky; left: 0; z-index: 2; box-shadow: 3px 0 6px -3px rgba(14,21,36,0.08); }
   .nav-item { transition: background 0.15s ease, color 0.15s ease; }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid ${tokens.gold}; outline-offset: 1px; }
+  .draggable-chip:hover { transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 `;
 
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
@@ -49,7 +50,7 @@ export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("resumen");
-  const [mostrarPanel, setMostrarPanel] = useState(true); // NUEVO ESTADO PARA LA SOLAPITA
+  const [mostrarPanel, setMostrarPanel] = useState(true);
 
   const [saldoEfectivo, setSaldoEfectivo] = useState("");
   const [saldoBanco, setSaldoBanco] = useState("");
@@ -100,7 +101,6 @@ export default function App() {
     else fetchWeeks();
   };
 
-  // ---- Movimientos puntuales (reemplazan la carga por Excel para el día a día) ----
   const guardarMovimiento = async ({ fecha, tipo, key, monto, estado }) => {
     const existente = weeks.find((w) => w.week_start === fecha);
     const base = existente || {
@@ -126,6 +126,34 @@ export default function App() {
     else delete actualizada.expense[key];
     const { error } = await supabase.from("cashflow_weeks").upsert(actualizada);
     if (error) { alert("Error al eliminar el movimiento: " + error.message); return; }
+    await fetchWeeks();
+  };
+
+  // NUEVA FUNCIÓN PARA EL DRAG AND DROP
+  const moverMovimiento = async (origenFecha, destinoFecha, tipo, key, monto) => {
+    if (origenFecha === destinoFecha) return;
+    
+    // 1. Quitar de la fecha origen
+    const origen = weeks.find((w) => w.week_start === origenFecha);
+    if (origen) {
+      const upOrigen = { ...origen, income: { ...(origen.income || {}) }, expense: { ...(origen.expense || {}) } };
+      const field = tipo === "ingreso" ? "income" : "expense";
+      delete upOrigen[field][key];
+      await supabase.from("cashflow_weeks").upsert(upOrigen);
+    }
+
+    // 2. Agregar a la fecha destino
+    const destino = weeks.find((w) => w.week_start === destinoFecha) || {
+      id: destinoFecha, week_start: destinoFecha, status: "proyectado",
+      saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0,
+      income: {}, expense: {}, notes: "",
+    };
+    const upDestino = { ...destino, income: { ...(destino.income || {}) }, expense: { ...(destino.expense || {}) } };
+    const field2 = tipo === "ingreso" ? "income" : "expense";
+    upDestino[field2][key] = (upDestino[field2][key] || 0) + Number(monto);
+    await supabase.from("cashflow_weeks").upsert(upDestino);
+
+    // Refrescar datos
     await fetchWeeks();
   };
 
@@ -310,11 +338,8 @@ export default function App() {
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {/* MODIFICACIÓN: PESTAÑA DE MOVIMIENTOS CON SOLAPITA Y ACORDEÓN */}
         {tab === "movimientos" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            
-            {/* BOTÓN PARA OCULTAR/MOSTRAR PANEL */}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button 
                 onClick={() => setMostrarPanel(!mostrarPanel)}
@@ -331,24 +356,14 @@ export default function App() {
               </button>
             </div>
 
-            {/* CONTENEDOR DE TABLA Y PANEL */}
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
-              
-              {/* PANEL LATERAL DE CARGA */}
               {mostrarPanel && (
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 22, position: "sticky", top: 32 }}>
-                  <CargarMovimiento
-                    incomeCats={incomeCats}
-                    expenseCats={expenseCats}
-                    weeks={weeks}
-                    onGuardar={guardarMovimiento}
-                    onEliminar={eliminarMovimiento}
-                  />
+                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} />
                 </div>
               )}
-              
-              {/* TABLA PRINCIPAL COLAPSABLE */}
-              <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} />
+              {/* PASAMOS LA FUNCIÓN DE MOVER A LA TABLA */}
+              <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} />
             </div>
           </div>
         )}
@@ -395,10 +410,7 @@ export default function App() {
   );
 }
 
-const fieldInputStyle = {
-  width: "100%", padding: "8px 10px", border: `1px solid ${tokens.rule}`, borderRadius: 5,
-  fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box",
-};
+const fieldInputStyle = { width: "100%", padding: "8px 10px", border: `1px solid ${tokens.rule}`, borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box" };
 
 function Field({ label, children }) {
   return (
@@ -426,53 +438,24 @@ function KpiCard({ icon: Icon, label, value, sub, tone }) {
 }
 
 function ResumenTab({ procesadas, kpis, fmt }) {
-  if (procesadas.length === 0) {
-    return (
-      <div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${tokens.rule}` }}>
-        <Wallet size={40} style={{ color: tokens.textFaint, marginBottom: 16, opacity: 0.6 }} />
-        <h3 style={{ fontFamily: tokens.fontDisplay, fontSize: 19, color: tokens.text, marginBottom: 8, fontWeight: 600 }}>Área de trabajo vacía</h3>
-        <p style={{ fontSize: 13.5, color: tokens.textMuted, maxWidth: 380, margin: "0 auto", lineHeight: 1.6 }}>
-          Cargá tu primer movimiento en la pestaña "Movimientos" para ver el tablero completo.
-        </p>
-      </div>
-    );
-  }
-
+  if (procesadas.length === 0) return (<div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${tokens.rule}` }}>Sin datos cargados.</div>);
   return (
     <>
-      <div>
-        <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen</h2>
-        <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Posición de caja proyectada sobre {procesadas.length} fechas cargadas.</p>
-      </div>
-
+      <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen</h2></div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
-        <KpiCard icon={Wallet} label="Días de caja"
-          value={kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} días`}
-          sub={kpis.deficitActual ? "el saldo ya es negativo" : "a ritmo de quema promedio"}
-          tone={kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? "neg" : "pos"} />
-        <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit}
-          sub={kpis.diaDeficit !== "Sin déficit" ? "primera fecha en negativo" : "no se proyecta déficit"}
-          tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
-        <KpiCard icon={AlertTriangle} label="NOF mensual" value={`$ ${fmt(kpis.nofMensual)}`}
-          sub={`Anual: $ ${fmt(kpis.nofAnual)}`} tone={kpis.nofMensual > 0 ? "neg" : "pos"} />
+        <KpiCard icon={Wallet} label="Días de caja" value={kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} días`} tone={kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? "neg" : "pos"} />
+        <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit} tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
+        <KpiCard icon={AlertTriangle} label="NOF mensual" value={`$ ${fmt(kpis.nofMensual)}`} tone={kpis.nofMensual > 0 ? "neg" : "pos"} />
       </div>
-
       <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, padding: 24 }}>
-        <h3 style={{ margin: "0 0 18px 0", fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>Evolución de saldo acumulado</h3>
         <div style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={procesadas.map((w) => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
-              <defs>
-                <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={tokens.positive} stopOpacity={0.28} />
-                  <stop offset="95%" stopColor={tokens.positive} stopOpacity={0} />
-                </linearGradient>
-              </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={tokens.ruleSoft} />
-              <XAxis dataKey="name" tick={{ fill: tokens.textFaint, fontSize: 11, fontFamily: tokens.fontMono }} axisLine={false} tickLine={false} dy={10} />
-              <YAxis tick={{ fill: tokens.textFaint, fontSize: 11, fontFamily: tokens.fontMono }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-6} width={72} />
-              <Tooltip formatter={(v) => ["$ " + fmt(v), "Saldo"]} contentStyle={{ borderRadius: 6, border: `1px solid ${tokens.rule}`, fontSize: 12.5, fontFamily: tokens.fontBody, fontWeight: 600 }} />
-              <Area type="monotone" dataKey="saldo" stroke={tokens.positive} strokeWidth={2.5} fill="url(#colorSaldo)" activeDot={{ r: 5, strokeWidth: 0, fill: tokens.ink }} />
+              <XAxis dataKey="name" tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} dy={10} />
+              <YAxis tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-6} width={72} />
+              <Tooltip formatter={(v) => ["$ " + fmt(v), "Saldo"]} />
+              <Area type="monotone" dataKey="saldo" stroke={tokens.positive} strokeWidth={2.5} fill={tokens.positive} fillOpacity={0.1} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -481,76 +464,128 @@ function ResumenTab({ procesadas, kpis, fmt }) {
   );
 }
 
-// MODIFICACIÓN: NUEVA TABLA CON EFECTO ACORDEÓN
-function FlujoTable({ procesadas, incomeCats, expenseCats, fmt }) {
+// NUEVA TABLA CON EVENTOS DRAG AND DROP
+function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
+
+  // Funciones para manejar el arrastre
+  const handleDragStart = (e, origenFecha, tipo, key, monto) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({ origenFecha, tipo, key, monto }));
+  };
+
+  const handleDrop = (e, destinoFecha, targetTipo, targetKey) => {
+    e.preventDefault();
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      if (data.tipo !== targetTipo || data.key !== targetKey) {
+        alert("Solo puedes mover el importe a otra fecha del mismo concepto.");
+        return;
+      }
+      onMoverMovimiento(data.origenFecha, destinoFecha, data.tipo, data.key, data.monto);
+    } catch (err) { console.error("Error al mover:", err); }
+  };
 
   return (
     <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.rule}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${tokens.rule}`, background: tokens.paper }}>
         <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos</h3>
+        <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Puedes arrastrar los cuadraditos de montos a otra fecha.</p>
       </div>
       <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
         <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
           <thead>
             <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${tokens.rule}` }}>
-              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: tokens.surface, fontWeight: 700, fontFamily: tokens.fontBody }}>Concepto</th>
+              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: tokens.surface }}>Concepto</th>
               {procesadas.map((w, i) => (
-                <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontWeight: 600, fontFamily: tokens.fontMono }}>{w.week_start}</th>
+                <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>{w.week_start}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             
-            {/* CABECERA INGRESOS CLICKEABLE */}
-            <tr onClick={() => setVerIngresos(!verIngresos)} style={{ cursor: "pointer", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBF8"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-              <td className="sticky-col" style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, letterSpacing: "0.5px", background: tokens.surface, fontFamily: tokens.fontBody, display: "flex", alignItems: "center", gap: 6 }}>
+            <tr onClick={() => setVerIngresos(!verIngresos)} style={{ cursor: "pointer", background: tokens.surface }}>
+              <td className="sticky-col" style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
                 {verIngresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} INGRESOS
               </td>
               <td colSpan={procesadas.length}></td>
             </tr>
 
-            {/* DETALLE INGRESOS */}
             {verIngresos && incomeCats.map((c) => (
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface, fontFamily: tokens.fontBody }}>{c.label}</td>
-                {procesadas.map((w, i) => (
-                  <td key={i} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textMuted, fontFamily: tokens.fontMono }}>{fmt(w.income?.[c.key] || 0)}</td>
-                ))}
+                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
+                {procesadas.map((w, i) => {
+                  const monto = w.income?.[c.key] || 0;
+                  return (
+                    <td 
+                      key={i} 
+                      onDragOver={(e) => e.preventDefault()} 
+                      onDrop={(e) => handleDrop(e, w.week_start, "ingreso", c.key)}
+                      style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}
+                    >
+                      {monto > 0 ? (
+                        <div 
+                          className="draggable-chip"
+                          draggable 
+                          onDragStart={(e) => handleDragStart(e, w.week_start, "ingreso", c.key, monto)}
+                          style={{ cursor: "grab", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
+                        >
+                          {fmt(monto)}
+                        </div>
+                      ) : <span style={{ color: tokens.rule, fontFamily: tokens.fontMono }}>-</span>}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             {verIngresos && <TotalRow label="Total ingresos" data={procesadas} field="totalIngresos" color={tokens.positive} fmt={fmt} />}
 
-            {/* CABECERA EGRESOS CLICKEABLE */}
-            <tr onClick={() => setVerEgresos(!verEgresos)} style={{ cursor: "pointer", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBF8"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-              <td className="sticky-col" style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, letterSpacing: "0.5px", background: tokens.surface, fontFamily: tokens.fontBody, display: "flex", alignItems: "center", gap: 6 }}>
+            <tr onClick={() => setVerEgresos(!verEgresos)} style={{ cursor: "pointer", background: tokens.surface }}>
+              <td className="sticky-col" style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
                 {verEgresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} EGRESOS
               </td>
               <td colSpan={procesadas.length}></td>
             </tr>
 
-            {/* DETALLE EGRESOS */}
             {verEgresos && expenseCats.map((c) => (
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface, fontFamily: tokens.fontBody }}>{c.label}</td>
-                {procesadas.map((w, i) => (
-                  <td key={i} style={{ padding: "9px 14px", textAlign: "right", color: tokens.textMuted, fontFamily: tokens.fontMono }}>{fmt(w.expense?.[c.key] || 0)}</td>
-                ))}
+                <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: tokens.surface }}>{c.label}</td>
+                {procesadas.map((w, i) => {
+                  const monto = w.expense?.[c.key] || 0;
+                  return (
+                    <td 
+                      key={i} 
+                      onDragOver={(e) => e.preventDefault()} 
+                      onDrop={(e) => handleDrop(e, w.week_start, "egreso", c.key)}
+                      style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}
+                    >
+                      {monto > 0 ? (
+                        <div 
+                          className="draggable-chip"
+                          draggable 
+                          onDragStart={(e) => handleDragStart(e, w.week_start, "egreso", c.key, monto)}
+                          style={{ cursor: "grab", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
+                        >
+                          {fmt(monto)}
+                        </div>
+                      ) : <span style={{ color: tokens.rule, fontFamily: tokens.fontMono }}>-</span>}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             {verEgresos && <TotalRow label="Total egresos" data={procesadas} field="totalEgresos" color={tokens.negative} fmt={fmt} />}
 
             <tr className="flujo-row" style={{ borderBottom: `1px solid ${tokens.rule}` }}>
-              <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: tokens.surface, fontSize: 12.5, fontFamily: tokens.fontBody }}>Flujo neto</td>
+              <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: tokens.surface }}>Flujo neto</td>
               {procesadas.map((w, i) => (
-                <td key={i} style={{ padding: "16px 14px", textAlign: "right", fontWeight: 700, fontSize: 12.5, fontFamily: tokens.fontMono, color: w.posicion >= 0 ? tokens.positive : tokens.negative }}>{fmt(w.posicion)}</td>
+                <td key={i} style={{ padding: "16px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: w.posicion >= 0 ? tokens.positive : tokens.negative }}>{fmt(w.posicion)}</td>
               ))}
             </tr>
             <tr className="flujo-row">
-              <td className="sticky-col" style={{ padding: "18px 14px", fontWeight: 700, background: tokens.ink, color: "#fff", fontSize: 12.5, fontFamily: tokens.fontBody }}>Saldo acumulado</td>
+              <td className="sticky-col" style={{ padding: "18px 14px", fontWeight: 700, background: tokens.ink, color: "#fff" }}>Saldo acumulado</td>
               {procesadas.map((w, i) => (
-                <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: tokens.ink, color: "#fff", fontSize: 12.5, fontFamily: tokens.fontMono }}>{fmt(w.saldoAcumulado)}</td>
+                <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: tokens.ink, color: "#fff", fontFamily: tokens.fontMono }}>{fmt(w.saldoAcumulado)}</td>
               ))}
             </tr>
           </tbody>
@@ -563,7 +598,7 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt }) {
 function TotalRow({ label, data, field, color, fmt }) {
   return (
     <tr className="flujo-row" style={{ borderBottom: `2px solid ${tokens.rule}` }}>
-      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: tokens.paper, fontFamily: tokens.fontBody, fontSize: 12 }}>{label}</td>
+      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: tokens.paper }}>{label}</td>
       {data.map((w, i) => (
         <td key={i} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color, background: tokens.paper, fontFamily: tokens.fontMono }}>{fmt(w[field])}</td>
       ))}
