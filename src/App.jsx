@@ -10,12 +10,42 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
-  ChevronDown, ChevronRight, BarChart3, Pencil
+  ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon
 } from "lucide-react";
 
 // =========================================================================
-// DATA EXTRAÍDA AUTOMÁTICAMENTE DE TU EXCEL "PLAN_DE_FONDOS_2026_-2027.xlsx"
+// CATEGORÍAS FIJAS DEL PLAN DE FONDOS (Extraídas de tu Excel)
 // =========================================================================
+const PLAN_INCOME_CATS = [
+  { key: "custom_cupos-socios", label: "Cupos Socios" },
+  { key: "custom_cuotas-mensuales", label: "Cuotas Mensuales" },
+  { key: "custom_ventas-cdo", label: "Ventas CDO" },
+  { key: "custom_pesa", label: "PESA" },
+  { key: "custom_aportes", label: "Aportes" }
+];
+
+const PLAN_EXPENSE_CATS = [
+  { key: "custom_300", label: "#300" },
+  { key: "custom_boulevard", label: "BOULEVARD" },
+  { key: "custom_torre-green", label: "TORRE GREEN" },
+  { key: "custom_total-proyectos", label: "Total Proyectos" },
+  { key: "custom_honorarios-profesionales", label: "Honorarios Profesionales" },
+  { key: "custom_beneficios-al-personal", label: "Beneficios al personal" },
+  { key: "custom_sueldos", label: "Sueldos" },
+  { key: "custom_quincenas", label: "Quincenas" },
+  { key: "custom_cargas-sociales", label: "Cargas Sociales" },
+  { key: "custom_impuestos", label: "Impuestos" },
+  { key: "custom_gastos-administrativos", label: "Gastos Administrativos" },
+  { key: "custom_mkt", label: "MKT" },
+  { key: "custom_tdys-et", label: "TDYS / ET" },
+  { key: "custom_cx", label: "CX" },
+  { key: "custom_renta-anticipada", label: "Renta Anticipada" },
+  { key: "custom_inveriones", label: "Inversiones" },
+  { key: "custom_colonia", label: "Colonia" },
+  { key: "custom_terreno-neuquen", label: "Terreno Neuquen" },
+  { key: "custom_pasivos-financieros", label: "Pasivos Financieros" }
+];
+
 const DEFAULT_PLAN_2026 = {
   "ingreso": {
     "custom_cupos-socios": {"01":188542320,"02":188542320,"03":188542320,"04":188542320,"05":188542320,"06":188542320,"07":233273820,"08":233273820,"09":233273820,"10":233273820,"11":233273820,"12":233273820},
@@ -77,6 +107,11 @@ const globalStyles = `
     outline: none; transition: border-color 0.2s;
   }
   .plan-input:focus { border-color: ${tokens.gold}; }
+  
+  .map-select {
+    width: 100%; padding: 8px 10px; border: 1px solid ${tokens.rule}; border-radius: 4px;
+    font-family: ${tokens.fontBody}; font-size: 12px; background: #fff; outline: none;
+  }
 `;
 
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
@@ -94,6 +129,7 @@ const NAV = [
 export default function App() {
   const [weeks, setWeeks] = useState([]);
   const [planFondos, setPlanFondos] = useState({});
+  const [mapping, setMapping] = useState({ ingreso: {}, egreso: {} }); // NUEVO: Estado del Mapeador
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("resumen");
   const [mostrarPanel, setMostrarPanel] = useState(true);
@@ -117,11 +153,15 @@ export default function App() {
       setSaldoBanco(sData[0].saldo_banco || "");
     }
 
-    const { data: pData } = await supabase.from("cashflow_plan").select("*").eq("id", "2026");
-    if (pData && pData.length > 0 && Object.keys(pData[0].data || {}).length > 0) {
-      setPlanFondos(pData[0].data);
-    } else {
-      setPlanFondos(DEFAULT_PLAN_2026);
+    const { data: pData } = await supabase.from("cashflow_plan").select("*").in("id", ["2026", "mapping"]);
+    if (pData) {
+      const planRow = pData.find(r => r.id === "2026");
+      const mapRow = pData.find(r => r.id === "mapping");
+      
+      if (planRow && Object.keys(planRow.data || {}).length > 0) setPlanFondos(planRow.data);
+      else setPlanFondos(DEFAULT_PLAN_2026);
+      
+      if (mapRow) setMapping(mapRow.data || { ingreso: {}, egreso: {} });
     }
 
     setLoaded(true);
@@ -137,11 +177,15 @@ export default function App() {
 
   const guardarPlanDeFondos = async (nuevoPlan) => {
     setPlanFondos(nuevoPlan);
-    const { error } = await supabase.from("cashflow_plan").upsert({
-      id: "2026", data: nuevoPlan
-    });
+    const { error } = await supabase.from("cashflow_plan").upsert({ id: "2026", data: nuevoPlan });
     if (error) alert("Error al guardar el plan de fondos: " + error.message);
-    else alert("Presupuesto guardado correctamente.");
+  };
+
+  const guardarMapeo = async (nuevoMapeo) => {
+    setMapping(nuevoMapeo);
+    const { error } = await supabase.from("cashflow_plan").upsert({ id: "mapping", data: nuevoMapeo });
+    if (error) alert("Error al guardar el mapeo: " + error.message);
+    else alert("Mapeo actualizado correctamente.");
   };
 
   const handleImportarSemanas = async (semanasNuevas) => {
@@ -264,28 +308,9 @@ export default function App() {
     return true;
   };
 
-  // NUEVO: Asegurarnos de que las categorías del Plan de Fondos aparezcan en la tabla general
-  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-
-  const incomeCats = useMemo(() => {
-    const base = discoverCategories(weeks, BASE_INCOME, "income");
-    if (planFondos?.ingreso) {
-      Object.keys(planFondos.ingreso).forEach(key => {
-        if (!base.find(c => c.key === key)) base.push({ key, label: formatLabel(key), custom: true });
-      });
-    }
-    return base;
-  }, [weeks, planFondos]);
-
-  const expenseCats = useMemo(() => {
-    const base = discoverCategories(weeks, BASE_EXPENSE, "expense");
-    if (planFondos?.egreso) {
-      Object.keys(planFondos.egreso).forEach(key => {
-        if (!base.find(c => c.key === key)) base.push({ key, label: formatLabel(key), custom: true });
-      });
-    }
-    return base;
-  }, [weeks, planFondos]);
+  // Conceptos DIARIOS (Los que aparecen en Movimientos)
+  const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
+  const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
   const procesadas = useMemo(() => {
     const fechasSet = new Set(weeks.map((w) => w.week_start));
@@ -379,14 +404,18 @@ export default function App() {
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {/* PESTAÑA: PLAN DE FONDOS INTERACTIVO */}
+        {/* PESTAÑA: PLAN DE FONDOS E INTERFAZ DEL MAPEADOR */}
         {tab === "plan-fondos" && (
           <PlanDeFondosTab 
-            incomeCats={incomeCats} 
-            expenseCats={expenseCats} 
+            planIncomeCats={PLAN_INCOME_CATS}
+            planExpenseCats={PLAN_EXPENSE_CATS}
+            dailyIncomeCats={incomeCats} 
+            dailyExpenseCats={expenseCats} 
             fmt={fmt} 
             planGuardado={planFondos}
-            onGuardar={guardarPlanDeFondos}
+            mappingGuardado={mapping}
+            onGuardarPlan={guardarPlanDeFondos}
+            onGuardarMapeo={guardarMapeo}
           />
         )}
 
@@ -477,19 +506,25 @@ function ResumenTab({ procesadas, kpis, fmt }) {
   );
 }
 
-function PlanDeFondosTab({ incomeCats, expenseCats, fmt, planGuardado, onGuardar }) {
+// =========================================================================
+// PESTAÑA: PLAN DE FONDOS CON MAPEADOR INTEGRADO
+// =========================================================================
+function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planGuardado, mappingGuardado, onGuardarPlan, onGuardarMapeo }) {
   const meses = [
     { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
     { k: "05", n: "May" }, { k: "06", n: "Jun" }, { k: "07", n: "Jul" }, { k: "08", n: "Ago" },
     { k: "09", n: "Sep" }, { k: "10", n: "Oct" }, { k: "11", n: "Nov" }, { k: "12", n: "Dic" }
   ];
   
+  const [view, setView] = useState("presupuesto"); // "presupuesto" o "mapeo"
   const [editMode, setEditMode] = useState(false);
   const [planDraft, setPlanDraft] = useState({});
+  const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
 
   useEffect(() => {
     setPlanDraft(planGuardado || {});
-  }, [planGuardado, editMode]);
+    setMappingDraft({ ingreso: { ...(mappingGuardado?.ingreso || {}) }, egreso: { ...(mappingGuardado?.egreso || {}) } });
+  }, [planGuardado, mappingGuardado, editMode, view]);
 
   const handleInputChange = (tipo, conceptoKey, mesKey, value) => {
     setPlanDraft(prev => {
@@ -501,6 +536,10 @@ function PlanDeFondosTab({ incomeCats, expenseCats, fmt, planGuardado, onGuardar
     });
   };
 
+  const handleMappingChange = (tipo, dailyKey, planKey) => {
+    setMappingDraft(prev => ({ ...prev, [tipo]: { ...prev[tipo], [dailyKey]: planKey } }));
+  };
+
   const calcularTotalFila = (tipo, conceptoKey) => {
     let total = 0;
     meses.forEach(m => { total += planDraft?.[tipo]?.[conceptoKey]?.[m.k] || 0; });
@@ -509,99 +548,168 @@ function PlanDeFondosTab({ incomeCats, expenseCats, fmt, planGuardado, onGuardar
 
   const calcularTotalColumna = (tipo, mesKey) => {
     let total = 0;
-    const catalogo = tipo === "ingreso" ? incomeCats : expenseCats;
+    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
     catalogo.forEach(c => { total += planDraft?.[tipo]?.[c.key]?.[mesKey] || 0; });
     return total;
   };
 
-  const handleGuardar = () => {
-    onGuardar(planDraft);
-    setEditMode(false);
+  const guardarTodo = () => {
+    if (view === "presupuesto") {
+      onGuardarPlan(planDraft);
+      setEditMode(false);
+    } else {
+      onGuardarMapeo(mappingDraft);
+      setView("presupuesto");
+    }
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      
+      {/* CABECERA Y BOTONERA */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Plan de Fondos 2026</h2>
-          <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>{editMode ? "Estás editando el presupuesto anual." : "Presupuesto anual estimado (cargado automáticamente desde Excel)."}</p>
+          <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>
+            {view === "mapeo" ? "Mapeador de Conceptos" : "Plan de Fondos 2026"}
+          </h2>
+          <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>
+            {view === "mapeo" 
+              ? "Vincula tus categorías del Cashflow diario con las bolsas del Presupuesto Anual." 
+              : editMode ? "Estás editando el presupuesto anual." : "Presupuesto anual estimado de las categorías base."}
+          </p>
         </div>
         
-        {editMode ? (
-          <button onClick={handleGuardar} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-            <Save size={16} /> Guardar Presupuesto
-          </button>
-        ) : (
-          <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-            <Pencil size={16} /> Editar Presupuesto
-          </button>
-        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          {view === "presupuesto" && !editMode && (
+             <button onClick={() => setView("mapeo")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.surface, color: tokens.text, border: `1px solid ${colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                <LinkIcon size={16} /> Mapear Conceptos
+             </button>
+          )}
+
+          {view === "presupuesto" ? (
+            editMode ? (
+              <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                <Save size={16} /> Guardar Presupuesto
+              </button>
+            ) : (
+              <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                <Pencil size={16} /> Editar Presupuesto
+              </button>
+            )
+          ) : (
+            <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+              <Save size={16} /> Guardar Mapeo
+            </button>
+          )}
+        </div>
       </div>
       
-      <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
-         <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
-            <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
-              <thead>
-                <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                  <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto</th>
-                  {meses.map(m => <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m.n}</th>)}
-                  <th style={{ padding: 14, textAlign: "right", minWidth: 100, fontFamily: tokens.fontMono, color: tokens.text }}>Total Anual</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS</td></tr>
-                {incomeCats.map(c => (
-                   <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                      <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
-                      {meses.map(m => {
-                        const val = planDraft?.ingreso?.[c.key]?.[m.k] || "";
-                        return (
-                          <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                            {editMode ? (
-                              <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
-                            ) : (
-                              <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                      <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
-                   </tr>
-                ))}
-                <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                  <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos Mensuales</td>
-                  {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
-                  <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(incomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
-                </tr>
+      {/* VISTA 1: TABLA DE PRESUPUESTO */}
+      {view === "presupuesto" && (
+        <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
+           <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
+              <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
+                <thead>
+                  <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                    <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Categoría del Plan</th>
+                    {meses.map(m => <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m.n}</th>)}
+                    <th style={{ padding: 14, textAlign: "right", minWidth: 100, fontFamily: tokens.fontMono, color: tokens.text }}>Total Anual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS (Presupuesto)</td></tr>
+                  {planIncomeCats.map(c => (
+                     <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                        <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
+                        {meses.map(m => {
+                          const val = planDraft?.ingreso?.[c.key]?.[m.k] || "";
+                          return (
+                            <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                              {editMode ? (
+                                <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
+                              ) : (
+                                <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
+                     </tr>
+                  ))}
+                  <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                    <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos Presupuestados</td>
+                    {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
+                  </tr>
 
-                <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS</td></tr>
-                {expenseCats.map(c => (
-                   <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                      <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
-                      {meses.map(m => {
-                        const val = planDraft?.egreso?.[c.key]?.[m.k] || "";
-                        return (
-                          <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                            {editMode ? (
-                              <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
-                            ) : (
-                              <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                      <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
-                   </tr>
-                ))}
-                <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                  <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos Mensuales</td>
-                  {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
-                  <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(expenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
-                </tr>
-              </tbody>
-            </table>
-         </div>
-      </div>
+                  <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS (Presupuesto)</td></tr>
+                  {planExpenseCats.map(c => (
+                     <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                        <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
+                        {meses.map(m => {
+                          const val = planDraft?.egreso?.[c.key]?.[m.k] || "";
+                          return (
+                            <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                              {editMode ? (
+                                <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                              ) : (
+                                <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
+                     </tr>
+                  ))}
+                  <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                    <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos Presupuestados</td>
+                    {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
+                  </tr>
+                </tbody>
+              </table>
+           </div>
+        </div>
+      )}
+
+      {/* VISTA 2: INTERFAZ DEL MAPEADOR */}
+      {view === "mapeo" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          
+          <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 24 }}>
+            <h3 style={{ margin: "0 0 16px 0", color: tokens.positive, fontSize: 14 }}>Vincular INGRESOS</h3>
+            {dailyIncomeCats.map(c => (
+              <div key={c.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${colorLineaSuave}` }}>
+                <span style={{ fontSize: 13, color: tokens.text, fontWeight: 500, width: "45%" }}>{c.label}</span>
+                <span style={{ fontSize: 11, color: tokens.textMuted }}>pertenece a ➔</span>
+                <div style={{ width: "45%" }}>
+                  <select className="map-select" value={mappingDraft.ingreso?.[c.key] || ""} onChange={(e) => handleMappingChange("ingreso", c.key, e.target.value)}>
+                    <option value="">(Sin asignar)</option>
+                    {planIncomeCats.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 24 }}>
+            <h3 style={{ margin: "0 0 16px 0", color: tokens.negative, fontSize: 14 }}>Vincular EGRESOS</h3>
+            {dailyExpenseCats.map(c => (
+              <div key={c.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${colorLineaSuave}` }}>
+                <span style={{ fontSize: 13, color: tokens.text, fontWeight: 500, width: "45%" }}>{c.label}</span>
+                <span style={{ fontSize: 11, color: tokens.textMuted }}>pertenece a ➔</span>
+                <div style={{ width: "45%" }}>
+                  <select className="map-select" value={mappingDraft.egreso?.[c.key] || ""} onChange={(e) => handleMappingChange("egreso", c.key, e.target.value)}>
+                    <option value="">(Sin asignar)</option>
+                    {planExpenseCats.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      )}
     </div>
   );
 }
@@ -629,14 +737,14 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
   return (
     <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${colorLineaFuerte}`, background: colorTablaBg }}>
-        <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos</h3>
-        <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Arrastra montos o pasa el mouse sobre ellos para ver las notas.</p>
+        <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos diarios</h3>
+        <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Aquí ves el detalle máximo. Puedes mapear estos conceptos al Presupuesto Anual en la pestaña Plan de Fondos.</p>
       </div>
       <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
         <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
           <thead>
             <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
-              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto</th>
+              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto Diario</th>
               {procesadas.map((w, i) => (
                 <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>{w.week_start}</th>
               ))}
