@@ -44,6 +44,11 @@ const globalStyles = `
 
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const addDaysISO = (dateStr, n) => {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
 
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
@@ -293,37 +298,37 @@ export default function App() {
     });
   }, [weeks, saldoEfectivo, saldoBanco, fechaSaldo]);
 
+  // =========================================================================
+  // NUEVA FÓRMULA DE DÍAS DE CAJA (Días exactos hasta el primer déficit)
+  // =========================================================================
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
     const hoy = todayISO();
     const saldoInicialReal = Number(saldoEfectivo || 0) + Number(saldoBanco || 0);
     const pasadas = procesadas.filter((w) => w.week_start <= hoy);
-    const futuras = procesadas.filter((w) => w.week_start > hoy);
     const saldoHoy = pasadas.length ? pasadas[pasadas.length - 1].saldoAcumulado : saldoInicialReal;
 
     let diasDeCaja = null, deficitActual = false, sinQuemaNeta = false;
-    if (saldoHoy < 0) {
-      deficitActual = true;
-    } else if (futuras.length === 0) {
-      sinQuemaNeta = true;
-    } else {
-      const ingresosFuturos = futuras.reduce((acc, cur) => acc + cur.totalIngresos, 0);
-      const egresosFuturos = futuras.reduce((acc, cur) => acc + cur.totalEgresos, 0);
-      const flujoNetoFuturo = ingresosFuturos - egresosFuturos;
-      if (flujoNetoFuturo >= 0) {
-        sinQuemaNeta = true;
-      } else {
-        const fechaFin = new Date(futuras[futuras.length - 1].week_start);
-        const fechaHoyD = new Date(hoy);
-        let diasRestantes = (fechaFin.getTime() - fechaHoyD.getTime()) / (1000 * 3600 * 24);
-        if (diasRestantes <= 0) diasRestantes = 1;
-        const quemaDiaria = Math.abs(flujoNetoFuturo) / diasRestantes;
-        diasDeCaja = quemaDiaria > 0 ? Math.round(saldoHoy / quemaDiaria) : null;
-      }
-    }
-
+    
+    // Buscamos la primera fecha desde hoy en adelante donde el saldo cae a negativo
     const semanaDeficit = procesadas.find((w) => w.week_start >= hoy && w.saldoAcumulado < 0);
     const diaDeficit = semanaDeficit ? semanaDeficit.week_start : "Sin déficit";
+
+    if (saldoHoy < 0) {
+      // Si hoy ya estamos en negativo
+      deficitActual = true;
+      diasDeCaja = 0;
+    } else if (semanaDeficit) {
+      // Calculamos la diferencia exacta en días entre hoy y la fecha de quiebre
+      const fechaDeficitD = new Date(semanaDeficit.week_start + "T00:00:00");
+      const fechaHoyD = new Date(hoy + "T00:00:00");
+      const diffTime = fechaDeficitD.getTime() - fechaHoyD.getTime();
+      diasDeCaja = Math.ceil(diffTime / (1000 * 3600 * 24));
+    } else {
+      // Si no hay ninguna fecha en el futuro que dé negativo
+      sinQuemaNeta = true;
+    }
+
     const ultimaFecha = procesadas[procesadas.length - 1].week_start;
     const ultimoMes = ultimaFecha.substring(0, 7);
     const datosUltimoMes = procesadas.filter((w) => w.week_start.startsWith(ultimoMes));
@@ -351,7 +356,6 @@ export default function App() {
       {/* ---------- RIEL DE INSTRUMENTOS (SIDEBAR) ---------- */}
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         
-        {/* NUEVA CABECERA CON LA IMAGEN "LINK" */}
         <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
           <img 
             src="/link-banner.png" 
@@ -360,7 +364,7 @@ export default function App() {
               width: "100%", 
               height: "85px", 
               objectFit: "cover", 
-              objectPosition: "left center", // Esto asegura que el cuadradito de LINK se vea perfecto
+              objectPosition: "left center", 
               display: "block" 
             }} 
           />
