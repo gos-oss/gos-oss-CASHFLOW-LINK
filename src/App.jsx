@@ -14,13 +14,13 @@ import {
 } from "lucide-react";
 
 // =========================================================================
-// NUEVOS COLORES ESPECÍFICOS PARA OSCURECER LAS TABLAS
+// COLORES ESPECÍFICOS DE LAS TABLAS
 // =========================================================================
-const colorTablaBg = "#F4F6F8";       // Gris muy claro para el fondo general
-const colorLineaSuave = "#DCE1E8";    // Líneas divisorias (verticales y celdas) más visibles
-const colorLineaFuerte = "#C2CAD4";   // Bordes principales y separadores de totales
-const colorTotalBg = "#E6EAEE";       // Gris un poco más oscuro para la fila de Totales
-const colorHover = "#DEE3E9";         // Color al pasar el mouse por encima
+const colorTablaBg = "#F4F6F8";       
+const colorLineaSuave = "#DCE1E8";    
+const colorLineaFuerte = "#C2CAD4";   
+const colorTotalBg = "#E6EAEE";       
+const colorHover = "#DEE3E9";         
 
 const globalStyles = `
   ${fontImport}
@@ -32,7 +32,6 @@ const globalStyles = `
   ::-webkit-scrollbar-thumb { background: ${tokens.rule}; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #B9BEB3; }
   
-  /* ESTILOS DE LA TABLA ACTUALIZADOS CON LOS NUEVOS COLORES */
   .flujo-table th, .flujo-table td { border-right: 1px solid ${colorLineaSuave}; }
   .flujo-table th:last-child, .flujo-table td:last-child { border-right: none; }
   .flujo-row:hover td { background: ${colorHover} !important; transition: background 0.15s; }
@@ -45,11 +44,6 @@ const globalStyles = `
 
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const addDaysISO = (dateStr, n) => {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
@@ -354,11 +348,26 @@ export default function App() {
     <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
       <style>{globalStyles}</style>
 
-      {/* ---------- RIEL DE INSTRUMENTOS ---------- */}
+      {/* ---------- RIEL DE INSTRUMENTOS (SIDEBAR) ---------- */}
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
-        <div style={{ padding: "22px 20px 18px", borderBottom: `1px solid ${tokens.inkRule}` }}>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 19, fontWeight: 600, letterSpacing: "0.2px" }}>Cashflow</div>
-          <div style={{ fontSize: 11, color: "#8590A6", marginTop: 2, letterSpacing: "0.3px" }}>Azlepi · Sigma</div>
+        
+        {/* NUEVA CABECERA CON LA IMAGEN "LINK" */}
+        <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
+          <img 
+            src="/link-banner.png" 
+            alt="LINK" 
+            style={{ 
+              width: "100%", 
+              height: "85px", 
+              objectFit: "cover", 
+              objectPosition: "left center", // Esto asegura que el cuadradito de LINK se vea perfecto
+              display: "block" 
+            }} 
+          />
+          <div style={{ padding: "14px 20px 16px" }}>
+            <div style={{ fontFamily: tokens.fontDisplay, fontSize: 18, fontWeight: 600, letterSpacing: "0.2px" }}>Cashflow</div>
+            <div style={{ fontSize: 11, color: "#8590A6", marginTop: 2, letterSpacing: "0.3px" }}>Azlepi · Sigma</div>
+          </div>
         </div>
 
         <div style={{ padding: "18px 20px", borderBottom: `1px solid ${tokens.inkRule}` }}>
@@ -402,7 +411,6 @@ export default function App() {
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {/* PESTAÑA: PLAN DE FONDOS */}
         {tab === "plan-fondos" && (
           <PlanDeFondosTab incomeCats={incomeCats} expenseCats={expenseCats} />
         )}
@@ -532,9 +540,6 @@ function ResumenTab({ procesadas, kpis, fmt }) {
   );
 }
 
-// =========================================================================
-// PLAN DE FONDOS (Con nuevos colores)
-// =========================================================================
 function PlanDeFondosTab({ incomeCats, expenseCats }) {
   const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   
@@ -588,9 +593,6 @@ function PlanDeFondosTab({ incomeCats, expenseCats }) {
   );
 }
 
-// =========================================================================
-// TABLA DE FLUJO DIARIO (Con nuevos colores)
-// =========================================================================
 function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
