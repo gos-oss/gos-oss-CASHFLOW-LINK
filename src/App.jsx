@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 // =========================================================================
-// CATEGORÍAS FIJAS DEL PLAN DE FONDOS (Corregidas según "Acumulado Semestral")
+// CATEGORÍAS FIJAS DEL PLAN DE FONDOS
 // =========================================================================
 const PLAN_INCOME_CATS = [
   { key: "custom_cupos-socios", label: "Cupos Socios" },
@@ -89,6 +89,15 @@ const globalStyles = `
   }
 `;
 
+// =========================================================================
+// HELPER PARA FORMATEAR FECHAS A DD/MM/YYYY
+// =========================================================================
+const formatDate = (isoStr) => {
+  if (!isoStr || !isoStr.includes("-")) return isoStr;
+  const [y, m, d] = isoStr.split("-");
+  return `${d}/${m}/${y}`;
+};
+
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -128,8 +137,6 @@ export default function App() {
       setSaldoBanco(sData[0].saldo_banco || "");
     }
 
-    // CARGA EL PLAN DE FONDOS
-    // Si la base de datos de Plan de Fondos está vacía, guarda y usa el DEFAULT que acabamos de corregir
     const { data: pData } = await supabase.from("cashflow_plan").select("*").in("id", ["2026", "mapping"]);
     if (pData) {
       const planRow = pData.find(r => r.id === "2026");
@@ -386,7 +393,7 @@ export default function App() {
       {/* ---------- CANVAS ---------- */}
       <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
         
-        {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} />}
+        {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
         {/* PESTAÑA: PLAN DE FONDOS CON INDICADORES SEMESTRALES */}
@@ -414,10 +421,10 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, position: "sticky", top: 32 }}>
-                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} />
+                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} formatDate={formatDate} />
                 </div>
               )}
-              <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} />
+              <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} formatDate={formatDate} />
             </div>
           </div>
         )}
@@ -484,14 +491,15 @@ function SemesterCard({ title, ingresos, egresos, neto, fmt }) {
   );
 }
 
-function ResumenTab({ procesadas, kpis, fmt }) {
+function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
   if (procesadas.length === 0) return (<div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${colorLineaFuerte}` }}>Sin datos cargados.</div>);
   return (
     <>
       <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen</h2></div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
         <KpiCard icon={Wallet} label="Días de caja" value={kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} días`} tone={kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? "neg" : "pos"} />
-        <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit} tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
+        {/* Usamos formatDate para que diga 24/08/2026 en lugar de 2026-08-24 */}
+        <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit !== "Sin déficit" ? formatDate(kpis.diaDeficit) : "Sin déficit"} tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
         <KpiCard icon={AlertTriangle} label="NOF mensual" value={`$ ${fmt(kpis.nofMensual)}`} tone={kpis.nofMensual > 0 ? "neg" : "pos"} />
       </div>
       <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 24 }}>
@@ -499,9 +507,10 @@ function ResumenTab({ procesadas, kpis, fmt }) {
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={procesadas.map((w) => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={colorLineaSuave} />
-              <XAxis dataKey="name" tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} dy={10} />
+              {/* tickFormatter hace que las fechas del gráfico salgan en dd/mm/yyyy */}
+              <XAxis dataKey="name" tickFormatter={formatDate} tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} dy={10} />
               <YAxis tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-6} width={72} />
-              <Tooltip formatter={(v) => ["$ " + fmt(v), "Saldo"]} />
+              <Tooltip labelFormatter={(label) => formatDate(label)} formatter={(v) => ["$ " + fmt(v), "Saldo"]} />
               <Area type="monotone" dataKey="saldo" stroke={tokens.positive} strokeWidth={2.5} fill={tokens.positive} fillOpacity={0.1} />
             </AreaChart>
           </ResponsiveContainer>
@@ -511,9 +520,6 @@ function ResumenTab({ procesadas, kpis, fmt }) {
   );
 }
 
-// =========================================================================
-// PESTAÑA: PLAN DE FONDOS CON INDICADORES SEMESTRALES
-// =========================================================================
 function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planGuardado, mappingGuardado, onGuardarPlan, onGuardarMapeo }) {
   const meses = [
     { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
@@ -739,7 +745,7 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
   );
 }
 
-function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento }) {
+function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento, formatDate }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
 
@@ -763,15 +769,16 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
     <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${colorLineaFuerte}`, background: colorTablaBg }}>
         <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos diarios</h3>
-        <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Aquí ves el detalle máximo. Puedes mapear estos conceptos al Presupuesto Anual en la pestaña Plan de Fondos.</p>
+        <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Arrastra montos o pasa el mouse sobre ellos para ver las notas.</p>
       </div>
       <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
         <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
           <thead>
             <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
               <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto Diario</th>
+              {/* Aquí aplicamos formatDate para ver 24/08/2026 en las cabeceras */}
               {procesadas.map((w, i) => (
-                <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>{w.week_start}</th>
+                <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>{formatDate(w.week_start)}</th>
               ))}
             </tr>
           </thead>
