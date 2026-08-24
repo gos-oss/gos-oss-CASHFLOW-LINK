@@ -8,7 +8,7 @@ import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend // <-- AGREGADOS COMPONENTES PARA GRÁFICO DE TORTA
+  PieChart, Pie, Cell, Legend
 } from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
@@ -36,6 +36,7 @@ const PLAN_EXPENSE_CATS = [
   { key: "custom_seguros", label: "Seguros" }
 ];
 
+// DATA CORREGIDA: Exactamente los mismos números del "Acumulado Semestral"
 const DEFAULT_PLAN_2026 = {
   "ingreso": {
     "custom_cupos-socios": { "01": 188542320, "02": 188542320, "03": 188542320, "04": 188542320, "05": 188542320, "06": 188542320, "07": 233273820, "08": 233273820, "09": 233273820, "10": 233273820, "11": 233273820, "12": 233273820 },
@@ -91,7 +92,6 @@ const globalStyles = `
     font-family: ${tokens.fontBody}; font-size: 12px; background: #fff; outline: none;
   }
   
-  /* ESTILO PARA LOS TOOLTIPS DE LOS GRÁFICOS DE TORTA */
   .custom-pie-tooltip {
     background: #fff; border: 1px solid ${colorLineaFuerte}; border-radius: 6px; 
     padding: 8px 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-family: ${tokens.fontBody};
@@ -149,7 +149,13 @@ export default function App() {
       const mapRow = pData.find(r => r.id === "mapping");
       
       if (planRow && Object.keys(planRow.data || {}).length > 0) {
-        setPlanFondos(planRow.data);
+        // AUTO-REPARACIÓN: Si la base de datos tiene la llave mala "custom_300", lo reescribimos.
+        if (planRow.data.egreso && planRow.data.egreso["custom_300"]) {
+           setPlanFondos(DEFAULT_PLAN_2026);
+           await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
+        } else {
+           setPlanFondos(planRow.data);
+        }
       } else {
         setPlanFondos(DEFAULT_PLAN_2026);
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
@@ -303,8 +309,6 @@ export default function App() {
     setWeeks(data || []);
     return true;
   };
-
-  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
@@ -652,9 +656,15 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
 
           {view === "presupuesto" ? (
             editMode ? (
-              <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-                <Save size={16} /> Guardar Presupuesto
-              </button>
+              <>
+                {/* BOTÓN PARA RESTAURAR VALORES DE EXCEL POR SI ROMPEN ALGO */}
+                <button onClick={() => setPlanDraft(DEFAULT_PLAN_2026)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.negative, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                  Restaurar Valores Excel
+                </button>
+                <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                  <Save size={16} /> Guardar Presupuesto
+                </button>
+              </>
             ) : (
               <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
                 <Pencil size={16} /> Editar Presupuesto
@@ -676,7 +686,6 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
             <SemesterCard title="Total Acumulado Anual" ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} />
           </div>
 
-          {/* NUEVA SECCIÓN: GRÁFICOS DE TORTA */}
           {!editMode && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
               <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 20 }}>
