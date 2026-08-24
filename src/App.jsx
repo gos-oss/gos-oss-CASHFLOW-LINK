@@ -123,17 +123,15 @@ export default function App() {
   const [tab, setTab] = useState("resumen");
   const [mostrarPanel, setMostrarPanel] = useState(true);
 
-  // NUEVO ESTADO: Historial de Arqueos
   const [arqueosList, setArqueosList] = useState([]);
   const [saldoEfectivo, setSaldoEfectivo] = useState("");
   const [saldoBanco, setSaldoBanco] = useState("");
-  const [fechaSaldo, setFechaSaldo] = useState(todayISO()); // Por defecto HOY
+  const [fechaSaldo, setFechaSaldo] = useState(todayISO());
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  // Al cambiar la fecha en Configuración, autocompleta si ya existe un arqueo ese día
   useEffect(() => {
     if (fechaSaldo) {
       const existing = arqueosList.find(a => a.fecha_corte === fechaSaldo);
@@ -151,10 +149,8 @@ export default function App() {
     const { data: wData } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
     if (wData) setWeeks(wData);
     
-    // CARGA DE ARQUEOS (Saldos Múltiples)
     const { data: sData } = await supabase.from("cashflow_settings").select("*");
     if (sData) {
-      // Filtramos todos los arqueos (incluyendo el "general" viejo por compatibilidad)
       const list = sData.filter(s => s.id.startsWith("arqueo_") || s.id === "general");
       setArqueosList(list);
     }
@@ -197,8 +193,8 @@ export default function App() {
     
     if (error) alert("Error al guardar arqueo: " + error.message);
     else {
-      alert(`¡Arqueo guardado exitosamente para el ${formatDate(fechaSaldo)}!`);
-      fetchData(); // Recargar historial
+      alert(`¡Arqueo al Cierre guardado exitosamente para el ${formatDate(fechaSaldo)}!`);
+      fetchData();
     }
   };
 
@@ -347,28 +343,25 @@ export default function App() {
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
   // =========================================================================
-  // MATEMÁTICA CORREGIDA: HISTORIAL MÚLTIPLE DE ARQUEOS
+  // MATEMÁTICA CORREGIDA: ARQUEO COMO SALDO FINAL DEL DÍA (AL CIERRE)
   // =========================================================================
   const procesadas = useMemo(() => {
-    // 1. Diccionario de todos los Arqueos
     const arqueosDict = {};
     arqueosList.forEach(a => {
       if (a.fecha_corte) arqueosDict[a.fecha_corte] = Number(a.saldo_efectivo || 0) + Number(a.saldo_banco || 0);
     });
 
-    // 2. Línea de tiempo completa (Fechas con movimientos + Fechas con Arqueos)
     const fechasSet = new Set(weeks.map((w) => w.week_start));
     Object.keys(arqueosDict).forEach(f => fechasSet.add(f));
     const fechasArray = Array.from(fechasSet).sort();
 
-    // 3. Calculamos hacia atrás: Si el sistema tiene Arqueos, tomamos el más antiguo como "El Origen"
     const fechasConArqueo = Object.keys(arqueosDict).sort();
     const firstArqueoDate = fechasConArqueo.length > 0 ? fechasConArqueo[0] : null;
 
     let currentSaldo = 0;
     
-    // Si hay un arqueo, calculamos qué saldo teórico necesitábamos al principio de los tiempos 
-    // para que, sumando todo, lleguemos EXACTO al valor de ese primer arqueo.
+    // Si tenemos un arqueo al CIERRE de un día X, debemos calcular hacia atrás sumando todos 
+    // los flujos INCLUSO el de ese mismo día, para saber con cuánto empezó la línea de tiempo.
     if (firstArqueoDate) {
          let flowSum = 0;
          for (let f of fechasArray) {
@@ -381,7 +374,6 @@ export default function App() {
          currentSaldo = arqueosDict[firstArqueoDate] - flowSum;
     }
 
-    // 4. Recorremos la línea de tiempo día por día
     return fechasArray.map((fecha) => {
       const w = weeks.find((week) => week.week_start === fecha) || { income: {}, expense: {}, notes: "{}" };
       const ing = Object.values(w.income || {}).reduce((a, b) => a + Number(b || 0), 0);
@@ -391,12 +383,13 @@ export default function App() {
       let parsedNotes = {};
       try { parsedNotes = JSON.parse(w.notes || "{}"); } catch(e) {}
       
-      // Sumamos el flujo del día
+      // Sumamos el flujo del día para calcular el saldo teórico de cierre
       currentSaldo += pos;
-      
-      // SI HOY HAY UN ARQUEO, EL SALDO ES FORZADO A LA REALIDAD
+
       let esArqueo = false;
       let ajuste = 0;
+      
+      // SI HOY HAY UN ARQUEO AL CIERRE: Lo forzamos como el verdadero final del día
       if (arqueosDict[fecha] !== undefined) {
           esArqueo = true;
           ajuste = arqueosDict[fecha] - currentSaldo; // Para saber por cuánto le erramos
@@ -415,7 +408,6 @@ export default function App() {
     if (procesadas.length === 0) return null;
     const hoy = todayISO();
     
-    // El saldo inicial real ahora es simplemente el último saldo acumulado del pasado
     const pasadas = procesadas.filter((w) => w.week_start <= hoy);
     const futuras = procesadas.filter((w) => w.week_start > hoy);
     
@@ -487,7 +479,6 @@ export default function App() {
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {/* PESTAÑA: PLAN DE FONDOS CON INDICADORES Y GRÁFICOS DE TORTA */}
         {tab === "plan-fondos" && (
           <PlanDeFondosTab 
             planIncomeCats={PLAN_INCOME_CATS}
@@ -522,7 +513,7 @@ export default function App() {
 
         {tab === "conceptos" && <CategoryManager incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onAdd={agregarConcepto} onRename={renombrarConcepto} onDelete={eliminarConcepto} />}
 
-        {/* PESTAÑA CONFIGURACIÓN: AHORA GESTIONA MÚLTIPLES ARQUEOS */}
+        {/* PESTAÑA CONFIGURACIÓN: GESTIÓN DE ARQUEOS AL CIERRE */}
         {tab === "configuracion" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 720 }}>
             <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2></div>
@@ -530,19 +521,18 @@ export default function App() {
             <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                 <Settings size={16} color={tokens.textMuted} />
-                <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>Cargar Arqueo (Saldo Real)</h3>
+                <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>Cargar Arqueo (Saldo al Cierre)</h3>
               </div>
               <p style={{ fontSize: 12.5, color: tokens.textMuted, marginBottom: 18, lineHeight: 1.5 }}>
-                Carga el saldo exacto que hay en la cuenta en una fecha determinada. El sistema usará estos arqueos como "anclas" para corregir y recalcular toda la línea de tiempo.
+                Carga el saldo exacto que quedó en la cuenta <strong>al finalizar el día</strong>. El sistema lo usará como cierre y recalculará la línea de tiempo hacia atrás y hacia adelante.
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
                 <Field label="Fecha del Arqueo"><input type="date" value={fechaSaldo} onChange={(e) => setFechaSaldo(e.target.value)} style={fieldInputStyle} /></Field>
-                <Field label="Efectivo Real ($)"><input type="number" value={saldoEfectivo} onChange={(e) => setSaldoEfectivo(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} /></Field>
-                <Field label="Bancos Real ($)"><input type="number" value={saldoBanco} onChange={(e) => setSaldoBanco(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} /></Field>
+                <Field label="Efectivo Cierre ($)"><input type="number" value={saldoEfectivo} onChange={(e) => setSaldoEfectivo(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} /></Field>
+                <Field label="Bancos Cierre ($)"><input type="number" value={saldoBanco} onChange={(e) => setSaldoBanco(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} /></Field>
               </div>
               <button onClick={guardarSaldos} style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}><Save size={15} /> Guardar Arqueo</button>
 
-              {/* LISTA DE ARQUEOS HISTÓRICOS */}
               {arqueosList.length > 0 && (
                 <div style={{ marginTop: 24, borderTop: `1px solid ${colorLineaSuave}`, paddingTop: 16 }}>
                   <h4 style={{ margin: "0 0 12px 0", fontSize: 11, color: tokens.textFaint, textTransform: "uppercase", letterSpacing: "0.5px" }}>Historial de Arqueos Guardados</h4>
@@ -557,7 +547,7 @@ export default function App() {
                             <span style={{ fontSize: 13, fontFamily: tokens.fontMono, color: tokens.textMuted }}>Bancos: $ {fmt(a.saldo_banco)}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>Total: $ {fmt(Number(a.saldo_efectivo) + Number(a.saldo_banco))}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>Total Cierre: $ {fmt(Number(a.saldo_efectivo) + Number(a.saldo_banco))}</span>
                             <button onClick={() => eliminarArqueo(a.id)} style={{ background: "none", border: "none", color: tokens.negative, cursor: "pointer", padding: 4, display: "flex" }} title="Eliminar este arqueo"><Trash2 size={16}/></button>
                           </div>
                        </div>
@@ -707,7 +697,6 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
   const egS1 = calcSemestre("egreso", keysS1);
   const egS2 = calcSemestre("egreso", keysS2);
 
-  // DATOS PARA LOS GRÁFICOS DE TORTA
   const totalIng = planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
   const totalEg = planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
 
@@ -973,7 +962,12 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
             <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
               <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto Diario</th>
               {procesadas.map((w, i) => (
-                <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>{formatDate(w.week_start)}</th>
+                <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                    <span>{formatDate(w.week_start)}</span>
+                    {w.esArqueo && <span style={{ fontSize: 10, color: tokens.gold, fontWeight: "normal", marginTop: 2 }}>Arqueo</span>}
+                  </div>
+                </th>
               ))}
             </tr>
           </thead>
@@ -1048,11 +1042,10 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
               ))}
             </tr>
             <tr className="flujo-row">
-              <td className="sticky-col" style={{ padding: "18px 14px", fontWeight: 700, background: tokens.ink, color: "#fff" }}>Saldo acumulado</td>
+              <td className="sticky-col" style={{ padding: "18px 14px", fontWeight: 700, background: tokens.ink, color: "#fff" }}>Saldo final al cierre</td>
               {procesadas.map((w, i) => (
                 <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: tokens.ink, color: "#fff", fontFamily: tokens.fontMono }}>
-                  {/* SI EL DÍA TIENE ARQUEO, LE PONEMOS UNA ESTRELLITA */}
-                  {w.esArqueo && <span title={`Arqueo Real. Se auto-ajustó la caja por $ ${fmt(w.ajuste)}`} style={{ color: tokens.gold, marginRight: 6 }}>★</span>}
+                  {w.esArqueo && <span title={`Cierre verificado con arqueo manual. Ajuste automático: $ ${fmt(w.ajuste)}`} style={{ color: tokens.gold, marginRight: 6 }}>★</span>}
                   {fmt(w.saldoAcumulado)}
                 </td>
               ))}
