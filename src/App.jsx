@@ -6,7 +6,10 @@ import CategoryManager from "./CategoryManager";
 import Cash13Semanas, { useSemanas13 } from "./Cash13Semanas";
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend // <-- AGREGADOS COMPONENTES PARA GRÁFICO DE TORTA
+} from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
@@ -87,11 +90,14 @@ const globalStyles = `
     width: 100%; padding: 8px 10px; border: 1px solid ${tokens.rule}; border-radius: 4px;
     font-family: ${tokens.fontBody}; font-size: 12px; background: #fff; outline: none;
   }
+  
+  /* ESTILO PARA LOS TOOLTIPS DE LOS GRÁFICOS DE TORTA */
+  .custom-pie-tooltip {
+    background: #fff; border: 1px solid ${colorLineaFuerte}; border-radius: 6px; 
+    padding: 8px 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-family: ${tokens.fontBody};
+  }
 `;
 
-// =========================================================================
-// HELPER PARA FORMATEAR FECHAS A DD/MM/YYYY
-// =========================================================================
 const formatDate = (isoStr) => {
   if (!isoStr || !isoStr.includes("-")) return isoStr;
   const [y, m, d] = isoStr.split("-");
@@ -300,7 +306,6 @@ export default function App() {
 
   const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
-  // Diarios (los que usas en el Cashflow día a día)
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
@@ -396,7 +401,7 @@ export default function App() {
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
         {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
 
-        {/* PESTAÑA: PLAN DE FONDOS CON INDICADORES SEMESTRALES */}
+        {/* PESTAÑA: PLAN DE FONDOS CON INDICADORES Y GRÁFICOS DE TORTA */}
         {tab === "plan-fondos" && (
           <PlanDeFondosTab 
             planIncomeCats={PLAN_INCOME_CATS}
@@ -498,7 +503,6 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
       <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen</h2></div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
         <KpiCard icon={Wallet} label="Días de caja" value={kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} días`} tone={kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? "neg" : "pos"} />
-        {/* Usamos formatDate para que diga 24/08/2026 en lugar de 2026-08-24 */}
         <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit !== "Sin déficit" ? formatDate(kpis.diaDeficit) : "Sin déficit"} tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
         <KpiCard icon={AlertTriangle} label="NOF mensual" value={`$ ${fmt(kpis.nofMensual)}`} tone={kpis.nofMensual > 0 ? "neg" : "pos"} />
       </div>
@@ -507,7 +511,6 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={procesadas.map((w) => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={colorLineaSuave} />
-              {/* tickFormatter hace que las fechas del gráfico salgan en dd/mm/yyyy */}
               <XAxis dataKey="name" tickFormatter={formatDate} tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} dy={10} />
               <YAxis tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-6} width={72} />
               <Tooltip labelFormatter={(label) => formatDate(label)} formatter={(v) => ["$ " + fmt(v), "Saldo"]} />
@@ -520,6 +523,9 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
   );
 }
 
+// =========================================================================
+// PESTAÑA: PLAN DE FONDOS CON GRÁFICOS DE TORTA
+// =========================================================================
 function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planGuardado, mappingGuardado, onGuardarPlan, onGuardarMapeo }) {
   const meses = [
     { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
@@ -581,6 +587,23 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
   const egS1 = calcSemestre("egreso", keysS1);
   const egS2 = calcSemestre("egreso", keysS2);
 
+  // DATOS PARA LOS GRÁFICOS DE TORTA
+  const totalIng = planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
+  const totalEg = planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
+
+  const pieIngresos = planIncomeCats.map(c => {
+    const val = calcularTotalFila("ingreso", c.key);
+    return { name: c.label, value: val, perc: totalIng > 0 ? (val / totalIng) * 100 : 0 };
+  }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+
+  const pieEgresos = planExpenseCats.map(c => {
+    const val = calcularTotalFila("egreso", c.key);
+    return { name: c.label, value: val, perc: totalEg > 0 ? (val / totalEg) * 100 : 0 };
+  }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+
+  const COLORS_ING = ['#059669', '#10B981', '#34D399', '#6EE7B7', '#A7F3D0'];
+  const COLORS_EG = ['#B91C1C', '#DC2626', '#EF4444', '#F87171', '#FCA5A5', '#F97316', '#F59E0B', '#FCD34D', '#6366F1', '#8B5CF6'];
+
   const guardarTodo = () => {
     if (view === "presupuesto") {
       onGuardarPlan(planDraft);
@@ -589,6 +612,20 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
       onGuardarMapeo(mappingDraft);
       setView("presupuesto");
     }
+  };
+
+  const CustomPieTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="custom-pie-tooltip">
+          <strong style={{ display: "block", marginBottom: 4, fontSize: 13 }}>{data.name}</strong>
+          <div style={{ color: payload[0].fill, fontWeight: 600, fontSize: 14 }}>$ {fmt(data.value)}</div>
+          <div style={{ color: tokens.textMuted, fontSize: 11, marginTop: 4 }}>Representa el <strong>{data.perc.toFixed(1)}%</strong> del total anual.</div>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -638,6 +675,41 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
             <SemesterCard title="Segundo Semestre (Jul - Dic)" ingresos={ingS2} egresos={egS2} neto={ingS2 - egS2} fmt={fmt} />
             <SemesterCard title="Total Acumulado Anual" ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} />
           </div>
+
+          {/* NUEVA SECCIÓN: GRÁFICOS DE TORTA */}
+          {!editMode && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+              <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 20 }}>
+                <h3 style={{ margin: "0 0 16px 0", color: tokens.positive, fontSize: 14, textAlign: "center", fontWeight: 700 }}>Composición de Ingresos</h3>
+                <div style={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={pieIngresos} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
+                        {pieIngresos.map((entry, index) => <Cell key={index} fill={COLORS_ING[index % COLORS_ING.length]} />)}
+                      </Pie>
+                      <Tooltip content={<CustomPieTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: 11, fontFamily: tokens.fontBody, paddingTop: 10 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 20 }}>
+                <h3 style={{ margin: "0 0 16px 0", color: tokens.negative, fontSize: 14, textAlign: "center", fontWeight: 700 }}>Composición de Egresos</h3>
+                <div style={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={pieEgresos} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
+                        {pieEgresos.map((entry, index) => <Cell key={index} fill={COLORS_EG[index % COLORS_EG.length]} />)}
+                      </Pie>
+                      <Tooltip content={<CustomPieTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: 11, fontFamily: tokens.fontBody, paddingTop: 10 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
              <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
@@ -776,7 +848,6 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
           <thead>
             <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
               <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto Diario</th>
-              {/* Aquí aplicamos formatDate para ver 24/08/2026 en las cabeceras */}
               {procesadas.map((w, i) => (
                 <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>{formatDate(w.week_start)}</th>
               ))}
