@@ -14,7 +14,7 @@ import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays // Ícono nuevo para agrupar por mes
+  CalendarDays // <-- NUEVO ÍCONO
 } from "lucide-react";
 
 // =========================================================================
@@ -194,7 +194,7 @@ export default function App() {
     
     if (error) alert("Error al guardar arqueo: " + error.message);
     else {
-      alert(`¡Arqueo Inicial guardado exitosamente para el ${formatDate(fechaSaldo)}!`);
+      alert(`¡Arqueo de Apertura guardado exitosamente para el ${formatDate(fechaSaldo)}!`);
       fetchData();
     }
   };
@@ -439,7 +439,6 @@ export default function App() {
     <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
       <style>{globalStyles}</style>
 
-      {/* ---------- RIEL DE INSTRUMENTOS (SIDEBAR) ---------- */}
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
           <img src="/link-banner.png" alt="LINK" style={{ width: "100%", height: "85px", objectFit: "cover", objectPosition: "left center", display: "block" }} />
@@ -469,7 +468,6 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* ---------- CANVAS ---------- */}
       <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
         
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
@@ -509,7 +507,6 @@ export default function App() {
 
         {tab === "conceptos" && <CategoryManager incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onAdd={agregarConcepto} onRename={renombrarConcepto} onDelete={eliminarConcepto} />}
 
-        {/* PESTAÑA CONFIGURACIÓN: GESTIÓN DE ARQUEOS DE INICIO DE DÍA */}
         {tab === "configuracion" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 720 }}>
             <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2></div>
@@ -927,12 +924,97 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
 }
 
 // =========================================================================
-// TABLA DE MOVIMIENTOS: AHORA INCLUYE AGRUPACIÓN MENSUAL
+// TABLA DE MOVIMIENTOS CON SISTEMA DE ACORDEÓN MENSUAL
 // =========================================================================
 function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento, formatDate }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
-  const [vistaMensual, setVistaMensual] = useState(false); // ESTADO PARA AGRUPAR POR MES
+  const [collapsedMonths, setCollapsedMonths] = useState(new Set()); // Set de 'YYYY-MM'
+
+  const toggleMonth = (mesKey) => {
+    setCollapsedMonths(prev => {
+        const next = new Set(prev);
+        if (next.has(mesKey)) next.delete(mesKey);
+        else next.add(mesKey);
+        return next;
+    });
+  };
+
+  const toggleAllMonths = () => {
+    if (collapsedMonths.size > 0) {
+        setCollapsedMonths(new Set()); 
+    } else {
+        const allMonths = new Set();
+        procesadas.forEach(w => allMonths.add(w.week_start.substring(0, 7)));
+        setCollapsedMonths(allMonths);
+    }
+  };
+
+  const columnasVisibles = useMemo(() => {
+    const result = [];
+    const mesesMap = {};
+
+    procesadas.forEach(w => {
+        const mesKey = w.week_start.substring(0, 7);
+        if (!mesesMap[mesKey]) {
+            mesesMap[mesKey] = {
+                isMonth: true,
+                week_start: mesKey,
+                income: {}, expense: {},
+                totalIngresos: 0, totalEgresos: 0, posicion: 0,
+                saldoAcumulado: w.saldoAcumulado,
+                esArqueo: false, parsedNotes: {}
+            };
+        }
+        const g = mesesMap[mesKey];
+        Object.entries(w.income || {}).forEach(([k, v]) => { g.income[k] = (g.income[k] || 0) + v; });
+        Object.entries(w.expense || {}).forEach(([k, v]) => { g.expense[k] = (g.expense[k] || 0) + v; });
+        g.totalIngresos += w.totalIngresos;
+        g.totalEgresos += w.totalEgresos;
+        g.posicion += w.posicion;
+        g.saldoAcumulado = w.saldoAcumulado; // Se queda con el del último día del mes
+    });
+
+    const uniqueMonths = Object.keys(mesesMap).sort();
+    uniqueMonths.forEach(mesKey => {
+        if (collapsedMonths.has(mesKey)) {
+            result.push(mesesMap[mesKey]); // Agrega la columna de Total Mensual
+        } else {
+            procesadas.filter(w => w.week_start.startsWith(mesKey)).forEach(d => {
+                result.push({ ...d, isMonth: false, mesKey }); // Agrega las columnas de cada día
+            });
+        }
+    });
+    return result;
+  }, [procesadas, collapsedMonths]);
+
+  const monthGroups = useMemo(() => {
+    const groups = [];
+    let currentMes = null;
+    let count = 0;
+    columnasVisibles.forEach(col => {
+        const mKey = col.isMonth ? col.week_start : col.mesKey;
+        if (mKey !== currentMes) {
+            if (currentMes !== null) {
+                groups.push({ mesKey: currentMes, span: count, isCollapsed: collapsedMonths.has(currentMes) });
+            }
+            currentMes = mKey;
+            count = 1;
+        } else {
+            count++;
+        }
+    });
+    if (currentMes !== null) {
+        groups.push({ mesKey: currentMes, span: count, isCollapsed: collapsedMonths.has(currentMes) });
+    }
+    return groups;
+  }, [columnasVisibles, collapsedMonths]);
+
+  const formatMonthKey = (mesKey) => {
+    const [y, m] = mesKey.split("-");
+    const mNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    return `${mNames[parseInt(m, 10)-1]} ${y}`;
+  };
 
   const handleDragStart = (e, origenFecha, tipo, key, monto) => {
     e.dataTransfer.setData("application/json", JSON.stringify({ origenFecha, tipo, key, monto }));
@@ -950,81 +1032,49 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
     } catch (err) { console.error("Error al mover:", err); }
   };
 
-  // 1. LÓGICA PARA AGRUPAR POR MES
-  const columnasVisibles = useMemo(() => {
-    if (!vistaMensual) return procesadas;
-
-    const grupos = {};
-    procesadas.forEach(w => {
-      const mesKey = w.week_start.substring(0, 7); // Extrae "YYYY-MM"
-      
-      if (!grupos[mesKey]) {
-        grupos[mesKey] = {
-          week_start: mesKey, 
-          income: {},
-          expense: {},
-          totalIngresos: 0,
-          totalEgresos: 0,
-          posicion: 0,
-          saldoAcumulado: w.saldoAcumulado, // Lo iremos pisando para que quede el del último día
-          esArqueo: w.esArqueo,
-          parsedNotes: {} // En vista mensual es complejo mezclar todas las notas
-        };
-      }
-      
-      const g = grupos[mesKey];
-      
-      Object.entries(w.income || {}).forEach(([k, v]) => { g.income[k] = (g.income[k] || 0) + v; });
-      Object.entries(w.expense || {}).forEach(([k, v]) => { g.expense[k] = (g.expense[k] || 0) + v; });
-      
-      g.totalIngresos += w.totalIngresos;
-      g.totalEgresos += w.totalEgresos;
-      g.posicion += w.posicion;
-      g.saldoAcumulado = w.saldoAcumulado; // Siempre queda el del último día iterado
-      if (w.esArqueo) g.esArqueo = true;
-    });
-
-    return Object.values(grupos).sort((a, b) => a.week_start.localeCompare(b.week_start));
-  }, [procesadas, vistaMensual]);
-
-  // Formateador para las cabeceras (Diario: DD/MM/YYYY | Mensual: MM/YYYY)
-  const formatHeader = (val) => {
-    if (!val) return "";
-    if (val.length === 7) {
-       const [y, m] = val.split("-");
-       return `${m}/${y}`;
-    }
-    return formatDate(val);
-  };
-
   return (
     <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${colorLineaFuerte}`, background: colorTablaBg }}>
         <div>
           <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos</h3>
-          <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Arrastra montos para moverlos (solo en vista diaria).</p>
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Haz clic en los meses para agruparlos o expandirlos.</p>
         </div>
         
-        {/* BOTÓN PARA CAMBIAR ENTRE DÍA Y MES */}
         <button 
-          onClick={() => setVistaMensual(!vistaMensual)}
-          style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: vistaMensual ? tokens.ink : "#fff", color: vistaMensual ? "#fff" : tokens.text, border: `1px solid ${vistaMensual ? tokens.ink : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12.5, transition: "all 0.2s" }}
+          onClick={toggleAllMonths}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: collapsedMonths.size > 0 ? tokens.ink : "#fff", color: collapsedMonths.size > 0 ? "#fff" : tokens.text, border: `1px solid ${collapsedMonths.size > 0 ? tokens.ink : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12.5, transition: "all 0.2s" }}
         >
-          <CalendarDays size={15} /> {vistaMensual ? "Ver por Día" : "Agrupar por Mes"}
+          <CalendarDays size={15} /> {collapsedMonths.size > 0 ? "Expandir Todo" : "Compactar Todo por Mes"}
         </button>
       </div>
 
       <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
         <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
           <thead>
+            <tr style={{ color: tokens.text, borderBottom: `1px solid ${colorLineaFuerte}` }}>
+              <th className="sticky-col" rowSpan={2} style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg, borderBottom: `2px solid ${colorLineaFuerte}` }}>Concepto Diario</th>
+              {monthGroups.map((g, i) => (
+                <th key={g.mesKey} colSpan={g.span} style={{ padding: "8px 14px", textAlign: "center", background: colorTotalBg, borderRight: i === monthGroups.length - 1 ? 'none' : `1px solid ${colorLineaFuerte}` }}>
+                  <div 
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px" }} 
+                    onClick={() => toggleMonth(g.mesKey)}
+                    title={g.isCollapsed ? "Expandir días del mes" : "Compactar mes"}
+                  >
+                    {formatMonthKey(g.mesKey)}
+                    {g.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                  </div>
+                </th>
+              ))}
+            </tr>
             <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
-              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto</th>
               {columnasVisibles.map((w, i) => (
-                <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>
+                <th key={i} style={{ padding: "10px 14px", textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono, background: w.isMonth ? colorTotalBg : colorTablaBg }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                    <span>{formatHeader(w.week_start)}</span>
-                    {w.esArqueo && !vistaMensual && <span style={{ fontSize: 10, color: tokens.gold, fontWeight: "normal", marginTop: 2 }}>Arqueo Apertura</span>}
+                    <span style={{ color: w.isMonth ? tokens.text : tokens.textFaint, fontWeight: w.isMonth ? 700 : 500 }}>
+                      {w.isMonth ? "Total Mes" : formatDate(w.week_start)}
+                    </span>
+                    {w.esArqueo && !w.isMonth && <span style={{ fontSize: 10, color: tokens.gold, fontWeight: "normal", marginTop: 2 }}>Arqueo Apertura</span>}
                   </div>
                 </th>
               ))}
@@ -1046,18 +1096,22 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                   const monto = w.income?.[c.key] || 0;
                   const nota = w.parsedNotes?.[`ingreso_${c.key}`];
                   return (
-                    <td key={i} onDragOver={(e) => !vistaMensual && e.preventDefault()} onDrop={(e) => !vistaMensual && handleDrop(e, w.week_start, "ingreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}>
+                    <td key={i} onDragOver={(e) => !w.isMonth && e.preventDefault()} onDrop={(e) => !w.isMonth && handleDrop(e, w.week_start, "ingreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104, background: w.isMonth ? colorTotalBg : 'transparent' }}>
                       {monto > 0 ? (
-                        <div 
-                          className={vistaMensual ? "" : "draggable-chip"} 
-                          draggable={!vistaMensual} 
-                          onDragStart={(e) => !vistaMensual && handleDragStart(e, w.week_start, "ingreso", c.key, monto)}
-                          title={vistaMensual ? "" : (nota || undefined)}
-                          style={{ position: "relative", cursor: vistaMensual ? "default" : "grab", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
-                        >
-                          {fmt(monto)}
-                          {nota && !vistaMensual && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
-                        </div>
+                        w.isMonth ? (
+                          <span style={{ color: tokens.positive, fontFamily: tokens.fontMono, fontWeight: 700 }}>{fmt(monto)}</span>
+                        ) : (
+                          <div 
+                            className="draggable-chip" 
+                            draggable={true} 
+                            onDragStart={(e) => handleDragStart(e, w.week_start, "ingreso", c.key, monto)}
+                            title={nota || undefined}
+                            style={{ position: "relative", cursor: "grab", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
+                          >
+                            {fmt(monto)}
+                            {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
+                          </div>
+                        )
                       ) : <span style={{ color: colorLineaFuerte, fontFamily: tokens.fontMono }}>-</span>}
                     </td>
                   );
@@ -1080,18 +1134,22 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                   const monto = w.expense?.[c.key] || 0;
                   const nota = w.parsedNotes?.[`egreso_${c.key}`];
                   return (
-                    <td key={i} onDragOver={(e) => !vistaMensual && e.preventDefault()} onDrop={(e) => !vistaMensual && handleDrop(e, w.week_start, "egreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}>
+                    <td key={i} onDragOver={(e) => !w.isMonth && e.preventDefault()} onDrop={(e) => !w.isMonth && handleDrop(e, w.week_start, "egreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104, background: w.isMonth ? colorTotalBg : 'transparent' }}>
                       {monto > 0 ? (
-                        <div 
-                          className={vistaMensual ? "" : "draggable-chip"} 
-                          draggable={!vistaMensual} 
-                          onDragStart={(e) => !vistaMensual && handleDragStart(e, w.week_start, "egreso", c.key, monto)}
-                          title={vistaMensual ? "" : (nota || undefined)}
-                          style={{ position: "relative", cursor: vistaMensual ? "default" : "grab", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
-                        >
-                          {fmt(monto)}
-                          {nota && !vistaMensual && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
-                        </div>
+                        w.isMonth ? (
+                          <span style={{ color: tokens.negative, fontFamily: tokens.fontMono, fontWeight: 700 }}>{fmt(monto)}</span>
+                        ) : (
+                          <div 
+                            className="draggable-chip" 
+                            draggable={true} 
+                            onDragStart={(e) => handleDragStart(e, w.week_start, "egreso", c.key, monto)}
+                            title={nota || undefined}
+                            style={{ position: "relative", cursor: "grab", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
+                          >
+                            {fmt(monto)}
+                            {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
+                          </div>
+                        )
                       ) : <span style={{ color: colorLineaFuerte, fontFamily: tokens.fontMono }}>-</span>}
                     </td>
                   );
@@ -1109,8 +1167,8 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
             <tr className="flujo-row">
               <td className="sticky-col" style={{ padding: "18px 14px", fontWeight: 700, background: tokens.ink, color: "#fff" }}>Saldo final al cierre</td>
               {columnasVisibles.map((w, i) => (
-                <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: tokens.ink, color: "#fff", fontFamily: tokens.fontMono }}>
-                  {w.esArqueo && !vistaMensual && <span title={`Día con Arqueo de Apertura. Ajuste automático previo a pagos: $ ${fmt(w.ajuste)}`} style={{ color: tokens.gold, marginRight: 6 }}>★</span>}
+                <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: w.isMonth ? "#0B1120" : tokens.ink, color: "#fff", fontFamily: tokens.fontMono }}>
+                  {w.esArqueo && !w.isMonth && <span title={`Día con Arqueo de Apertura. Ajuste automático previo a pagos: $ ${fmt(w.ajuste)}`} style={{ color: tokens.gold, marginRight: 6 }}>★</span>}
                   {fmt(w.saldoAcumulado)}
                 </td>
               ))}
