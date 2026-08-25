@@ -13,7 +13,8 @@ import {
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
-  ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2
+  ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
+  CalendarDays // Ícono nuevo para agrupar por mes
 } from "lucide-react";
 
 // =========================================================================
@@ -193,7 +194,7 @@ export default function App() {
     
     if (error) alert("Error al guardar arqueo: " + error.message);
     else {
-      alert(`¡Arqueo de Apertura guardado exitosamente para el ${formatDate(fechaSaldo)}!`);
+      alert(`¡Arqueo Inicial guardado exitosamente para el ${formatDate(fechaSaldo)}!`);
       fetchData();
     }
   };
@@ -360,12 +361,9 @@ export default function App() {
 
     let currentSaldo = 0;
     
-    // Si tenemos un arqueo al INICIO del día, restamos todos los flujos ANTES de esa fecha
     if (firstArqueoDate) {
          let flowSum = 0;
          for (let f of fechasArray) {
-             // Rompemos ANTES de sumar el flujo de ese mismo día, 
-             // porque el arqueo es la plata que había a la mañana.
              if (f >= firstArqueoDate) break; 
              const w = weeks.find(week => week.week_start === f) || {};
              const ing = Object.values(w.income || {}).reduce((a,b) => a + Number(b||0), 0);
@@ -387,15 +385,12 @@ export default function App() {
       let esArqueo = false;
       let ajuste = 0;
       
-      // SI HOY HAY UN ARQUEO DE APERTURA: 
-      // Fijamos la plata que hay ANTES de descontar/sumar los movimientos de hoy
       if (arqueosDict[fecha] !== undefined) {
           esArqueo = true;
           ajuste = arqueosDict[fecha] - currentSaldo; 
           currentSaldo = arqueosDict[fecha];
       }
 
-      // Sumamos el flujo del día para calcular el Saldo Final con el que se va a dormir el sistema
       currentSaldo += pos;
 
       return { 
@@ -411,9 +406,7 @@ export default function App() {
     const hoy = todayISO();
     
     const pasadas = procesadas.filter((w) => w.week_start <= hoy);
-    const futuras = procesadas.filter((w) => w.week_start > hoy);
     
-    // La liquidez de hoy es el saldoAcumulado (Saldo de Cierre) del último día procesado hasta hoy.
     const saldoHoy = pasadas.length 
       ? pasadas[pasadas.length - 1].saldoAcumulado 
       : (arqueosList.length ? (Number(arqueosList[0].saldo_efectivo) + Number(arqueosList[0].saldo_banco)) : 0);
@@ -933,9 +926,13 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
   );
 }
 
+// =========================================================================
+// TABLA DE MOVIMIENTOS: AHORA INCLUYE AGRUPACIÓN MENSUAL
+// =========================================================================
 function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento, formatDate }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
+  const [vistaMensual, setVistaMensual] = useState(false); // ESTADO PARA AGRUPAR POR MES
 
   const handleDragStart = (e, origenFecha, tipo, key, monto) => {
     e.dataTransfer.setData("application/json", JSON.stringify({ origenFecha, tipo, key, monto }));
@@ -953,22 +950,81 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
     } catch (err) { console.error("Error al mover:", err); }
   };
 
+  // 1. LÓGICA PARA AGRUPAR POR MES
+  const columnasVisibles = useMemo(() => {
+    if (!vistaMensual) return procesadas;
+
+    const grupos = {};
+    procesadas.forEach(w => {
+      const mesKey = w.week_start.substring(0, 7); // Extrae "YYYY-MM"
+      
+      if (!grupos[mesKey]) {
+        grupos[mesKey] = {
+          week_start: mesKey, 
+          income: {},
+          expense: {},
+          totalIngresos: 0,
+          totalEgresos: 0,
+          posicion: 0,
+          saldoAcumulado: w.saldoAcumulado, // Lo iremos pisando para que quede el del último día
+          esArqueo: w.esArqueo,
+          parsedNotes: {} // En vista mensual es complejo mezclar todas las notas
+        };
+      }
+      
+      const g = grupos[mesKey];
+      
+      Object.entries(w.income || {}).forEach(([k, v]) => { g.income[k] = (g.income[k] || 0) + v; });
+      Object.entries(w.expense || {}).forEach(([k, v]) => { g.expense[k] = (g.expense[k] || 0) + v; });
+      
+      g.totalIngresos += w.totalIngresos;
+      g.totalEgresos += w.totalEgresos;
+      g.posicion += w.posicion;
+      g.saldoAcumulado = w.saldoAcumulado; // Siempre queda el del último día iterado
+      if (w.esArqueo) g.esArqueo = true;
+    });
+
+    return Object.values(grupos).sort((a, b) => a.week_start.localeCompare(b.week_start));
+  }, [procesadas, vistaMensual]);
+
+  // Formateador para las cabeceras (Diario: DD/MM/YYYY | Mensual: MM/YYYY)
+  const formatHeader = (val) => {
+    if (!val) return "";
+    if (val.length === 7) {
+       const [y, m] = val.split("-");
+       return `${m}/${y}`;
+    }
+    return formatDate(val);
+  };
+
   return (
     <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "16px 20px", borderBottom: `1px solid ${colorLineaFuerte}`, background: colorTablaBg }}>
-        <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos diarios</h3>
-        <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Arrastra montos o pasa el mouse sobre ellos para ver las notas.</p>
+      
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${colorLineaFuerte}`, background: colorTablaBg }}>
+        <div>
+          <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos</h3>
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Arrastra montos para moverlos (solo en vista diaria).</p>
+        </div>
+        
+        {/* BOTÓN PARA CAMBIAR ENTRE DÍA Y MES */}
+        <button 
+          onClick={() => setVistaMensual(!vistaMensual)}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: vistaMensual ? tokens.ink : "#fff", color: vistaMensual ? "#fff" : tokens.text, border: `1px solid ${vistaMensual ? tokens.ink : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12.5, transition: "all 0.2s" }}
+        >
+          <CalendarDays size={15} /> {vistaMensual ? "Ver por Día" : "Agrupar por Mes"}
+        </button>
       </div>
+
       <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
         <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
           <thead>
             <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
-              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto Diario</th>
-              {procesadas.map((w, i) => (
+              <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Concepto</th>
+              {columnasVisibles.map((w, i) => (
                 <th key={i} style={{ padding: 14, textAlign: "right", minWidth: 104, fontFamily: tokens.fontMono }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                    <span>{formatDate(w.week_start)}</span>
-                    {w.esArqueo && <span style={{ fontSize: 10, color: tokens.gold, fontWeight: "normal", marginTop: 2 }}>Arqueo Apertura</span>}
+                    <span>{formatHeader(w.week_start)}</span>
+                    {w.esArqueo && !vistaMensual && <span style={{ fontSize: 10, color: tokens.gold, fontWeight: "normal", marginTop: 2 }}>Arqueo Apertura</span>}
                   </div>
                 </th>
               ))}
@@ -980,24 +1036,27 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
               <td className="sticky-col" style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
                 {verIngresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} INGRESOS
               </td>
-              <td colSpan={procesadas.length}></td>
+              <td colSpan={columnasVisibles.length}></td>
             </tr>
 
             {verIngresos && incomeCats.map((c) => (
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                 <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
-                {procesadas.map((w, i) => {
+                {columnasVisibles.map((w, i) => {
                   const monto = w.income?.[c.key] || 0;
                   const nota = w.parsedNotes?.[`ingreso_${c.key}`];
                   return (
-                    <td key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, w.week_start, "ingreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}>
+                    <td key={i} onDragOver={(e) => !vistaMensual && e.preventDefault()} onDrop={(e) => !vistaMensual && handleDrop(e, w.week_start, "ingreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}>
                       {monto > 0 ? (
-                        <div className="draggable-chip" draggable onDragStart={(e) => handleDragStart(e, w.week_start, "ingreso", c.key, monto)}
-                          title={nota || undefined}
-                          style={{ position: "relative", cursor: "grab", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
+                        <div 
+                          className={vistaMensual ? "" : "draggable-chip"} 
+                          draggable={!vistaMensual} 
+                          onDragStart={(e) => !vistaMensual && handleDragStart(e, w.week_start, "ingreso", c.key, monto)}
+                          title={vistaMensual ? "" : (nota || undefined)}
+                          style={{ position: "relative", cursor: vistaMensual ? "default" : "grab", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
                         >
                           {fmt(monto)}
-                          {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
+                          {nota && !vistaMensual && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
                         </div>
                       ) : <span style={{ color: colorLineaFuerte, fontFamily: tokens.fontMono }}>-</span>}
                     </td>
@@ -1005,30 +1064,33 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                 })}
               </tr>
             ))}
-            <TotalRow label="Total ingresos" data={procesadas} field="totalIngresos" color={tokens.positive} fmt={fmt} />
+            <TotalRow label="Total ingresos" data={columnasVisibles} field="totalIngresos" color={tokens.positive} fmt={fmt} />
 
             <tr onClick={() => setVerEgresos(!verEgresos)} style={{ cursor: "pointer", background: colorTablaBg }}>
               <td className="sticky-col" style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
                 {verEgresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} EGRESOS
               </td>
-              <td colSpan={procesadas.length}></td>
+              <td colSpan={columnasVisibles.length}></td>
             </tr>
 
             {verEgresos && expenseCats.map((c) => (
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                 <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
-                {procesadas.map((w, i) => {
+                {columnasVisibles.map((w, i) => {
                   const monto = w.expense?.[c.key] || 0;
                   const nota = w.parsedNotes?.[`egreso_${c.key}`];
                   return (
-                    <td key={i} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, w.week_start, "egreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}>
+                    <td key={i} onDragOver={(e) => !vistaMensual && e.preventDefault()} onDrop={(e) => !vistaMensual && handleDrop(e, w.week_start, "egreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104 }}>
                       {monto > 0 ? (
-                        <div className="draggable-chip" draggable onDragStart={(e) => handleDragStart(e, w.week_start, "egreso", c.key, monto)}
-                          title={nota || undefined}
-                          style={{ position: "relative", cursor: "grab", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
+                        <div 
+                          className={vistaMensual ? "" : "draggable-chip"} 
+                          draggable={!vistaMensual} 
+                          onDragStart={(e) => !vistaMensual && handleDragStart(e, w.week_start, "egreso", c.key, monto)}
+                          title={vistaMensual ? "" : (nota || undefined)}
+                          style={{ position: "relative", cursor: vistaMensual ? "default" : "grab", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
                         >
                           {fmt(monto)}
-                          {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
+                          {nota && !vistaMensual && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
                         </div>
                       ) : <span style={{ color: colorLineaFuerte, fontFamily: tokens.fontMono }}>-</span>}
                     </td>
@@ -1036,19 +1098,19 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                 })}
               </tr>
             ))}
-            <TotalRow label="Total egresos" data={procesadas} field="totalEgresos" color={tokens.negative} fmt={fmt} />
+            <TotalRow label="Total egresos" data={columnasVisibles} field="totalEgresos" color={tokens.negative} fmt={fmt} />
 
             <tr className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaFuerte}` }}>
               <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Flujo neto</td>
-              {procesadas.map((w, i) => (
+              {columnasVisibles.map((w, i) => (
                 <td key={i} style={{ padding: "16px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, background: colorTotalBg, color: w.posicion >= 0 ? tokens.positive : tokens.negative }}>{fmt(w.posicion)}</td>
               ))}
             </tr>
             <tr className="flujo-row">
               <td className="sticky-col" style={{ padding: "18px 14px", fontWeight: 700, background: tokens.ink, color: "#fff" }}>Saldo final al cierre</td>
-              {procesadas.map((w, i) => (
+              {columnasVisibles.map((w, i) => (
                 <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: tokens.ink, color: "#fff", fontFamily: tokens.fontMono }}>
-                  {w.esArqueo && <span title={`Día con Arqueo de Apertura. Ajuste automático previo a pagos: $ ${fmt(w.ajuste)}`} style={{ color: tokens.gold, marginRight: 6 }}>★</span>}
+                  {w.esArqueo && !vistaMensual && <span title={`Día con Arqueo de Apertura. Ajuste automático previo a pagos: $ ${fmt(w.ajuste)}`} style={{ color: tokens.gold, marginRight: 6 }}>★</span>}
                   {fmt(w.saldoAcumulado)}
                 </td>
               ))}
