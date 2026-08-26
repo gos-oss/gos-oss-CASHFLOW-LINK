@@ -14,7 +14,7 @@ import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays // <-- NUEVO ÍCONO
+  CalendarDays 
 } from "lucide-react";
 
 // =========================================================================
@@ -71,6 +71,27 @@ const globalStyles = `
   ::-webkit-scrollbar-thumb { background: ${tokens.rule}; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #B9BEB3; }
   
+  /* LÓGICA DEL ENCABEZADO STICKY VERTICAL */
+  .table-container {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 190px); /* Tope máximo para que scrollee interno */
+  }
+  .flujo-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: inset 0 -1px 0 ${colorLineaFuerte}; /* Reemplaza al border para no perderse en scroll */
+  }
+  /* Ajuste para la segunda fila de encabezados en el Cashflow diario */
+  .flujo-table thead tr:nth-child(2) th {
+    top: 36px; 
+  }
+  /* La esquina superior izquierda tiene que quedar por encima de todo */
+  .flujo-table thead th.sticky-col {
+    z-index: 12 !important;
+  }
+
   .flujo-table th, .flujo-table td { border-right: 1px solid ${colorLineaSuave}; }
   .flujo-table th:last-child, .flujo-table td:last-child { border-right: none; }
   .flujo-row:hover td { background: ${colorHover} !important; transition: background 0.15s; }
@@ -118,11 +139,13 @@ const NAV = [
 
 export default function App() {
   const [weeks, setWeeks] = useState([]);
-  const [planFondos, setPlanFondos] = useState({});
+  const [planesFondos, setPlanesFondos] = useState({});
   const [mapping, setMapping] = useState({ ingreso: {}, egreso: {} });
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("resumen");
+  
   const [mostrarPanel, setMostrarPanel] = useState(true);
+  const [movimientoAEditar, setMovimientoAEditar] = useState(null); // NUEVO ESTADO PARA EDITAR
 
   const [arqueosList, setArqueosList] = useState([]);
   const [saldoEfectivo, setSaldoEfectivo] = useState("");
@@ -156,26 +179,24 @@ export default function App() {
       setArqueosList(list);
     }
 
-    const { data: pData } = await supabase.from("cashflow_plan").select("*").in("id", ["2026", "mapping"]);
+    const { data: pData } = await supabase.from("cashflow_plan").select("*");
     if (pData) {
-      const planRow = pData.find(r => r.id === "2026");
       const mapRow = pData.find(r => r.id === "mapping");
-      
-      if (planRow && Object.keys(planRow.data || {}).length > 0) {
-        if (planRow.data.egreso && planRow.data.egreso["custom_300"]) {
-           setPlanFondos(DEFAULT_PLAN_2026);
-           await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
-        } else {
-           setPlanFondos(planRow.data);
-        }
-      } else {
-        setPlanFondos(DEFAULT_PLAN_2026);
+      if (mapRow) setMapping(mapRow.data || { ingreso: {}, egreso: {} });
+
+      let planesTemporales = {};
+      pData.forEach(r => {
+        if (r.id !== "mapping") planesTemporales[r.id] = r.data;
+      });
+
+      if (!planesTemporales["2026"] || (planesTemporales["2026"].egreso && planesTemporales["2026"].egreso["custom_300"])) {
+        planesTemporales["2026"] = DEFAULT_PLAN_2026;
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
       }
-      
-      if (mapRow) setMapping(mapRow.data || { ingreso: {}, egreso: {} });
+      setPlanesFondos(planesTemporales);
     } else {
-      setPlanFondos(DEFAULT_PLAN_2026);
+      setPlanesFondos({ "2026": DEFAULT_PLAN_2026 });
+      await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
     }
 
     setLoaded(true);
@@ -205,9 +226,9 @@ export default function App() {
     fetchData();
   };
 
-  const guardarPlanDeFondos = async (nuevoPlan) => {
-    setPlanFondos(nuevoPlan);
-    const { error } = await supabase.from("cashflow_plan").upsert({ id: "2026", data: nuevoPlan });
+  const guardarPlanDeFondos = async (nuevoPlan, year) => {
+    setPlanesFondos(prev => ({ ...prev, [year]: nuevoPlan }));
+    const { error } = await supabase.from("cashflow_plan").upsert({ id: year, data: nuevoPlan });
     if (error) alert("Error al guardar el plan de fondos: " + error.message);
   };
 
@@ -343,9 +364,6 @@ export default function App() {
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
-  // =========================================================================
-  // MATEMÁTICA CORREGIDA: ARQUEO COMO SALDO INICIAL DEL DÍA (APERTURA)
-  // =========================================================================
   const procesadas = useMemo(() => {
     const arqueosDict = {};
     arqueosList.forEach(a => {
@@ -439,6 +457,7 @@ export default function App() {
     <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
       <style>{globalStyles}</style>
 
+      {/* ---------- RIEL DE INSTRUMENTOS (SIDEBAR) ---------- */}
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
           <img src="/link-banner.png" alt="LINK" style={{ width: "100%", height: "85px", objectFit: "cover", objectPosition: "left center", display: "block" }} />
@@ -468,6 +487,7 @@ export default function App() {
         </nav>
       </aside>
 
+      {/* ---------- CANVAS ---------- */}
       <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
         
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
@@ -480,7 +500,7 @@ export default function App() {
             dailyIncomeCats={incomeCats} 
             dailyExpenseCats={expenseCats} 
             fmt={fmt} 
-            planGuardado={planFondos}
+            planesFondos={planesFondos}
             mappingGuardado={mapping}
             onGuardarPlan={guardarPlanDeFondos}
             onGuardarMapeo={guardarMapeo}
@@ -497,10 +517,30 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, position: "sticky", top: 32 }}>
-                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} formatDate={formatDate} />
+                  <CargarMovimiento 
+                    incomeCats={incomeCats} 
+                    expenseCats={expenseCats} 
+                    weeks={weeks} 
+                    onGuardar={guardarMovimiento} 
+                    onEliminar={eliminarMovimiento} 
+                    formatDate={formatDate} 
+                    movimientoAEditar={movimientoAEditar}          // PASAMOS EL ITEM A EDITAR
+                    setMovimientoAEditar={setMovimientoAEditar}    // FUNCIÓN PARA LIMPIAR EL ESTADO
+                  />
                 </div>
               )}
-              <FlujoTable procesadas={procesadas} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} formatDate={formatDate} />
+              <FlujoTable 
+                procesadas={procesadas} 
+                incomeCats={incomeCats} 
+                expenseCats={expenseCats} 
+                fmt={fmt} 
+                onMoverMovimiento={moverMovimiento} 
+                formatDate={formatDate} 
+                onEditClick={(item) => {
+                  setMostrarPanel(true);
+                  setMovimientoAEditar(item); // AL HACER CLIC, LO MANDAMOS AL PANEL
+                }}
+              />
             </div>
           </div>
         )}
@@ -627,24 +667,28 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
 }
 
 // =========================================================================
-// PESTAÑA: PLAN DE FONDOS CON GRÁFICOS DE TORTA
+// PESTAÑA: PLAN DE FONDOS MULTI-AÑO
 // =========================================================================
-function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planGuardado, mappingGuardado, onGuardarPlan, onGuardarMapeo }) {
+function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planesFondos, mappingGuardado, onGuardarPlan, onGuardarMapeo }) {
   const meses = [
     { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
     { k: "05", n: "May" }, { k: "06", n: "Jun" }, { k: "07", n: "Jul" }, { k: "08", n: "Ago" },
     { k: "09", n: "Sep" }, { k: "10", n: "Oct" }, { k: "11", n: "Nov" }, { k: "12", n: "Dic" }
   ];
   
+  const [selectedYear, setSelectedYear] = useState("2026");
   const [view, setView] = useState("presupuesto");
   const [editMode, setEditMode] = useState(false);
   const [planDraft, setPlanDraft] = useState({});
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
 
   useEffect(() => {
-    setPlanDraft(planGuardado || {});
+    setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
+  }, [planesFondos, selectedYear, editMode, view]);
+
+  useEffect(() => {
     setMappingDraft({ ingreso: { ...(mappingGuardado?.ingreso || {}) }, egreso: { ...(mappingGuardado?.egreso || {}) } });
-  }, [planGuardado, mappingGuardado, editMode, view]);
+  }, [mappingGuardado, view]);
 
   const handleInputChange = (tipo, conceptoKey, mesKey, value) => {
     setPlanDraft(prev => {
@@ -708,7 +752,7 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
 
   const guardarTodo = () => {
     if (view === "presupuesto") {
-      onGuardarPlan(planDraft);
+      onGuardarPlan(planDraft, selectedYear); 
       setEditMode(false);
     } else {
       onGuardarMapeo(mappingDraft);
@@ -735,13 +779,28 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
       
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>
-            {view === "mapeo" ? "Mapeador de Conceptos" : "Plan de Fondos 2026"}
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "0 0 4px 0" }}>
+             <h2 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>
+               {view === "mapeo" ? "Mapeador de Conceptos" : "Plan de Fondos"}
+             </h2>
+             {view === "presupuesto" && (
+               <select 
+                 value={selectedYear} 
+                 onChange={(e) => setSelectedYear(e.target.value)}
+                 style={{ padding: "4px 10px", fontSize: 16, fontFamily: tokens.fontDisplay, fontWeight: 600, borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, background: "#fff", outline: "none", cursor: "pointer" }}
+               >
+                 <option value="2025">2025</option>
+                 <option value="2026">2026</option>
+                 <option value="2027">2027</option>
+                 <option value="2028">2028</option>
+                 <option value="2029">2029</option>
+               </select>
+             )}
+          </div>
           <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>
             {view === "mapeo" 
               ? "Vincula tus categorías del Cashflow diario con las bolsas del Presupuesto Anual." 
-              : editMode ? "Estás editando el presupuesto anual." : "Presupuesto anual estimado de las categorías base."}
+              : editMode ? `Estás editando el presupuesto del ${selectedYear}.` : `Presupuesto anual estimado para ${selectedYear}.`}
           </p>
         </div>
         
@@ -755,21 +814,18 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
           {view === "presupuesto" ? (
             editMode ? (
               <>
-                <button onClick={() => setPlanDraft(DEFAULT_PLAN_2026)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.negativeSoft, color: tokens.negative, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-                  Restaurar Valores Excel
-                </button>
                 <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-                  <Save size={16} /> Guardar Presupuesto
+                  <Save size={16} /> Guardar {selectedYear}
                 </button>
               </>
             ) : (
               <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-                <Pencil size={16} /> Editar Presupuesto
+                <Pencil size={16} /> Editar {selectedYear}
               </button>
             )
           ) : (
             <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-              <Save size={16} /> Guardar Mapeo
+              <Save size={16} /> Guardar Mapeo Global
             </button>
           )}
         </div>
@@ -924,12 +980,12 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
 }
 
 // =========================================================================
-// TABLA DE MOVIMIENTOS CON SISTEMA DE ACORDEÓN MENSUAL
+// TABLA DE MOVIMIENTOS CON SISTEMA DE ACORDEÓN MENSUAL E INTERACCIÓN
 // =========================================================================
-function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento, formatDate }) {
+function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento, formatDate, onEditClick }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
-  const [collapsedMonths, setCollapsedMonths] = useState(new Set()); // Set de 'YYYY-MM'
+  const [collapsedMonths, setCollapsedMonths] = useState(new Set()); 
 
   const toggleMonth = (mesKey) => {
     setCollapsedMonths(prev => {
@@ -972,16 +1028,16 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
         g.totalIngresos += w.totalIngresos;
         g.totalEgresos += w.totalEgresos;
         g.posicion += w.posicion;
-        g.saldoAcumulado = w.saldoAcumulado; // Se queda con el del último día del mes
+        g.saldoAcumulado = w.saldoAcumulado; 
     });
 
     const uniqueMonths = Object.keys(mesesMap).sort();
     uniqueMonths.forEach(mesKey => {
         if (collapsedMonths.has(mesKey)) {
-            result.push(mesesMap[mesKey]); // Agrega la columna de Total Mensual
+            result.push(mesesMap[mesKey]); 
         } else {
             procesadas.filter(w => w.week_start.startsWith(mesKey)).forEach(d => {
-                result.push({ ...d, isMonth: false, mesKey }); // Agrega las columnas de cada día
+                result.push({ ...d, isMonth: false, mesKey }); 
             });
         }
     });
@@ -1038,7 +1094,7 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${colorLineaFuerte}`, background: colorTablaBg }}>
         <div>
           <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>Desglose de flujos</h3>
-          <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Haz clic en los meses para agruparlos o expandirlos.</p>
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Haz clic en los valores para editarlos, o en los meses para agruparlos.</p>
         </div>
         
         <button 
@@ -1049,10 +1105,10 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
         </button>
       </div>
 
-      <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
+      <div className="table-container">
         <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
           <thead>
-            <tr style={{ color: tokens.text, borderBottom: `1px solid ${colorLineaFuerte}` }}>
+            <tr style={{ height: "36px", color: tokens.text, borderBottom: `1px solid ${colorLineaFuerte}` }}>
               <th className="sticky-col" rowSpan={2} style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg, borderBottom: `2px solid ${colorLineaFuerte}` }}>Concepto Diario</th>
               {monthGroups.map((g, i) => (
                 <th key={g.mesKey} colSpan={g.span} style={{ padding: "8px 14px", textAlign: "center", background: colorTotalBg, borderRight: i === monthGroups.length - 1 ? 'none' : `1px solid ${colorLineaFuerte}` }}>
@@ -1105,8 +1161,9 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                             className="draggable-chip" 
                             draggable={true} 
                             onDragStart={(e) => handleDragStart(e, w.week_start, "ingreso", c.key, monto)}
-                            title={nota || undefined}
-                            style={{ position: "relative", cursor: "grab", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
+                            onClick={() => onEditClick({ fecha: w.week_start, tipo: "ingreso", key: c.key, monto, nota })}
+                            title="Clic para editar"
+                            style={{ position: "relative", cursor: "pointer", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
                           >
                             {fmt(monto)}
                             {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
@@ -1143,8 +1200,9 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                             className="draggable-chip" 
                             draggable={true} 
                             onDragStart={(e) => handleDragStart(e, w.week_start, "egreso", c.key, monto)}
-                            title={nota || undefined}
-                            style={{ position: "relative", cursor: "grab", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
+                            onClick={() => onEditClick({ fecha: w.week_start, tipo: "egreso", key: c.key, monto, nota })}
+                            title="Clic para editar"
+                            style={{ position: "relative", cursor: "pointer", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
                           >
                             {fmt(monto)}
                             {nota && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, background: tokens.gold, borderRadius: '50%', border: '1px solid #fff' }} />}
