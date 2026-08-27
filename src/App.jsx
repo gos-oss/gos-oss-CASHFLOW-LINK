@@ -14,7 +14,7 @@ import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays 
+  CalendarDays, Scale, Percent, TrendingDown // <-- NUEVOS ÍCONOS PARA LOS KPIs
 } from "lucide-react";
 
 // =========================================================================
@@ -71,26 +71,10 @@ const globalStyles = `
   ::-webkit-scrollbar-thumb { background: ${tokens.rule}; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #B9BEB3; }
   
-  /* LÓGICA DEL ENCABEZADO STICKY VERTICAL */
-  .table-container {
-    overflow-x: auto;
-    overflow-y: auto;
-    max-height: calc(100vh - 190px); /* Tope máximo para que scrollee interno */
-  }
-  .flujo-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    box-shadow: inset 0 -1px 0 ${colorLineaFuerte}; /* Reemplaza al border para no perderse en scroll */
-  }
-  /* Ajuste para la segunda fila de encabezados en el Cashflow diario */
-  .flujo-table thead tr:nth-child(2) th {
-    top: 36px; 
-  }
-  /* La esquina superior izquierda tiene que quedar por encima de todo */
-  .flujo-table thead th.sticky-col {
-    z-index: 12 !important;
-  }
+  .table-container { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 190px); }
+  .flujo-table thead th { position: sticky; top: 0; z-index: 10; box-shadow: inset 0 -1px 0 ${colorLineaFuerte}; }
+  .flujo-table thead tr:nth-child(2) th { top: 36px; }
+  .flujo-table thead th.sticky-col { z-index: 12 !important; }
 
   .flujo-table th, .flujo-table td { border-right: 1px solid ${colorLineaSuave}; }
   .flujo-table th:last-child, .flujo-table td:last-child { border-right: none; }
@@ -145,7 +129,7 @@ export default function App() {
   const [tab, setTab] = useState("resumen");
   
   const [mostrarPanel, setMostrarPanel] = useState(true);
-  const [movimientoAEditar, setMovimientoAEditar] = useState(null); // NUEVO ESTADO PARA EDITAR
+  const [movimientoAEditar, setMovimientoAEditar] = useState(null); 
 
   const [arqueosList, setArqueosList] = useState([]);
   const [saldoEfectivo, setSaldoEfectivo] = useState("");
@@ -359,8 +343,6 @@ export default function App() {
     return true;
   };
 
-  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
@@ -419,6 +401,9 @@ export default function App() {
     });
   }, [weeks, arqueosList]);
 
+  // =========================================================================
+  // KPIs MEJORADOS: Se suman 3 nuevos indicadores para el Mes Actual
+  // =========================================================================
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
     const hoy = todayISO();
@@ -446,8 +431,37 @@ export default function App() {
     const flujoUltimoMes = datosUltimoMes.reduce((acc, cur) => acc + cur.totalIngresos, 0) - datosUltimoMes.reduce((acc, cur) => acc + cur.totalEgresos, 0);
     const nofAnual = (flujoUltimoMes < 0 ? Math.abs(flujoUltimoMes) : 0) * 12;
 
-    return { diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy };
-  }, [procesadas, arqueosList]);
+    // NUEVO: Cálculos del mes actual (según el calendario de hoy)
+    const mesActual = hoy.substring(0, 7);
+    const datosMesActual = procesadas.filter(w => w.week_start.startsWith(mesActual));
+    const ingresosMes = datosMesActual.reduce((acc, cur) => acc + cur.totalIngresos, 0);
+    const egresosMes = datosMesActual.reduce((acc, cur) => acc + cur.totalEgresos, 0);
+    const flujoNetoMes = ingresosMes - egresosMes;
+    const cobertura = egresosMes > 0 ? Math.round((ingresosMes / egresosMes) * 100) : (ingresosMes > 0 ? 100 : 0);
+
+    let maxEgresoVal = 0;
+    let maxEgresoCat = "Sin egresos";
+    if (datosMesActual.length > 0) {
+      const sumasEgresos = {};
+      datosMesActual.forEach(w => {
+         Object.entries(w.expense || {}).forEach(([k, v]) => {
+            sumasEgresos[k] = (sumasEgresos[k] || 0) + Number(v);
+         });
+      });
+      Object.entries(sumasEgresos).forEach(([k, v]) => {
+         if (v > maxEgresoVal) {
+            maxEgresoVal = v;
+            const catObj = expenseCats.find(c => c.key === k);
+            maxEgresoCat = catObj ? catObj.label : k.replace('custom_', '');
+         }
+      });
+    }
+
+    return { 
+      diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy,
+      flujoNetoMes, cobertura, maxEgresoVal, maxEgresoCat
+    };
+  }, [procesadas, arqueosList, expenseCats]);
 
   const semanas13 = useSemanas13(procesadas, fechaSaldo, saldoEfectivo, saldoBanco);
 
@@ -524,8 +538,8 @@ export default function App() {
                     onGuardar={guardarMovimiento} 
                     onEliminar={eliminarMovimiento} 
                     formatDate={formatDate} 
-                    movimientoAEditar={movimientoAEditar}          // PASAMOS EL ITEM A EDITAR
-                    setMovimientoAEditar={setMovimientoAEditar}    // FUNCIÓN PARA LIMPIAR EL ESTADO
+                    movimientoAEditar={movimientoAEditar}
+                    setMovimientoAEditar={setMovimientoAEditar}
                   />
                 </div>
               )}
@@ -538,7 +552,7 @@ export default function App() {
                 formatDate={formatDate} 
                 onEditClick={(item) => {
                   setMostrarPanel(true);
-                  setMovimientoAEditar(item); // AL HACER CLIC, LO MANDAMOS AL PANEL
+                  setMovimientoAEditar(item); 
                 }}
               />
             </div>
@@ -643,12 +657,22 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
   if (procesadas.length === 0) return (<div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${colorLineaFuerte}` }}>Sin datos cargados.</div>);
   return (
     <>
-      <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen</h2></div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
+      <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen Ejecutivo</h2></div>
+      
+      {/* FILA 1: KPIs DE SUPERVIVENCIA (FUTURO) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 18 }}>
         <KpiCard icon={Wallet} label="Días de caja" value={kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} días`} tone={kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? "neg" : "pos"} />
         <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit !== "Sin déficit" ? formatDate(kpis.diaDeficit) : "Sin déficit"} tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
         <KpiCard icon={AlertTriangle} label="NOF mensual" value={`$ ${fmt(kpis.nofMensual)}`} tone={kpis.nofMensual > 0 ? "neg" : "pos"} />
       </div>
+
+      {/* FILA 2: KPIs DEL MES ACTUAL (PRESENTE) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 18 }}>
+        <KpiCard icon={Scale} label="Flujo Neto (Mes en curso)" value={`$ ${fmt(kpis.flujoNetoMes)}`} tone={kpis.flujoNetoMes >= 0 ? "pos" : "neg"} />
+        <KpiCard icon={Percent} label="Índice de Cobertura" value={`${kpis.cobertura}%`} tone={kpis.cobertura >= 100 ? "pos" : "neg"} sub={kpis.cobertura >= 100 ? "Ingresos superan egresos" : "Faltan ingresos para cubrir gastos"} />
+        <KpiCard icon={TrendingDown} label="Fuga Principal (Mes en curso)" value={kpis.maxEgresoCat} sub={`$ ${fmt(kpis.maxEgresoVal)}`} tone="neg" />
+      </div>
+
       <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 24 }}>
         <div style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -814,6 +838,9 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
           {view === "presupuesto" ? (
             editMode ? (
               <>
+                <button onClick={() => setPlanDraft(DEFAULT_PLAN_2026)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.negativeSoft, color: tokens.negative, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                  Restaurar Valores Excel
+                </button>
                 <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
                   <Save size={16} /> Guardar {selectedYear}
                 </button>
