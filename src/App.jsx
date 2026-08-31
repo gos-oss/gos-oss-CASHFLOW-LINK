@@ -102,7 +102,6 @@ const globalStyles = `
     padding: 8px 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-family: ${tokens.fontBody};
   }
   
-  /* OVERRIDE PARA LEYENDA RECHARTS EN FONDO OSCURO */
   .recharts-legend-item-text {
     color: #94A3B8 !important;
   }
@@ -386,8 +385,6 @@ export default function App() {
     return true;
   };
 
-  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
@@ -564,6 +561,7 @@ export default function App() {
             mappingGuardado={mapping}
             onGuardarPlan={guardarPlanDeFondos}
             onGuardarMapeo={guardarMapeo}
+            tcList={tcList} /* PASAMOS EL TC AL COMPONENTE DEL PLAN */
           />
         )}
 
@@ -608,7 +606,6 @@ export default function App() {
 
         {tab === "conceptos" && <CategoryManager incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onAdd={agregarConcepto} onRename={renombrarConcepto} onDelete={eliminarConcepto} />}
 
-        {/* PESTAÑA CONFIGURACIÓN REDISEÑADA: DOS COLUMNAS */}
         {tab === "configuracion" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 1200 }}>
             <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2></div>
@@ -691,11 +688,7 @@ export default function App() {
 
             </div>
 
-            {/* IMPORTADOR EXCEL */}
-            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 4, maxWidth: 720 }}>
-                <ImportadorCashflow baseIncome={BASE_INCOME} baseExpense={BASE_EXPENSE} onImportarSemanas={handleImportarSemanas} onBorrarDatos={handleBorrarDatos} semanasExistentes={weeks} />
-            </div>
-            
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 4, maxWidth: 720 }}><ImportadorCashflow baseIncome={BASE_INCOME} baseExpense={BASE_EXPENSE} onImportarSemanas={handleImportarSemanas} onBorrarDatos={handleBorrarDatos} semanasExistentes={weeks} /></div>
           </div>
         )}
       </main>
@@ -779,9 +772,9 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
 }
 
 // =========================================================================
-// PESTAÑA: PLAN DE FONDOS MULTI-AÑO Y GRÁFICOS OSCUROS ESTILO IMAGEN
+// PESTAÑA: PLAN DE FONDOS CON INDICADOR CENTRAL DÓLAR
 // =========================================================================
-function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planesFondos, mappingGuardado, onGuardarPlan, onGuardarMapeo }) {
+function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planesFondos, mappingGuardado, onGuardarPlan, onGuardarMapeo, tcList }) {
   const meses = [
     { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
     { k: "05", n: "May" }, { k: "06", n: "Jun" }, { k: "07", n: "Jul" }, { k: "08", n: "Ago" },
@@ -801,6 +794,13 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
   useEffect(() => {
     setMappingDraft({ ingreso: { ...(mappingGuardado?.ingreso || {}) }, egreso: { ...(mappingGuardado?.egreso || {}) } });
   }, [mappingGuardado, view]);
+
+  // CÁLCULO DEL ÚLTIMO DÓLAR PARA EL KPI CENTRAL
+  const ultimoDolar = useMemo(() => {
+    if (!tcList || tcList.length === 0) return 1; // Fallback para no dividir por 0
+    const sorted = [...tcList].sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
+    return Number(sorted[0].saldo_efectivo) || 1;
+  }, [tcList]);
 
   const handleInputChange = (tipo, conceptoKey, mesKey, value) => {
     setPlanDraft(prev => {
@@ -859,7 +859,6 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
     return { name: c.label, value: val, perc: totalEg > 0 ? (val / totalEg) * 100 : 0 };
   }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
 
-  // PALETA DE COLORES EXACTA DE LA IMAGEN
   const MODERN_PALETTE = ['#3B82F6', '#14DBB6', '#FFCC4D', '#FF6666', '#A385FF', '#4ADE80', '#F97316', '#0EA5E9'];
   const COLORS_ING = MODERN_PALETTE;
   const COLORS_EG = MODERN_PALETTE;
@@ -888,9 +887,8 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
     return null;
   };
 
-  // FUNCIÓN PARA DIBUJAR LOS PORCENTAJES ADENTRO DE LA TORTA
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-    if (percent < 0.03) return null; // No dibuja % si es menos del 3% para que no se superpongan
+    if (percent < 0.03) return null; 
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -971,21 +969,16 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
           </div>
 
           {!editMode && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-              {/* GRÁFICO INGRESOS FONDO OSCURO */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 240px 1fr", gap: 18 }}>
+              {/* GRÁFICO INGRESOS */}
               <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
-                <h3 style={{ margin: "0 0 16px 0", color: '#fff', fontSize: 15, textAlign: "center", fontWeight: 700 }}>Participación — Ingresos por Categoría</h3>
-                <div style={{ height: 260 }}>
+                <h3 style={{ margin: "0 0 16px 0", color: '#fff', fontSize: 15, textAlign: "center", fontWeight: 700 }}>Participación — Ingresos</h3>
+                <div style={{ height: 240 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie 
-                        data={pieIngresos} 
-                        cx="50%" cy="50%" 
-                        innerRadius={60} outerRadius={95} 
-                        paddingAngle={0} 
-                        dataKey="value"
-                        stroke="#172033" strokeWidth={2}
-                        labelLine={false} label={renderCustomizedLabel}
+                        data={pieIngresos} cx="50%" cy="50%" innerRadius={55} outerRadius={85} 
+                        paddingAngle={0} dataKey="value" stroke="#172033" strokeWidth={2} labelLine={false} label={renderCustomizedLabel}
                       >
                         {pieIngresos.map((entry, index) => <Cell key={index} fill={COLORS_ING[index % COLORS_ING.length]} />)}
                       </Pie>
@@ -996,20 +989,40 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
                 </div>
               </div>
 
-              {/* GRÁFICO EGRESOS FONDO OSCURO */}
+              {/* INDICADOR CENTRAL: FLUJO NETO MENSUAL USD */}
+              <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: "24px 20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
+                <h3 style={{ margin: "0 0 20px 0", color: '#fff', fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>
+                  Flujo Neto Promedio<br/><span style={{fontSize: 12, color: '#94A3B8', fontWeight: 500}}>Mensualizado en USD</span>
+                </h3>
+                
+                <div style={{ width: "100%", marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid #334155" }}>
+                  <div style={{ fontSize: 10.5, color: '#94A3B8', textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4, fontWeight: 600 }}>Semestre 1</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: (ingS1-egS1) >= 0 ? tokens.positive : tokens.negative, fontFamily: tokens.fontMono }}>
+                     U$D {fmt(((ingS1 - egS1) / 6) / ultimoDolar)}
+                  </div>
+                </div>
+                
+                <div style={{ width: "100%", marginBottom: 20 }}>
+                  <div style={{ fontSize: 10.5, color: '#94A3B8', textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4, fontWeight: 600 }}>Semestre 2</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: (ingS2-egS2) >= 0 ? tokens.positive : tokens.negative, fontFamily: tokens.fontMono }}>
+                     U$D {fmt(((ingS2 - egS2) / 6) / ultimoDolar)}
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 11, color: '#64748B', background: "#0F172A", padding: "6px 12px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <DollarSign size={12} /> TC: ${fmt(ultimoDolar)}
+                </div>
+              </div>
+
+              {/* GRÁFICO EGRESOS */}
               <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
-                <h3 style={{ margin: "0 0 16px 0", color: '#fff', fontSize: 15, textAlign: "center", fontWeight: 700 }}>Participación — Egresos por Categoría</h3>
-                <div style={{ height: 260 }}>
+                <h3 style={{ margin: "0 0 16px 0", color: '#fff', fontSize: 15, textAlign: "center", fontWeight: 700 }}>Participación — Egresos</h3>
+                <div style={{ height: 240 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie 
-                        data={pieEgresos} 
-                        cx="50%" cy="50%" 
-                        innerRadius={60} outerRadius={95} 
-                        paddingAngle={0} 
-                        dataKey="value"
-                        stroke="#172033" strokeWidth={2}
-                        labelLine={false} label={renderCustomizedLabel}
+                        data={pieEgresos} cx="50%" cy="50%" innerRadius={55} outerRadius={85} 
+                        paddingAngle={0} dataKey="value" stroke="#172033" strokeWidth={2} labelLine={false} label={renderCustomizedLabel}
                       >
                         {pieEgresos.map((entry, index) => <Cell key={index} fill={COLORS_EG[index % COLORS_EG.length]} />)}
                       </Pie>
