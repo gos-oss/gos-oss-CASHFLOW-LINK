@@ -31,10 +31,10 @@ const PLAN_INCOME_CATS = [
 const PLAN_EXPENSE_CATS = [
   { key: "custom_proyectos", label: "Proyectos" },
   { key: "custom_rrhh", label: "RRHH" },
-  { key: "custom_administracion", label: "Administración" },
+  { key: "custom_administracion", label: "Gastos de Estructura" }, // <-- Nombre actualizado
   { key: "custom_inversiones", label: "Inversiones" },
-  { key: "custom_pasivos-financieros", label: "Pasivos Financieros" },
-  { key: "custom_seguros", label: "Seguros" }
+  { key: "custom_pasivos-financieros", label: "Pasivos Financieros" }
+  // <-- Categoría Seguros eliminada
 ];
 
 const DEFAULT_PLAN_2026 = {
@@ -50,8 +50,7 @@ const DEFAULT_PLAN_2026 = {
     "custom_rrhh": { "01": 369633317, "02": 397685053, "03": 441780756, "04": 358521345, "05": 475970162, "06": 331050035, "07": 359717500, "08": 343916425, "09": 343980114, "10": 344578753, "11": 344262539, "12": 513292012 },
     "custom_administracion": { "01": 82469483, "02": 92452971, "03": 114416954, "04": 163553088, "05": 179058699, "06": 245285356, "07": 236069287, "08": 292313592, "09": 238368041, "10": 260249313, "11": 220946940, "12": 121042528 },
     "custom_inversiones": { "01": 80318625, "02": 78125625, "03": 77029125, "04": 77577375, "05": 78399750, "06": 82237500, "07": 82003500, "08": 82003500, "09": 82003500, "10": 82003500, "11": 7003500, "12": 7003500 },
-    "custom_pasivos-financieros": { "01": 57268446, "02": 55950406, "03": 55291386, "04": 55620896, "05": 73580581, "06": 76742101, "07": 76742101, "08": 79132921, "09": 76742101, "10": 76742101, "11": 76742101, "12": 76742101 },
-    "custom_seguros": { "01": 4688126, "02": 4688126, "03": 4688126, "04": 4688126, "05": 4688126, "06": 4688126, "07": 4688126, "08": 4688126, "09": 4688126, "10": 4688126, "11": 4688126, "12": 4688126 }
+    "custom_pasivos-financieros": { "01": 57268446, "02": 55950406, "03": 55291386, "04": 55620896, "05": 73580581, "06": 76742101, "07": 76742101, "08": 79132921, "09": 76742101, "10": 76742101, "11": 76742101, "12": 76742101 }
   }
 };
 
@@ -385,6 +384,8 @@ export default function App() {
     return true;
   };
 
+  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
@@ -561,7 +562,7 @@ export default function App() {
             mappingGuardado={mapping}
             onGuardarPlan={guardarPlanDeFondos}
             onGuardarMapeo={guardarMapeo}
-            tcList={tcList} /* PASAMOS EL TC AL COMPONENTE DEL PLAN */
+            tcList={tcList} 
           />
         )}
 
@@ -612,7 +613,6 @@ export default function App() {
             
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, alignItems: "start" }}>
                 
-                {/* TARJETA 1: ARQUEOS */}
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                     <Settings size={16} color={tokens.textMuted} />
@@ -653,7 +653,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* TARJETA 2: TIPO DE CAMBIO */}
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                     <DollarSign size={16} color={tokens.textMuted} />
