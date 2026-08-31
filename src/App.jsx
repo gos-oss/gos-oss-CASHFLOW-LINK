@@ -101,6 +101,11 @@ const globalStyles = `
     background: #fff; border: 1px solid ${colorLineaFuerte}; border-radius: 6px; 
     padding: 8px 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-family: ${tokens.fontBody};
   }
+  
+  /* OVERRIDE PARA LEYENDA RECHARTS EN FONDO OSCURO */
+  .recharts-legend-item-text {
+    color: #94A3B8 !important;
+  }
 `;
 
 const formatDate = (isoStr) => {
@@ -608,7 +613,6 @@ export default function App() {
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 1200 }}>
             <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2></div>
             
-            {/* ROW 1: Arqueo y TC Side by Side */}
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, alignItems: "start" }}>
                 
                 {/* TARJETA 1: ARQUEOS */}
@@ -775,7 +779,7 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
 }
 
 // =========================================================================
-// PESTAÑA: PLAN DE FONDOS MULTI-AÑO
+// PESTAÑA: PLAN DE FONDOS MULTI-AÑO Y GRÁFICOS OSCUROS ESTILO IMAGEN
 // =========================================================================
 function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planesFondos, mappingGuardado, onGuardarPlan, onGuardarMapeo }) {
   const meses = [
@@ -855,8 +859,10 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
     return { name: c.label, value: val, perc: totalEg > 0 ? (val / totalEg) * 100 : 0 };
   }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
 
-  const COLORS_ING = ['#059669', '#10B981', '#34D399', '#6EE7B7', '#A7F3D0'];
-  const COLORS_EG = ['#B91C1C', '#DC2626', '#EF4444', '#F87171', '#FCA5A5', '#F97316', '#F59E0B', '#FCD34D', '#6366F1', '#8B5CF6'];
+  // PALETA DE COLORES EXACTA DE LA IMAGEN
+  const MODERN_PALETTE = ['#3B82F6', '#14DBB6', '#FFCC4D', '#FF6666', '#A385FF', '#4ADE80', '#F97316', '#0EA5E9'];
+  const COLORS_ING = MODERN_PALETTE;
+  const COLORS_EG = MODERN_PALETTE;
 
   const guardarTodo = () => {
     if (view === "presupuesto") {
@@ -880,6 +886,20 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
       );
     }
     return null;
+  };
+
+  // FUNCIÓN PARA DIBUJAR LOS PORCENTAJES ADENTRO DE LA TORTA
+  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+    if (percent < 0.03) return null; // No dibuja % si es menos del 3% para que no se superpongan
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    return (
+      <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
   };
 
   return (
@@ -952,31 +972,49 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
 
           {!editMode && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-              <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 20 }}>
-                <h3 style={{ margin: "0 0 16px 0", color: tokens.positive, fontSize: 14, textAlign: "center", fontWeight: 700 }}>Composición de Ingresos</h3>
+              {/* GRÁFICO INGRESOS FONDO OSCURO */}
+              <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
+                <h3 style={{ margin: "0 0 16px 0", color: '#fff', fontSize: 15, textAlign: "center", fontWeight: 700 }}>Participación — Ingresos por Categoría</h3>
                 <div style={{ height: 260 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={pieIngresos} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
+                      <Pie 
+                        data={pieIngresos} 
+                        cx="50%" cy="50%" 
+                        innerRadius={60} outerRadius={95} 
+                        paddingAngle={0} 
+                        dataKey="value"
+                        stroke="#172033" strokeWidth={2}
+                        labelLine={false} label={renderCustomizedLabel}
+                      >
                         {pieIngresos.map((entry, index) => <Cell key={index} fill={COLORS_ING[index % COLORS_ING.length]} />)}
                       </Pie>
                       <Tooltip content={<CustomPieTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: 11, fontFamily: tokens.fontBody, paddingTop: 10 }} />
+                      <Legend layout="vertical" verticalAlign="middle" align="right" iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12, fontFamily: tokens.fontBody, color: '#94A3B8', paddingLeft: 20 }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 20 }}>
-                <h3 style={{ margin: "0 0 16px 0", color: tokens.negative, fontSize: 14, textAlign: "center", fontWeight: 700 }}>Composición de Egresos</h3>
+              {/* GRÁFICO EGRESOS FONDO OSCURO */}
+              <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
+                <h3 style={{ margin: "0 0 16px 0", color: '#fff', fontSize: 15, textAlign: "center", fontWeight: 700 }}>Participación — Egresos por Categoría</h3>
                 <div style={{ height: 260 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={pieEgresos} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
+                      <Pie 
+                        data={pieEgresos} 
+                        cx="50%" cy="50%" 
+                        innerRadius={60} outerRadius={95} 
+                        paddingAngle={0} 
+                        dataKey="value"
+                        stroke="#172033" strokeWidth={2}
+                        labelLine={false} label={renderCustomizedLabel}
+                      >
                         {pieEgresos.map((entry, index) => <Cell key={index} fill={COLORS_EG[index % COLORS_EG.length]} />)}
                       </Pie>
                       <Tooltip content={<CustomPieTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: 11, fontFamily: tokens.fontBody, paddingTop: 10 }} />
+                      <Legend layout="vertical" verticalAlign="middle" align="right" iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12, fontFamily: tokens.fontBody, color: '#94A3B8', paddingLeft: 20 }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
