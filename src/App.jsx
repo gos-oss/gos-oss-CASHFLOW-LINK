@@ -31,10 +31,9 @@ const PLAN_INCOME_CATS = [
 const PLAN_EXPENSE_CATS = [
   { key: "custom_proyectos", label: "Proyectos" },
   { key: "custom_rrhh", label: "RRHH" },
-  { key: "custom_administracion", label: "Gastos de Estructura" }, // <-- Nombre actualizado
+  { key: "custom_administracion", label: "Gastos de Estructura" },
   { key: "custom_inversiones", label: "Inversiones" },
   { key: "custom_pasivos-financieros", label: "Pasivos Financieros" }
-  // <-- Categoría Seguros eliminada
 ];
 
 const DEFAULT_PLAN_2026 = {
@@ -520,7 +519,7 @@ export default function App() {
         <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
           <img src="/link-banner.png" alt="LINK" style={{ width: "100%", height: "85px", objectFit: "cover", objectPosition: "left center", display: "block" }} />
           <div style={{ padding: "14px 20px 16px" }}>
-            <div style={{ fontFamily: tokens.fontDisplay, fontSize: 18, fontWeight: 600, letterSpacing: "0.2px" }}>Cashflow</div>
+            <div style={{ fontFamily: tokens.fontDisplay, fontSize: 18, fontWeight: 600, letterSpacing: "0.2px" }}>Finanzas</div>
             <div style={{ fontSize: 11, color: "#8590A6", marginTop: 2, letterSpacing: "0.3px" }}>Azlepi · Sigma</div>
           </div>
         </div>
@@ -771,7 +770,7 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
 }
 
 // =========================================================================
-// PESTAÑA: PLAN DE FONDOS CON INDICADOR CENTRAL DÓLAR
+// PESTAÑA: PLAN DE FONDOS MULTI-AÑO
 // =========================================================================
 function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planesFondos, mappingGuardado, onGuardarPlan, onGuardarMapeo, tcList }) {
   const meses = [
@@ -794,9 +793,8 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
     setMappingDraft({ ingreso: { ...(mappingGuardado?.ingreso || {}) }, egreso: { ...(mappingGuardado?.egreso || {}) } });
   }, [mappingGuardado, view]);
 
-  // CÁLCULO DEL ÚLTIMO DÓLAR PARA EL KPI CENTRAL
   const ultimoDolar = useMemo(() => {
-    if (!tcList || tcList.length === 0) return 1; // Fallback para no dividir por 0
+    if (!tcList || tcList.length === 0) return 1; 
     const sorted = [...tcList].sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
     return Number(sorted[0].saldo_efectivo) || 1;
   }, [tcList]);
