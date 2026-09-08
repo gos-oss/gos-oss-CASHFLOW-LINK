@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { tokens } from "./tokens";
 import { Plus, Trash2, CalendarCheck2 } from "lucide-react";
 
-// Estilos locales
 const fieldInputStyle = {
   width: "100%", padding: "8px 10px", border: `1px solid ${tokens.rule || '#C2CAD4'}`, 
   borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box",
@@ -19,13 +18,16 @@ function Field({ label, children }) {
   );
 }
 
-export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGuardar, onEliminar, formatDate, movimientoAEditar, setMovimientoAEditar, tcList }) {
+export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGuardar, onEliminar, formatDate, movimientoAEditar, setMovimientoAEditar }) {
   const [fecha, setFecha] = useState("");
   const [tipo, setTipo] = useState("ingreso");
   const [estado, setEstado] = useState("proyectado");
   const [conceptoKey, setConceptoKey] = useState("");
-  const [monto, setMonto] = useState("");
-  const [moneda, setMoneda] = useState("ARS"); // NUEVO ESTADO: ARS o USD
+  
+  // AHORA TENEMOS DOS MONTOS SEPARADOS
+  const [montoArs, setMontoArs] = useState("");
+  const [montoUsd, setMontoUsd] = useState("");
+  
   const [nota, setNota] = useState("");
 
   useEffect(() => {
@@ -34,16 +36,16 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
       setTipo(movimientoAEditar.tipo);
       setEstado(movimientoAEditar.estado || "proyectado");
       setConceptoKey(movimientoAEditar.key);
-      setMonto(movimientoAEditar.monto.toString());
-      setMoneda("ARS"); // Cuando editamos, el monto ya fue convertido y guardado en pesos
+      setMontoArs(movimientoAEditar.ars ? movimientoAEditar.ars.toString() : "");
+      setMontoUsd(movimientoAEditar.usd ? movimientoAEditar.usd.toString() : "");
       setNota(movimientoAEditar.nota || "");
     } else {
       setFecha("");
       setTipo("ingreso");
       setEstado("proyectado");
       setConceptoKey("");
-      setMonto("");
-      setMoneda("ARS");
+      setMontoArs("");
+      setMontoUsd("");
       setNota("");
     }
   }, [movimientoAEditar]);
@@ -53,43 +55,19 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
   };
 
   const handleGuardar = async () => {
-    if (!fecha || !conceptoKey || !monto || Number(monto) <= 0) {
-      alert("Por favor rellena fecha, concepto y un monto válido.");
+    if (!fecha || !conceptoKey || (!montoArs && !montoUsd)) {
+      alert("Por favor rellena fecha, concepto y al menos un monto (en Pesos o en Dólares).");
       return;
-    }
-
-    let montoFinal = Number(monto);
-    let notaFinal = nota;
-
-    // LÓGICA DE CONVERSIÓN A DÓLARES
-    if (moneda === "USD") {
-      // Busca el último TC válido para esa fecha o fechas anteriores
-      const validTCs = tcList
-          .filter(t => t.fecha_corte <= fecha)
-          .sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
-      
-      const tcActual = validTCs.length > 0 ? Number(validTCs[0].saldo_efectivo) : 0;
-      
-      if (tcActual === 0) {
-         alert("⚠️ No hay un Tipo de Cambio (Dólar) cargado para esta fecha o una anterior. Por favor, ve a la pestaña Configuración y carga el valor del dólar.");
-         return; // Frenamos el guardado
-      }
-      
-      // Matemática: Monto en USD x Tipo de Cambio
-      montoFinal = Number(monto) * tcActual;
-      
-      // Creamos la trazabilidad para la Nota
-      const refDolar = `[USD ${Number(monto).toLocaleString("es-AR")} a TC ${tcActual}]`;
-      notaFinal = nota ? `${nota} ${refDolar}` : refDolar;
     }
 
     const exito = await onGuardar({
       fecha,
       tipo,
       key: conceptoKey,
-      monto: montoFinal,
+      montoArs: Number(montoArs) || 0,
+      montoUsd: Number(montoUsd) || 0,
       estado,
-      nota: notaFinal,
+      nota
     });
 
     if (exito) {
@@ -151,15 +129,12 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
         </select>
       </Field>
 
-      <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: 14 }}>
-        <Field label="Moneda">
-          <select value={moneda} onChange={(e) => setMoneda(e.target.value)} style={fieldInputStyle}>
-            <option value="ARS">ARS ($)</option>
-            <option value="USD">USD (U$D)</option>
-          </select>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <Field label="Monto en ARS ($)">
+          <input type="number" value={montoArs} onChange={(e) => setMontoArs(e.target.value)} placeholder="0" style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} />
         </Field>
-        <Field label={`Monto (${moneda})`}>
-          <input type="number" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="0" style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} />
+        <Field label="Monto en USD (U$D)">
+          <input type="number" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} placeholder="0" style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} />
         </Field>
       </div>
 
