@@ -3,7 +3,6 @@ import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
-import Cash13Semanas, { useSemanas13 } from "./Cash13Semanas";
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
@@ -18,7 +17,7 @@ import {
 } from "lucide-react";
 
 // =========================================================================
-// CATEGORÍAS FIJAS DEL PLAN DE FONDOS
+// CATEGORÍAS FIJAS DEL PRESUPUESTO ANUAL
 // =========================================================================
 const PLAN_INCOME_CATS = [
   { key: "custom_cupos-socios", label: "Cupos Socios" },
@@ -116,8 +115,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
-  { id: "semanas13", label: "Cash 13 semanas", icon: CalendarRange },
-  { id: "plan-fondos", label: "Plan de Fondos", icon: BarChart3 },
+  { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 }, // <-- RENOMBRADO A PRESUPUESTO ANUAL
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
   { id: "conceptos", label: "Conceptos", icon: Tag },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
@@ -253,7 +251,7 @@ export default function App() {
   const guardarPlanDeFondos = async (nuevoPlan, year) => {
     setPlanesFondos(prev => ({ ...prev, [year]: nuevoPlan }));
     const { error } = await supabase.from("cashflow_plan").upsert({ id: year, data: nuevoPlan });
-    if (error) alert("Error al guardar el plan de fondos: " + error.message);
+    if (error) alert("Error al guardar el presupuesto: " + error.message);
   };
 
   const guardarMapeo = async (nuevoMapeo) => {
@@ -276,17 +274,19 @@ export default function App() {
     setWeeks(data || []);
   };
 
-  const guardarMovimiento = async ({ fecha, tipo, key, monto, estado, nota }) => {
+  const guardarMovimiento = async ({ fecha, tipo, key, montoArs, montoUsd, estado, nota }) => {
     const existente = weeks.find((w) => w.week_start === fecha);
     const base = existente || { id: fecha, week_start: fecha, status: estado, saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
+    
     let currentNotes = {};
     try { currentNotes = JSON.parse(base.notes || "{}"); } catch(e) {}
     if (nota && nota.trim() !== "") currentNotes[`${tipo}_${key}`] = nota;
     else delete currentNotes[`${tipo}_${key}`];
 
     const actualizada = { ...base, status: estado || base.status, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) }, notes: JSON.stringify(currentNotes) };
-    if (tipo === "ingreso") actualizada.income[key] = Number(monto) || 0;
-    else actualizada.expense[key] = Number(monto) || 0;
+    
+    const field = tipo === "ingreso" ? "income" : "expense";
+    actualizada[field][key] = { ars: Number(montoArs) || 0, usd: Number(montoUsd) || 0 };
 
     await supabase.from("cashflow_weeks").upsert(actualizada);
     const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
@@ -300,15 +300,17 @@ export default function App() {
     let currentNotes = {};
     try { currentNotes = JSON.parse(existente.notes || "{}"); } catch(e) {}
     delete currentNotes[`${tipo}_${key}`];
+    
     const actualizada = { ...existente, income: { ...(existente.income || {}) }, expense: { ...(existente.expense || {}) }, notes: JSON.stringify(currentNotes) };
-    if (tipo === "ingreso") delete actualizada.income[key];
-    else delete actualizada.expense[key];
+    const field = tipo === "ingreso" ? "income" : "expense";
+    delete actualizada[field][key];
+    
     await supabase.from("cashflow_weeks").upsert(actualizada);
     const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
     setWeeks(data || []);
   };
 
-  const moverMovimiento = async (origenFecha, destinoFecha, tipo, key, monto) => {
+  const moverMovimiento = async (origenFecha, destinoFecha, tipo, key, ars, usd) => {
     if (origenFecha === destinoFecha) return;
     const origen = weeks.find((w) => w.week_start === origenFecha);
     let notaMovida = null;
@@ -325,7 +327,16 @@ export default function App() {
     const destino = weeks.find((w) => w.week_start === destinoFecha) || { id: destinoFecha, week_start: destinoFecha, status: "proyectado", saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
     let upDestino = { ...destino, income: { ...(destino.income || {}) }, expense: { ...(destino.expense || {}) } };
     const field2 = tipo === "ingreso" ? "income" : "expense";
-    upDestino[field2][key] = (upDestino[field2][key] || 0) + Number(monto);
+    
+    const valDest = upDestino[field2][key];
+    let dArs = 0, dUsd = 0;
+    if (typeof valDest === 'object' && valDest !== null) {
+        dArs = Number(valDest.ars || 0); dUsd = Number(valDest.usd || 0);
+    } else {
+        dArs = Number(valDest || 0);
+    }
+    upDestino[field2][key] = { ars: dArs + Number(ars), usd: dUsd + Number(usd) };
+
     if (notaMovida) {
       let destinoNotes = {};
       try { destinoNotes = JSON.parse(destino.notes || "{}"); } catch(e) {}
@@ -346,7 +357,7 @@ export default function App() {
     const existente = weeks.find((w) => w.week_start === anchor);
     const base = existente || { id: anchor, week_start: anchor, status: "proyectado", saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
     const actualizada = { ...base, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) } };
-    if (actualizada[field][key] === undefined) actualizada[field][key] = 0;
+    if (actualizada[field][key] === undefined) actualizada[field][key] = { ars: 0, usd: 0 };
     await supabase.from("cashflow_weeks").upsert(actualizada);
     const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
     setWeeks(data || []);
@@ -401,6 +412,14 @@ export default function App() {
     const fechasConArqueo = Object.keys(arqueosDict).sort();
     const firstArqueoDate = fechasConArqueo.length > 0 ? fechasConArqueo[0] : null;
 
+    const getTC = (date) => {
+      if (!tcList || tcList.length === 0) return 1;
+      const validTCs = tcList
+          .filter(t => t.fecha_corte <= date)
+          .sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
+      return validTCs.length > 0 ? Number(validTCs[0].saldo_efectivo) || 1 : 1;
+    };
+
     let currentSaldo = 0;
     
     if (firstArqueoDate) {
@@ -408,17 +427,37 @@ export default function App() {
          for (let f of fechasArray) {
              if (f >= firstArqueoDate) break; 
              const w = weeks.find(week => week.week_start === f) || {};
-             const ing = Object.values(w.income || {}).reduce((a,b) => a + Number(b||0), 0);
-             const eg = Object.values(w.expense || {}).reduce((a,b) => a + Number(b||0), 0);
-             flowSum += (ing - eg);
+             const tcActual = getTC(f);
+             
+             const calcSum = (obj) => {
+                 let t = 0;
+                 Object.values(obj || {}).forEach(v => {
+                     if (typeof v === 'object' && v !== null) t += Number(v.ars || 0) + (Number(v.usd || 0) * tcActual);
+                     else t += Number(v || 0);
+                 });
+                 return t;
+             };
+             
+             flowSum += (calcSum(w.income) - calcSum(w.expense));
          }
          currentSaldo = arqueosDict[firstArqueoDate] - flowSum;
     }
 
     return fechasArray.map((fecha) => {
       const w = weeks.find((week) => week.week_start === fecha) || { income: {}, expense: {}, notes: "{}" };
-      const ing = Object.values(w.income || {}).reduce((a, b) => a + Number(b || 0), 0);
-      const eg = Object.values(w.expense || {}).reduce((a, b) => a + Number(b || 0), 0);
+      const tcActual = getTC(fecha);
+      
+      const calcSum = (obj) => {
+          let t = 0;
+          Object.values(obj || {}).forEach(v => {
+              if (typeof v === 'object' && v !== null) t += Number(v.ars || 0) + (Number(v.usd || 0) * tcActual);
+              else t += Number(v || 0);
+          });
+          return t;
+      };
+
+      const ing = calcSum(w.income);
+      const eg = calcSum(w.expense);
       const pos = ing - eg;
       
       let parsedNotes = {};
@@ -441,7 +480,7 @@ export default function App() {
         esArqueo, ajuste 
       };
     });
-  }, [weeks, arqueosList]);
+  }, [weeks, arqueosList, tcList]);
 
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
@@ -486,9 +525,20 @@ export default function App() {
     let maxEgresoCat = "Sin egresos proyectados";
     if (datosProyectados.length > 0) {
       const sumasEgresos = {};
+      const getTC = (d) => {
+        if (!tcList || tcList.length === 0) return 1;
+        const vTC = tcList.filter(t => t.fecha_corte <= d).sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
+        return vTC.length > 0 ? Number(vTC[0].saldo_efectivo) || 1 : 1;
+      };
+
       datosProyectados.forEach(w => {
-         Object.entries(w.expense || {}).forEach(([k, v]) => {
-            sumasEgresos[k] = (sumasEgresos[k] || 0) + Number(v);
+         const rawWeek = weeks.find(raw => raw.week_start === w.week_start) || {};
+         const tc = getTC(w.week_start);
+         Object.entries(rawWeek.expense || {}).forEach(([k, v]) => {
+            let pVal = 0;
+            if (typeof v === 'object' && v !== null) pVal = Number(v.ars||0) + Number(v.usd||0)*tc;
+            else pVal = Number(v||0);
+            sumasEgresos[k] = (sumasEgresos[k] || 0) + pVal;
          });
       });
       Object.entries(sumasEgresos).forEach(([k, v]) => {
@@ -504,9 +554,7 @@ export default function App() {
       diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy,
       flujoNetoMes, cobertura, maxEgresoVal, maxEgresoCat
     };
-  }, [procesadas, arqueosList, expenseCats]);
-
-  const semanas13 = useSemanas13(procesadas, fechaSaldo, saldoEfectivo, saldoBanco);
+  }, [procesadas, arqueosList, expenseCats, weeks, tcList]);
 
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: tokens.ink, color: "#fff", fontFamily: tokens.fontBody }}><style>{fontImport}</style>Iniciando entorno seguro…</div>;
 
@@ -548,10 +596,10 @@ export default function App() {
       <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
         
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
-        {tab === "semanas13" && <Cash13Semanas semanas={semanas13} fmt={fmt} />}
-
-        {tab === "plan-fondos" && (
-          <PlanDeFondosTab 
+        
+        {/* RENOMBRADO A PRESUPUESTO ANUAL */}
+        {tab === "presupuesto" && (
+          <PresupuestoAnualTab 
             planIncomeCats={PLAN_INCOME_CATS}
             planExpenseCats={PLAN_EXPENSE_CATS}
             dailyIncomeCats={incomeCats} 
@@ -590,6 +638,8 @@ export default function App() {
               )}
               <FlujoTable 
                 procesadas={procesadas} 
+                weeks={weeks} 
+                tcList={tcList} 
                 incomeCats={incomeCats} 
                 expenseCats={expenseCats} 
                 fmt={fmt} 
@@ -770,9 +820,9 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
 }
 
 // =========================================================================
-// PESTAÑA: PLAN DE FONDOS MULTI-AÑO
+// PESTAÑA: PRESUPUESTO ANUAL
 // =========================================================================
-function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planesFondos, mappingGuardado, onGuardarPlan, onGuardarMapeo, tcList }) {
+function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planesFondos, mappingGuardado, onGuardarPlan, onGuardarMapeo, tcList }) {
   const meses = [
     { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
     { k: "05", n: "May" }, { k: "06", n: "Jun" }, { k: "07", n: "Jul" }, { k: "08", n: "Ago" },
@@ -904,7 +954,7 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "0 0 4px 0" }}>
              <h2 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>
-               {view === "mapeo" ? "Mapeador de Conceptos" : "Plan de Fondos"}
+               {view === "mapeo" ? "Mapeador de Conceptos" : "Presupuesto Anual"}
              </h2>
              {view === "presupuesto" && (
                <select 
@@ -923,7 +973,7 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
           <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>
             {view === "mapeo" 
               ? "Vincula tus categorías del Cashflow diario con las bolsas del Presupuesto Anual." 
-              : editMode ? `Estás editando el presupuesto del ${selectedYear}.` : `Presupuesto anual estimado para ${selectedYear}.`}
+              : editMode ? `Estás editando el presupuesto de ${selectedYear}.` : `Presupuesto proyectado para ${selectedYear}.`}
           </p>
         </div>
         
@@ -1037,13 +1087,13 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
                 <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
                   <thead>
                     <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                      <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Categoría del Plan</th>
+                      <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Categoría del Presupuesto</th>
                       {meses.map(m => <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m.n}</th>)}
                       <th style={{ padding: 14, textAlign: "right", minWidth: 100, fontFamily: tokens.fontMono, color: tokens.text }}>Total Anual</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS (Presupuesto)</td></tr>
+                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS</td></tr>
                     {planIncomeCats.map(c => (
                        <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                           <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
@@ -1063,12 +1113,12 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
                        </tr>
                     ))}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos Presupuestados</td>
+                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos Proyectados</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
                       <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
                     </tr>
 
-                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS (Presupuesto)</td></tr>
+                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS</td></tr>
                     {planExpenseCats.map(c => (
                        <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                           <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
@@ -1088,7 +1138,7 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
                        </tr>
                     ))}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos Presupuestados</td>
+                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos Proyectados</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
                       <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
                     </tr>
@@ -1141,7 +1191,7 @@ function PlanDeFondosTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dai
 // =========================================================================
 // TABLA DE MOVIMIENTOS CON SISTEMA DE ACORDEÓN MENSUAL E INTERACCIÓN
 // =========================================================================
-function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimiento, formatDate, onEditClick }) {
+function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, onMoverMovimiento, formatDate, onEditClick }) {
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
   const [collapsedMonths, setCollapsedMonths] = useState(new Set()); 
@@ -1165,6 +1215,14 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
     }
   };
 
+  const getTC = (date) => {
+    if (!tcList || tcList.length === 0) return 1;
+    const validTCs = tcList
+        .filter(t => t.fecha_corte <= date)
+        .sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
+    return validTCs.length > 0 ? Number(validTCs[0].saldo_efectivo) || 1 : 1;
+  };
+
   const columnasVisibles = useMemo(() => {
     const result = [];
     const mesesMap = {};
@@ -1182,8 +1240,24 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
             };
         }
         const g = mesesMap[mesKey];
-        Object.entries(w.income || {}).forEach(([k, v]) => { g.income[k] = (g.income[k] || 0) + v; });
-        Object.entries(w.expense || {}).forEach(([k, v]) => { g.expense[k] = (g.expense[k] || 0) + v; });
+        
+        const rawWeek = weeks.find(r => r.week_start === w.week_start) || {};
+        const tc = getTC(w.week_start);
+
+        Object.entries(rawWeek.income || {}).forEach(([k, v]) => { 
+            let valPesos = 0;
+            if (typeof v === 'object' && v !== null) valPesos = Number(v.ars||0) + Number(v.usd||0)*tc;
+            else valPesos = Number(v||0);
+            g.income[k] = (g.income[k] || 0) + valPesos; 
+        });
+
+        Object.entries(rawWeek.expense || {}).forEach(([k, v]) => { 
+            let valPesos = 0;
+            if (typeof v === 'object' && v !== null) valPesos = Number(v.ars||0) + Number(v.usd||0)*tc;
+            else valPesos = Number(v||0);
+            g.expense[k] = (g.expense[k] || 0) + valPesos; 
+        });
+
         g.totalIngresos += w.totalIngresos;
         g.totalEgresos += w.totalEgresos;
         g.posicion += w.posicion;
@@ -1196,12 +1270,13 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
             result.push(mesesMap[mesKey]); 
         } else {
             procesadas.filter(w => w.week_start.startsWith(mesKey)).forEach(d => {
-                result.push({ ...d, isMonth: false, mesKey }); 
+                const rawWeek = weeks.find(r => r.week_start === d.week_start) || {};
+                result.push({ ...d, isMonth: false, mesKey, rawIncome: rawWeek.income, rawExpense: rawWeek.expense }); 
             });
         }
     });
     return result;
-  }, [procesadas, collapsedMonths]);
+  }, [procesadas, collapsedMonths, weeks, tcList]);
 
   const monthGroups = useMemo(() => {
     const groups = [];
@@ -1231,8 +1306,8 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
     return `${mNames[parseInt(m, 10)-1]} ${y}`;
   };
 
-  const handleDragStart = (e, origenFecha, tipo, key, monto) => {
-    e.dataTransfer.setData("application/json", JSON.stringify({ origenFecha, tipo, key, monto }));
+  const handleDragStart = (e, origenFecha, tipo, key, ars, usd) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({ origenFecha, tipo, key, ars, usd }));
   };
 
   const handleDrop = (e, destinoFecha, targetTipo, targetKey) => {
@@ -1243,7 +1318,7 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
         alert("Solo puedes mover el importe a otra fecha del mismo concepto.");
         return;
       }
-      onMoverMovimiento(data.origenFecha, destinoFecha, data.tipo, data.key, data.monto);
+      onMoverMovimiento(data.origenFecha, destinoFecha, data.tipo, data.key, data.ars, data.usd);
     } catch (err) { console.error("Error al mover:", err); }
   };
 
@@ -1308,8 +1383,26 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                 <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                 {columnasVisibles.map((w, i) => {
-                  const monto = w.income?.[c.key] || 0;
+                  
+                  let monto = 0, ars = 0, usd = 0;
+                  if (w.isMonth) {
+                     monto = w.income?.[c.key] || 0;
+                  } else {
+                     const rawVal = w.rawIncome?.[c.key];
+                     if (typeof rawVal === 'object' && rawVal !== null) {
+                         ars = Number(rawVal.ars || 0);
+                         usd = Number(rawVal.usd || 0);
+                         const tc = getTC(w.week_start);
+                         monto = ars + (usd * tc);
+                     } else {
+                         monto = Number(rawVal || 0);
+                         ars = monto;
+                     }
+                  }
+
                   const nota = w.parsedNotes?.[`ingreso_${c.key}`];
+                  const tooltipStr = w.isMonth ? "" : `ARS: $${fmt(ars)} | USD: U$D ${fmt(usd)}${nota ? `\nNota: ${nota}` : ''}\n(Clic para editar)`;
+
                   return (
                     <td key={i} onDragOver={(e) => !w.isMonth && e.preventDefault()} onDrop={(e) => !w.isMonth && handleDrop(e, w.week_start, "ingreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104, background: w.isMonth ? colorTotalBg : 'transparent' }}>
                       {monto > 0 ? (
@@ -1319,9 +1412,9 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                           <div 
                             className="draggable-chip" 
                             draggable={true} 
-                            onDragStart={(e) => handleDragStart(e, w.week_start, "ingreso", c.key, monto)}
-                            onClick={() => onEditClick({ fecha: w.week_start, tipo: "ingreso", key: c.key, monto, nota })}
-                            title="Clic para editar"
+                            onDragStart={(e) => handleDragStart(e, w.week_start, "ingreso", c.key, ars, usd)}
+                            onClick={() => onEditClick({ fecha: w.week_start, tipo: "ingreso", key: c.key, ars, usd, nota })}
+                            title={tooltipStr}
                             style={{ position: "relative", cursor: "pointer", background: "#F0FDF4", border: "1px dashed #BBF7D0", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.positive, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
                           >
                             {fmt(monto)}
@@ -1347,8 +1440,26 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                 <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                 {columnasVisibles.map((w, i) => {
-                  const monto = w.expense?.[c.key] || 0;
+                  
+                  let monto = 0, ars = 0, usd = 0;
+                  if (w.isMonth) {
+                     monto = w.expense?.[c.key] || 0;
+                  } else {
+                     const rawVal = w.rawExpense?.[c.key];
+                     if (typeof rawVal === 'object' && rawVal !== null) {
+                         ars = Number(rawVal.ars || 0);
+                         usd = Number(rawVal.usd || 0);
+                         const tc = getTC(w.week_start);
+                         monto = ars + (usd * tc);
+                     } else {
+                         monto = Number(rawVal || 0);
+                         ars = monto;
+                     }
+                  }
+
                   const nota = w.parsedNotes?.[`egreso_${c.key}`];
+                  const tooltipStr = w.isMonth ? "" : `ARS: $${fmt(ars)} | USD: U$D ${fmt(usd)}${nota ? `\nNota: ${nota}` : ''}\n(Clic para editar)`;
+
                   return (
                     <td key={i} onDragOver={(e) => !w.isMonth && e.preventDefault()} onDrop={(e) => !w.isMonth && handleDrop(e, w.week_start, "egreso", c.key)} style={{ padding: "6px 14px", textAlign: "right", minWidth: 104, background: w.isMonth ? colorTotalBg : 'transparent' }}>
                       {monto > 0 ? (
@@ -1358,9 +1469,9 @@ function FlujoTable({ procesadas, incomeCats, expenseCats, fmt, onMoverMovimient
                           <div 
                             className="draggable-chip" 
                             draggable={true} 
-                            onDragStart={(e) => handleDragStart(e, w.week_start, "egreso", c.key, monto)}
-                            onClick={() => onEditClick({ fecha: w.week_start, tipo: "egreso", key: c.key, monto, nota })}
-                            title="Clic para editar"
+                            onDragStart={(e) => handleDragStart(e, w.week_start, "egreso", c.key, ars, usd)}
+                            onClick={() => onEditClick({ fecha: w.week_start, tipo: "egreso", key: c.key, ars, usd, nota })}
+                            title={tooltipStr}
                             style={{ position: "relative", cursor: "pointer", background: "#FEF2F2", border: "1px dashed #FECACA", borderRadius: 4, padding: "4px 8px", display: "inline-block", color: tokens.negative, fontFamily: tokens.fontMono, transition: "all 0.15s" }}
                           >
                             {fmt(monto)}
