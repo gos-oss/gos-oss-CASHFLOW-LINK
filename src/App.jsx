@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
+import CategoryManager from "./CategoryManager";
+import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import CargarMovimiento from "./CargarMovimiento";
@@ -13,7 +15,7 @@ import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, DollarSign
+  CalendarDays, Scale, Percent, TrendingDown, DollarSign, TrendingUp
 } from "lucide-react";
 
 // =========================================================================
@@ -115,8 +117,9 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
-  { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 }, // <-- RENOMBRADO A PRESUPUESTO ANUAL
+  { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
+  { id: "indicadores", label: "Indicadores Financieros", icon: TrendingUp },
   { id: "conceptos", label: "Conceptos", icon: Tag },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
 ];
@@ -349,6 +352,9 @@ export default function App() {
   };
 
   const fieldFor = (grupo) => (grupo === "ingreso" ? "income" : "expense");
+  {tab === "indicadores" && <IndicadoresFinancierosTab />}
+
+{tab === "conceptos" && <CategoryManager incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onAdd={agregarConcepto} onRename={renombrarConcepto} onDelete={eliminarConcepto} />}
 
   const agregarConcepto = async (grupo, label) => {
     const field = fieldFor(grupo);
