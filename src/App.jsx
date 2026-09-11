@@ -11,9 +11,9 @@ import {
 } from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
-  ListChecks, Tag, SlidersHorizontal, Compass,
+  ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity
+  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity, Wand2
 } from "lucide-react";
 
 // =========================================================================
@@ -113,7 +113,6 @@ const formatDate = (isoStr) => {
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// NAVEGACIÓN LIMPIA
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
   { id: "monitor", label: "Monitor Económico", icon: Activity },
@@ -395,6 +394,8 @@ export default function App() {
     setWeeks(data || []);
     return true;
   };
+
+  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
