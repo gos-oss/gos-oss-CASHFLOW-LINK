@@ -113,6 +113,7 @@ const formatDate = (isoStr) => {
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// NAVEGACIÓN
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
   { id: "monitor", label: "Monitor Económico", icon: Activity },
@@ -395,8 +396,6 @@ export default function App() {
     return true;
   };
 
-  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
@@ -598,7 +597,7 @@ export default function App() {
         
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
         
-        {/* MÓDULO: MONITOR ECONÓMICO (SIN ARCHIVOS EXTERNOS) */}
+        {/* MÓDULO: MONITOR ECONÓMICO */}
         {tab === "monitor" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", gap: 16 }}>
             <div>
@@ -848,9 +847,9 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const [planDraft, setPlanDraft] = useState({});
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
 
+  // ESTADO DEL SIMULADOR "SANDBOX"
   const [simulacionActiva, setSimulacionActiva] = useState(false);
-  const [varIngresos, setVarIngresos] = useState(0); 
-  const [varEgresos, setVarEgresos] = useState(0);   
+  const [simDraft, setSimDraft] = useState({});
 
   useEffect(() => {
     setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
@@ -864,14 +863,26 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     if (editMode) setSimulacionActiva(false);
   }, [editMode]);
 
+  const toggleSimulador = () => {
+    if (!simulacionActiva) {
+      setSimDraft(JSON.parse(JSON.stringify(planDraft)));
+      setSimulacionActiva(true);
+      setEditMode(false);
+    } else {
+      setSimulacionActiva(false);
+    }
+  };
+
   const ultimoDolar = useMemo(() => {
     if (!tcList || tcList.length === 0) return 1; 
     const sorted = [...tcList].sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
     return Number(sorted[0].saldo_efectivo) || 1;
   }, [tcList]);
 
+  // LA MAGIA: Si el simulador está activo, escribe en simDraft, sino en planDraft
   const handleInputChange = (tipo, conceptoKey, mesKey, value) => {
-    setPlanDraft(prev => {
+    const setter = simulacionActiva ? setSimDraft : setPlanDraft;
+    setter(prev => {
       const newState = { ...prev };
       if (!newState[tipo]) newState[tipo] = {};
       if (!newState[tipo][conceptoKey]) newState[tipo][conceptoKey] = {};
@@ -884,30 +895,27 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     setMappingDraft(prev => ({ ...prev, [tipo]: { ...prev[tipo], [dailyKey]: planKey } }));
   };
 
-  const multIng = simulacionActiva ? 1 + (varIngresos / 100) : 1;
-  const multEg = simulacionActiva ? 1 + (varEgresos / 100) : 1;
+  // El plan activo para TODOS los cálculos es el simulado si está encendido, o el real si está apagado
+  const activePlan = simulacionActiva ? simDraft : planDraft;
 
   const calcularTotalFila = (tipo, conceptoKey) => {
     let total = 0;
-    const mult = tipo === "ingreso" ? multIng : multEg;
-    meses.forEach(m => { total += (planDraft?.[tipo]?.[conceptoKey]?.[m.k] || 0) * mult; });
+    meses.forEach(m => { total += (activePlan?.[tipo]?.[conceptoKey]?.[m.k] || 0); });
     return total;
   };
 
   const calcularTotalColumna = (tipo, mesKey) => {
     let total = 0;
-    const mult = tipo === "ingreso" ? multIng : multEg;
     const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
-    catalogo.forEach(c => { total += (planDraft?.[tipo]?.[c.key]?.[mesKey] || 0) * mult; });
+    catalogo.forEach(c => { total += (activePlan?.[tipo]?.[c.key]?.[mesKey] || 0); });
     return total;
   };
 
   const calcSemestre = (tipo, mesesFilter) => {
     let t = 0;
-    const mult = tipo === "ingreso" ? multIng : multEg;
-    const dataTipo = planDraft?.[tipo] || {};
+    const dataTipo = activePlan?.[tipo] || {};
     Object.keys(dataTipo).forEach(catKey => {
-      mesesFilter.forEach(m => { t += (dataTipo[catKey]?.[m] || 0) * mult; });
+      mesesFilter.forEach(m => { t += (dataTipo[catKey]?.[m] || 0); });
     });
     return t;
   };
@@ -1024,8 +1032,8 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
             ) : (
               <>
                 {/* BOTÓN SIMULADOR */}
-                <button onClick={() => setSimulacionActiva(!simulacionActiva)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
-                  <Wand2 size={16} /> {simulacionActiva ? "Cerrar Simulador" : "Simular Escenarios"}
+                <button onClick={toggleSimulador} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
+                  <Wand2 size={16} /> {simulacionActiva ? "Cerrar Simulador" : "Simulador Sandbox"}
                 </button>
 
                 <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -1044,22 +1052,12 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
       {view === "presupuesto" && (
         <>
           {simulacionActiva && !editMode && (
-            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', gap: 32, alignItems: 'center', boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `2px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
               <div>
-                <h3 style={{ margin: "0 0 4px 0", fontSize: 15, color: tokens.text, display: 'flex', alignItems: 'center', gap: 6 }}><Wand2 size={16} color={tokens.gold} /> Simulador Activo</h3>
-                <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Ajusta los porcentajes para proyectar escenarios de aumento o caída.</p>
+                <h3 style={{ margin: "0 0 4px 0", fontSize: 15, color: tokens.gold, display: 'flex', alignItems: 'center', gap: 6 }}><Wand2 size={16} /> Modo Simulación Activo</h3>
+                <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Edita cualquier celda en la tabla inferior para armar tu escenario. <strong>Tus datos reales están a salvo y no se modificarán.</strong></p>
               </div>
-              <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: tokens.positive, textTransform: "uppercase" }}>Variación Ingresos (%)</label>
-                  <input type="number" value={varIngresos} onChange={(e) => setVarIngresos(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, outline: "none", width: 140, fontFamily: tokens.fontMono, fontSize: 15, fontWeight: 600 }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, textTransform: "uppercase" }}>Variación Egresos (%)</label>
-                  <input type="number" value={varEgresos} onChange={(e) => setVarEgresos(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, outline: "none", width: 140, fontFamily: tokens.fontMono, fontSize: 15, fontWeight: 600 }} />
-                </div>
-                <button onClick={() => { setVarIngresos(0); setVarEgresos(0); }} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, height: 38, alignSelf: 'flex-end', color: tokens.textMuted }}>Resetear a 0%</button>
-              </div>
+              <button onClick={() => setSimDraft(JSON.parse(JSON.stringify(planDraft)))} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>Restaurar Originales</button>
             </div>
           )}
 
@@ -1152,14 +1150,13 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                        <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                           <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                           {meses.map(m => {
-                            const valBase = planDraft?.ingreso?.[c.key]?.[m.k] || "";
-                            const valShow = valBase ? valBase * multIng : "";
+                            const valBase = activePlan?.["ingreso"]?.[c.key]?.[m.k] || "";
                             return (
                               <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                {editMode ? (
-                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                {(editMode || simulacionActiva) ? (
+                                  <input type="number" className="plan-input" style={{ borderColor: simulacionActiva ? tokens.gold : tokens.rule }} value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
                                 ) : (
-                                  <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
+                                  <span style={{ color: valBase ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valBase ? `$ ${fmt(valBase)}` : "-"}</span>
                                 )}
                               </td>
                             );
@@ -1178,14 +1175,13 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                        <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                           <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                           {meses.map(m => {
-                            const valBase = planDraft?.egreso?.[c.key]?.[m.k] || "";
-                            const valShow = valBase ? valBase * multEg : "";
+                            const valBase = activePlan?.["egreso"]?.[c.key]?.[m.k] || "";
                             return (
                               <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                {editMode ? (
-                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                {(editMode || simulacionActiva) ? (
+                                  <input type="number" className="plan-input" style={{ borderColor: simulacionActiva ? tokens.gold : tokens.rule }} value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
                                 ) : (
-                                  <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
+                                  <span style={{ color: valBase ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valBase ? `$ ${fmt(valBase)}` : "-"}</span>
                                 )}
                               </td>
                             );
