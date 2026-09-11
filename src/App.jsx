@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
-import CategoryManager from "./CategoryManager";
-import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab";
 import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
+import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab"; // <-- Importado correctamente
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
@@ -120,6 +119,7 @@ const NAV = [
   { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
   { id: "indicadores", label: "Indicadores Financieros", icon: TrendingUp },
+  { id: "monitor", label: "Monitor Económico", icon: Activity },
   { id: "conceptos", label: "Conceptos", icon: Tag },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
 ];
@@ -352,9 +352,6 @@ export default function App() {
   };
 
   const fieldFor = (grupo) => (grupo === "ingreso" ? "income" : "expense");
-  {tab === "indicadores" && <IndicadoresFinancierosTab />}
-
-{tab === "conceptos" && <CategoryManager incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onAdd={agregarConcepto} onRename={renombrarConcepto} onDelete={eliminarConcepto} />}
 
   const agregarConcepto = async (grupo, label) => {
     const field = fieldFor(grupo);
@@ -603,7 +600,26 @@ export default function App() {
         
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
         
-        {/* RENOMBRADO A PRESUPUESTO ANUAL */}
+        {/* PESTAÑA AGREGADA: INDICADORES FINANCIEROS */}
+        {tab === "indicadores" && <IndicadoresFinancierosTab />}
+        
+        {/* MÓDULO: MONITOR ECONÓMICO */}
+        {tab === "monitor" && (
+          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", gap: 16 }}>
+            <div>
+              <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Monitor Económico</h2>
+              <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Indicadores y mercado en tiempo real, integrado desde tu proyecto externo.</p>
+            </div>
+            <div style={{ flex: 1, background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
+              <iframe 
+                src="https://monitor-econ-mico.vercel.app/" 
+                style={{ width: "100%", height: "100%", border: "none" }}
+                title="Monitor Económico"
+              />
+            </div>
+          </div>
+        )}
+
         {tab === "presupuesto" && (
           <PresupuestoAnualTab 
             planIncomeCats={PLAN_INCOME_CATS}
@@ -638,7 +654,6 @@ export default function App() {
                     formatDate={formatDate} 
                     movimientoAEditar={movimientoAEditar}
                     setMovimientoAEditar={setMovimientoAEditar}
-                    tcList={tcList} 
                   />
                 </div>
               )}
@@ -825,9 +840,6 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
   );
 }
 
-// =========================================================================
-// PESTAÑA: PRESUPUESTO ANUAL
-// =========================================================================
 function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats, dailyExpenseCats, fmt, planesFondos, mappingGuardado, onGuardarPlan, onGuardarMapeo, tcList }) {
   const meses = [
     { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
