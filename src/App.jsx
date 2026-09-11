@@ -3,7 +3,6 @@ import { supabase } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
-import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab"; // <-- Importado correctamente
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
@@ -12,9 +11,9 @@ import {
 } from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
-  ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
+  ListChecks, Tag, SlidersHorizontal, Compass,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, DollarSign, TrendingUp
+  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity
 } from "lucide-react";
 
 // =========================================================================
@@ -114,12 +113,12 @@ const formatDate = (isoStr) => {
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// NAVEGACIÓN LIMPIA
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
+  { id: "monitor", label: "Monitor Económico", icon: Activity },
   { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
-  { id: "indicadores", label: "Indicadores Financieros", icon: TrendingUp },
-  { id: "monitor", label: "Monitor Económico", icon: Activity },
   { id: "conceptos", label: "Conceptos", icon: Tag },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
 ];
@@ -397,8 +396,6 @@ export default function App() {
     return true;
   };
 
-  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
@@ -600,10 +597,7 @@ export default function App() {
         
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
         
-        {/* PESTAÑA AGREGADA: INDICADORES FINANCIEROS */}
-        {tab === "indicadores" && <IndicadoresFinancierosTab />}
-        
-        {/* MÓDULO: MONITOR ECONÓMICO */}
+        {/* MÓDULO: MONITOR ECONÓMICO (SIN ARCHIVOS EXTERNOS) */}
         {tab === "monitor" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", gap: 16 }}>
             <div>
@@ -853,6 +847,10 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const [planDraft, setPlanDraft] = useState({});
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
 
+  const [simulacionActiva, setSimulacionActiva] = useState(false);
+  const [varIngresos, setVarIngresos] = useState(0); 
+  const [varEgresos, setVarEgresos] = useState(0);   
+
   useEffect(() => {
     setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
   }, [planesFondos, selectedYear, editMode, view]);
@@ -860,6 +858,10 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   useEffect(() => {
     setMappingDraft({ ingreso: { ...(mappingGuardado?.ingreso || {}) }, egreso: { ...(mappingGuardado?.egreso || {}) } });
   }, [mappingGuardado, view]);
+
+  useEffect(() => {
+    if (editMode) setSimulacionActiva(false);
+  }, [editMode]);
 
   const ultimoDolar = useMemo(() => {
     if (!tcList || tcList.length === 0) return 1; 
@@ -881,24 +883,30 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     setMappingDraft(prev => ({ ...prev, [tipo]: { ...prev[tipo], [dailyKey]: planKey } }));
   };
 
+  const multIng = simulacionActiva ? 1 + (varIngresos / 100) : 1;
+  const multEg = simulacionActiva ? 1 + (varEgresos / 100) : 1;
+
   const calcularTotalFila = (tipo, conceptoKey) => {
     let total = 0;
-    meses.forEach(m => { total += planDraft?.[tipo]?.[conceptoKey]?.[m.k] || 0; });
+    const mult = tipo === "ingreso" ? multIng : multEg;
+    meses.forEach(m => { total += (planDraft?.[tipo]?.[conceptoKey]?.[m.k] || 0) * mult; });
     return total;
   };
 
   const calcularTotalColumna = (tipo, mesKey) => {
     let total = 0;
+    const mult = tipo === "ingreso" ? multIng : multEg;
     const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
-    catalogo.forEach(c => { total += planDraft?.[tipo]?.[c.key]?.[mesKey] || 0; });
+    catalogo.forEach(c => { total += (planDraft?.[tipo]?.[c.key]?.[mesKey] || 0) * mult; });
     return total;
   };
 
   const calcSemestre = (tipo, mesesFilter) => {
     let t = 0;
+    const mult = tipo === "ingreso" ? multIng : multEg;
     const dataTipo = planDraft?.[tipo] || {};
     Object.keys(dataTipo).forEach(catKey => {
-      mesesFilter.forEach(m => { t += dataTipo[catKey]?.[m] || 0; });
+      mesesFilter.forEach(m => { t += (dataTipo[catKey]?.[m] || 0) * mult; });
     });
     return t;
   };
@@ -1013,9 +1021,16 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                 </button>
               </>
             ) : (
-              <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-                <Pencil size={16} /> Editar {selectedYear}
-              </button>
+              <>
+                {/* BOTÓN SIMULADOR */}
+                <button onClick={() => setSimulacionActiva(!simulacionActiva)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
+                  <Wand2 size={16} /> {simulacionActiva ? "Cerrar Simulador" : "Simular Escenarios"}
+                </button>
+
+                <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                  <Pencil size={16} /> Editar {selectedYear}
+                </button>
+              </>
             )
           ) : (
             <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -1027,10 +1042,30 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
       
       {view === "presupuesto" && (
         <>
+          {simulacionActiva && !editMode && (
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', gap: 32, alignItems: 'center', boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
+              <div>
+                <h3 style={{ margin: "0 0 4px 0", fontSize: 15, color: tokens.text, display: 'flex', alignItems: 'center', gap: 6 }}><Wand2 size={16} color={tokens.gold} /> Simulador Activo</h3>
+                <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Ajusta los porcentajes para proyectar escenarios de aumento o caída.</p>
+              </div>
+              <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: tokens.positive, textTransform: "uppercase" }}>Variación Ingresos (%)</label>
+                  <input type="number" value={varIngresos} onChange={(e) => setVarIngresos(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, outline: "none", width: 140, fontFamily: tokens.fontMono, fontSize: 15, fontWeight: 600 }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, textTransform: "uppercase" }}>Variación Egresos (%)</label>
+                  <input type="number" value={varEgresos} onChange={(e) => setVarEgresos(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, outline: "none", width: 140, fontFamily: tokens.fontMono, fontSize: 15, fontWeight: 600 }} />
+                </div>
+                <button onClick={() => { setVarIngresos(0); setVarEgresos(0); }} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, height: 38, alignSelf: 'flex-end', color: tokens.textMuted }}>Resetear a 0%</button>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
             <SemesterCard title="Primer Semestre (Ene - Jun)" ingresos={ingS1} egresos={egS1} neto={ingS1 - egS1} fmt={fmt} />
             <SemesterCard title="Segundo Semestre (Jul - Dic)" ingresos={ingS2} egresos={egS2} neto={ingS2 - egS2} fmt={fmt} />
-            <SemesterCard title="Total Acumulado Anual" ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} />
+            <SemesterCard title={simulacionActiva ? "Total Acumulado SIMULADO" : "Total Acumulado Anual"} ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} />
           </div>
 
           {!editMode && (
@@ -1100,29 +1135,30 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
             </div>
           )}
 
-          <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
+          <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, overflow: "hidden", transition: "border-color 0.3s" }}>
              <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
                 <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
                   <thead>
-                    <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                    <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, transition: "border-color 0.3s" }}>
                       <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Categoría del Presupuesto</th>
                       {meses.map(m => <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m.n}</th>)}
                       <th style={{ padding: 14, textAlign: "right", minWidth: 100, fontFamily: tokens.fontMono, color: tokens.text }}>Total Anual</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS</td></tr>
+                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS {simulacionActiva && "(Simulado)"}</td></tr>
                     {planIncomeCats.map(c => (
                        <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                           <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                           {meses.map(m => {
-                            const val = planDraft?.ingreso?.[c.key]?.[m.k] || "";
+                            const valBase = planDraft?.ingreso?.[c.key]?.[m.k] || "";
+                            const valShow = valBase ? valBase * multIng : "";
                             return (
                               <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
                                 {editMode ? (
-                                  <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
                                 ) : (
-                                  <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
+                                  <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
                                 )}
                               </td>
                             );
@@ -1136,18 +1172,19 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                       <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
                     </tr>
 
-                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS</td></tr>
+                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS {simulacionActiva && "(Simulado)"}</td></tr>
                     {planExpenseCats.map(c => (
                        <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                           <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                           {meses.map(m => {
-                            const val = planDraft?.egreso?.[c.key]?.[m.k] || "";
+                            const valBase = planDraft?.egreso?.[c.key]?.[m.k] || "";
+                            const valShow = valBase ? valBase * multEg : "";
                             return (
                               <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
                                 {editMode ? (
-                                  <input type="number" className="plan-input" value={val} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
                                 ) : (
-                                  <span style={{ color: val ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{val ? `$ ${fmt(val)}` : "-"}</span>
+                                  <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
                                 )}
                               </td>
                             );
