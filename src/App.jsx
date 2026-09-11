@@ -54,6 +54,7 @@ const PLAN_EXPENSE_CATS = [
   { key: "custom_pasivos-financieros", label: "Pasivos Financieros" }
 ];
 
+// DATOS BASE EXTRAÍDOS DE "PLAN_DE_FONDOS_2026_rev 2.0.xlsx"
 const DEFAULT_PLAN_2026 = {
   "ingreso": {
     "custom_cupos-socios": { "01": 188542320, "02": 188542320, "03": 188542320, "04": 188542320, "05": 188542320, "06": 188542320, "07": 233273820, "08": 233273820, "09": 233273820, "10": 233273820, "11": 233273820, "12": 233273820 },
@@ -65,15 +66,15 @@ const DEFAULT_PLAN_2026 = {
   "egreso": {
     "custom_torre-red": {},
     "custom_isaura": {},
-    "custom_duo": {},
-    "custom_300-t1-am": {},
-    "custom_300-t2-am": {},
-    "custom_300-t3-am": {},
-    "custom_300-t4-am": {},
+    "custom_duo": { "01": 356384338, "02": 356384338, "03": 356384338, "04": 356384338, "05": 356384338, "06": 356384338, "07": 34161634, "08": 97952376, "09": 287148042, "10": 124680989 },
+    "custom_300-t1-am": { "01": 9670426, "02": 9734072, "03": 9614418, "04": 9662787, "05": 9925012, "06": 9255453, "07": 9807896, "08": 10711688, "09": 7246775, "10": 7350806, "11": 6081134, "12": 6056691 },
+    "custom_300-t2-am": { "01": 9670426, "02": 9734072, "03": 9614418, "04": 9662787, "05": 9925012, "06": 9255453, "07": 9807896, "08": 10711688, "09": 7246775, "10": 7350806, "11": 6081134, "12": 6056691 },
+    "custom_300-t3-am": { "01": 9670426, "02": 9734072, "03": 9614418, "04": 9662787, "05": 9925012, "06": 9255453, "07": 9807896, "08": 10711688, "09": 7246775, "10": 7350806, "11": 6081134, "12": 6056691 },
+    "custom_300-t4-am": { "01": 9670426, "02": 9734072, "03": 9614418, "04": 9662787, "05": 9925012, "06": 9255453, "07": 9807896, "08": 10711688, "09": 7246775, "10": 7350806, "11": 6081134, "12": 6056691 },
     "custom_300-corporativo": {},
     "custom_300-infra": {},
-    "custom_boulevard": {},
-    "custom_torre-green": {},
+    "custom_boulevard": { "01": 59173434, "02": 57847286, "03": 54816315, "04": 64856702, "05": 53868840, "06": 45723402, "07": 94977865, "08": 20905253, "09": 21287089, "10": 43573541, "11": 84850270, "12": 105764448 },
+    "custom_torre-green": { "07": 22809604, "09": 15495938, "10": 14429867, "11": 9950226, "12": 19195745 },
     "custom_plus-duo": {},
     "custom_marcos-paz-82": {},
     "custom_neuquen": {},
@@ -218,7 +219,8 @@ export default function App() {
       let planesTemporales = {};
       pData.forEach(r => { if (r.id !== "mapping") planesTemporales[r.id] = r.data; });
 
-      if (!planesTemporales["2026"]) {
+      // Si no existe el 2026, o si le faltan los datos del DUO (indicativo de que tiene la versión vieja vacía)
+      if (!planesTemporales["2026"] || !planesTemporales["2026"].egreso["custom_duo"]) {
         planesTemporales["2026"] = DEFAULT_PLAN_2026;
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
       }
