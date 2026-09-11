@@ -13,7 +13,7 @@ import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity, Wand2
+  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity, Wand2, RotateCcw
 } from "lucide-react";
 
 // =========================================================================
@@ -99,9 +99,16 @@ const globalStyles = `
     padding: 8px 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-family: ${tokens.fontBody};
   }
   
-  .recharts-legend-item-text {
-    color: #94A3B8 !important;
+  .recharts-legend-item-text { color: #94A3B8 !important; }
+
+  /* ESTILOS PARA LAS BARRITAS DEL SIMULADOR */
+  .sim-slider {
+    -webkit-appearance: none; width: 100%; height: 5px; border-radius: 3px; background: #DCE1E8; outline: none; cursor: pointer;
   }
+  .sim-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: ${tokens.gold}; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .sim-slider:active::-webkit-slider-thumb { transform: scale(1.2); }
 `;
 
 const formatDate = (isoStr) => {
@@ -142,19 +149,15 @@ export default function App() {
   const [fechaTC, setFechaTC] = useState(todayISO());
   const [valorTC, setValorTC] = useState("");
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
     if (fechaSaldo) {
       const existing = arqueosList.find(a => a.fecha_corte === fechaSaldo);
       if (existing) {
-        setSaldoEfectivo(existing.saldo_efectivo);
-        setSaldoBanco(existing.saldo_banco);
+        setSaldoEfectivo(existing.saldo_efectivo); setSaldoBanco(existing.saldo_banco);
       } else {
-        setSaldoEfectivo("");
-        setSaldoBanco("");
+        setSaldoEfectivo(""); setSaldoBanco("");
       }
     }
   }, [fechaSaldo, arqueosList]);
@@ -173,10 +176,8 @@ export default function App() {
     
     const { data: sData } = await supabase.from("cashflow_settings").select("*");
     if (sData) {
-      const listArq = sData.filter(s => s.id.startsWith("arqueo_") || s.id === "general");
-      setArqueosList(listArq);
-      const listTC = sData.filter(s => s.id.startsWith("tc_"));
-      setTcList(listTC);
+      setArqueosList(sData.filter(s => s.id.startsWith("arqueo_") || s.id === "general"));
+      setTcList(sData.filter(s => s.id.startsWith("tc_")));
     }
 
     const { data: pData } = await supabase.from("cashflow_plan").select("*");
@@ -185,9 +186,7 @@ export default function App() {
       if (mapRow) setMapping(mapRow.data || { ingreso: {}, egreso: {} });
 
       let planesTemporales = {};
-      pData.forEach(r => {
-        if (r.id !== "mapping") planesTemporales[r.id] = r.data;
-      });
+      pData.forEach(r => { if (r.id !== "mapping") planesTemporales[r.id] = r.data; });
 
       if (!planesTemporales["2026"] || (planesTemporales["2026"].egreso && planesTemporales["2026"].egreso["custom_300"])) {
         planesTemporales["2026"] = DEFAULT_PLAN_2026;
@@ -198,118 +197,82 @@ export default function App() {
       setPlanesFondos({ "2026": DEFAULT_PLAN_2026 });
       await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
     }
-
     setLoaded(true);
   };
 
   const guardarSaldos = async () => {
     if (!fechaSaldo) return alert("Seleccioná una fecha para el arqueo.");
-    const idUnico = "arqueo_" + fechaSaldo;
-    
     const { error } = await supabase.from("cashflow_settings").upsert({
-      id: idUnico, 
-      fecha_corte: fechaSaldo, 
-      saldo_efectivo: Number(saldoEfectivo) || 0, 
-      saldo_banco: Number(saldoBanco) || 0,
+      id: "arqueo_" + fechaSaldo, fecha_corte: fechaSaldo, saldo_efectivo: Number(saldoEfectivo) || 0, saldo_banco: Number(saldoBanco) || 0,
     });
-    
     if (error) alert("Error al guardar arqueo: " + error.message);
-    else {
-      alert(`¡Arqueo de Apertura guardado exitosamente para el ${formatDate(fechaSaldo)}!`);
-      fetchData();
-    }
+    else { alert(`¡Arqueo guardado!`); fetchData(); }
   };
 
   const eliminarArqueo = async (id) => {
-    if (!window.confirm("¿Seguro que deseas eliminar este arqueo histórico? La línea de tiempo se recalculará.")) return;
+    if (!window.confirm("¿Eliminar este arqueo?")) return;
     await supabase.from("cashflow_settings").delete().eq("id", id);
     fetchData();
   };
 
   const guardarTC = async () => {
     if (!fechaTC || !valorTC) return alert("Seleccioná una fecha y un valor para el Tipo de Cambio.");
-    const idUnico = "tc_" + fechaTC;
-    
     const { error } = await supabase.from("cashflow_settings").upsert({
-      id: idUnico, 
-      fecha_corte: fechaTC, 
-      saldo_efectivo: Number(valorTC),
-      saldo_banco: 0,
+      id: "tc_" + fechaTC, fecha_corte: fechaTC, saldo_efectivo: Number(valorTC), saldo_banco: 0,
     });
-    
     if (error) alert("Error al guardar TC: " + error.message);
-    else {
-      alert(`¡Tipo de Cambio guardado exitosamente para el ${formatDate(fechaTC)}!`);
-      fetchData();
-    }
+    else { alert(`¡Tipo de Cambio guardado!`); fetchData(); }
   };
 
   const eliminarTC = async (id) => {
-    if (!window.confirm("¿Seguro que deseas eliminar este Tipo de Cambio histórico?")) return;
+    if (!window.confirm("¿Eliminar este Tipo de Cambio?")) return;
     await supabase.from("cashflow_settings").delete().eq("id", id);
     fetchData();
   };
 
   const guardarPlanDeFondos = async (nuevoPlan, year) => {
     setPlanesFondos(prev => ({ ...prev, [year]: nuevoPlan }));
-    const { error } = await supabase.from("cashflow_plan").upsert({ id: year, data: nuevoPlan });
-    if (error) alert("Error al guardar el presupuesto: " + error.message);
+    await supabase.from("cashflow_plan").upsert({ id: year, data: nuevoPlan });
   };
 
   const guardarMapeo = async (nuevoMapeo) => {
     setMapping(nuevoMapeo);
-    const { error } = await supabase.from("cashflow_plan").upsert({ id: "mapping", data: nuevoMapeo });
-    if (error) alert("Error al guardar el mapeo: " + error.message);
-    else alert("Mapeo actualizado correctamente.");
+    await supabase.from("cashflow_plan").upsert({ id: "mapping", data: nuevoMapeo });
+    alert("Mapeo actualizado.");
   };
 
   const handleImportarSemanas = async (semanasNuevas) => {
     await supabase.from("cashflow_weeks").upsert(semanasNuevas);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
+    fetchData();
   };
 
   const handleBorrarDatos = async () => {
-    if (!window.confirm("¿Borrar proyecciones? El tablero quedará en 0.")) return;
+    if (!window.confirm("¿Borrar proyecciones?")) return;
     await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
+    fetchData();
   };
 
   const guardarMovimiento = async ({ fecha, tipo, key, montoArs, montoUsd, estado, nota }) => {
-    const existente = weeks.find((w) => w.week_start === fecha);
-    const base = existente || { id: fecha, week_start: fecha, status: estado, saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
-    
-    let currentNotes = {};
-    try { currentNotes = JSON.parse(base.notes || "{}"); } catch(e) {}
-    if (nota && nota.trim() !== "") currentNotes[`${tipo}_${key}`] = nota;
-    else delete currentNotes[`${tipo}_${key}`];
+    const base = weeks.find((w) => w.week_start === fecha) || { id: fecha, week_start: fecha, status: estado, income: {}, expense: {}, notes: "" };
+    let currentNotes = {}; try { currentNotes = JSON.parse(base.notes || "{}"); } catch(e) {}
+    if (nota) currentNotes[`${tipo}_${key}`] = nota; else delete currentNotes[`${tipo}_${key}`];
 
     const actualizada = { ...base, status: estado || base.status, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) }, notes: JSON.stringify(currentNotes) };
-    
     const field = tipo === "ingreso" ? "income" : "expense";
     actualizada[field][key] = { ars: Number(montoArs) || 0, usd: Number(montoUsd) || 0 };
 
     await supabase.from("cashflow_weeks").upsert(actualizada);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
-    return true;
+    fetchData(); return true;
   };
 
   const eliminarMovimiento = async (fecha, tipo, key) => {
-    const existente = weeks.find((w) => w.week_start === fecha);
-    if (!existente) return;
-    let currentNotes = {};
-    try { currentNotes = JSON.parse(existente.notes || "{}"); } catch(e) {}
+    const existente = weeks.find((w) => w.week_start === fecha); if (!existente) return;
+    let currentNotes = {}; try { currentNotes = JSON.parse(existente.notes || "{}"); } catch(e) {}
     delete currentNotes[`${tipo}_${key}`];
     
     const actualizada = { ...existente, income: { ...(existente.income || {}) }, expense: { ...(existente.expense || {}) }, notes: JSON.stringify(currentNotes) };
-    const field = tipo === "ingreso" ? "income" : "expense";
-    delete actualizada[field][key];
-    
-    await supabase.from("cashflow_weeks").upsert(actualizada);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
+    const field = tipo === "ingreso" ? "income" : "expense"; delete actualizada[field][key];
+    await supabase.from("cashflow_weeks").upsert(actualizada); fetchData();
   };
 
   const moverMovimiento = async (origenFecha, destinoFecha, tipo, key, ars, usd) => {
@@ -318,82 +281,55 @@ export default function App() {
     let notaMovida = null;
     if (origen) {
       let upOrigen = { ...origen, income: { ...(origen.income || {}) }, expense: { ...(origen.expense || {}) } };
-      const field = tipo === "ingreso" ? "income" : "expense";
-      delete upOrigen[field][key];
-      let origenNotes = {};
-      try { origenNotes = JSON.parse(origen.notes || "{}"); } catch(e) {}
+      const field = tipo === "ingreso" ? "income" : "expense"; delete upOrigen[field][key];
+      let origenNotes = {}; try { origenNotes = JSON.parse(origen.notes || "{}"); } catch(e) {}
       if (origenNotes[`${tipo}_${key}`]) { notaMovida = origenNotes[`${tipo}_${key}`]; delete origenNotes[`${tipo}_${key}`]; }
-      upOrigen.notes = JSON.stringify(origenNotes);
-      await supabase.from("cashflow_weeks").upsert(upOrigen);
+      upOrigen.notes = JSON.stringify(origenNotes); await supabase.from("cashflow_weeks").upsert(upOrigen);
     }
-    const destino = weeks.find((w) => w.week_start === destinoFecha) || { id: destinoFecha, week_start: destinoFecha, status: "proyectado", saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
+    const destino = weeks.find((w) => w.week_start === destinoFecha) || { id: destinoFecha, week_start: destinoFecha, status: "proyectado", income: {}, expense: {}, notes: "" };
     let upDestino = { ...destino, income: { ...(destino.income || {}) }, expense: { ...(destino.expense || {}) } };
     const field2 = tipo === "ingreso" ? "income" : "expense";
-    
     const valDest = upDestino[field2][key];
     let dArs = 0, dUsd = 0;
-    if (typeof valDest === 'object' && valDest !== null) {
-        dArs = Number(valDest.ars || 0); dUsd = Number(valDest.usd || 0);
-    } else {
-        dArs = Number(valDest || 0);
-    }
+    if (typeof valDest === 'object' && valDest !== null) { dArs = Number(valDest.ars || 0); dUsd = Number(valDest.usd || 0); } 
+    else { dArs = Number(valDest || 0); }
     upDestino[field2][key] = { ars: dArs + Number(ars), usd: dUsd + Number(usd) };
 
     if (notaMovida) {
-      let destinoNotes = {};
-      try { destinoNotes = JSON.parse(destino.notes || "{}"); } catch(e) {}
-      destinoNotes[`${tipo}_${key}`] = notaMovida;
-      upDestino.notes = JSON.stringify(destinoNotes);
+      let destinoNotes = {}; try { destinoNotes = JSON.parse(destino.notes || "{}"); } catch(e) {}
+      destinoNotes[`${tipo}_${key}`] = notaMovida; upDestino.notes = JSON.stringify(destinoNotes);
     }
-    await supabase.from("cashflow_weeks").upsert(upDestino);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
+    await supabase.from("cashflow_weeks").upsert(upDestino); fetchData();
   };
 
-  const fieldFor = (grupo) => (grupo === "ingreso" ? "income" : "expense");
-
   const agregarConcepto = async (grupo, label) => {
-    const field = fieldFor(grupo);
-    const key = "custom_" + slugify(label);
-    const anchor = new Date().toISOString().slice(0, 10);
+    const field = grupo === "ingreso" ? "income" : "expense";
+    const key = "custom_" + slugify(label); const anchor = new Date().toISOString().slice(0, 10);
     const existente = weeks.find((w) => w.week_start === anchor);
-    const base = existente || { id: anchor, week_start: anchor, status: "proyectado", saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
+    const base = existente || { id: anchor, week_start: anchor, status: "proyectado", income: {}, expense: {}, notes: "" };
     const actualizada = { ...base, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) } };
     if (actualizada[field][key] === undefined) actualizada[field][key] = { ars: 0, usd: 0 };
-    await supabase.from("cashflow_weeks").upsert(actualizada);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
-    return true;
+    await supabase.from("cashflow_weeks").upsert(actualizada); fetchData(); return true;
   };
 
   const renombrarConcepto = async (grupo, oldKey, newLabel) => {
-    const field = fieldFor(grupo);
-    const newKey = "custom_" + slugify(newLabel);
+    const field = grupo === "ingreso" ? "income" : "expense"; const newKey = "custom_" + slugify(newLabel);
     const afectadas = weeks.filter((w) => w[field] && Object.prototype.hasOwnProperty.call(w[field], oldKey));
     if (afectadas.length === 0) return agregarConcepto(grupo, newLabel);
     const updates = afectadas.map((w) => {
-      const obj = { ...(w[field] || {}) };
-      const val = obj[oldKey]; delete obj[oldKey]; obj[newKey] = val;
-      return { ...w, [field]: obj };
+      const obj = { ...(w[field] || {}) }; const val = obj[oldKey]; delete obj[oldKey]; obj[newKey] = val; return { ...w, [field]: obj };
     });
-    await supabase.from("cashflow_weeks").upsert(updates);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
-    return true;
+    await supabase.from("cashflow_weeks").upsert(updates); fetchData(); return true;
   };
 
   const eliminarConcepto = async (grupo, key) => {
-    const field = fieldFor(grupo);
+    const field = grupo === "ingreso" ? "income" : "expense";
     const afectadas = weeks.filter((w) => w[field] && Object.prototype.hasOwnProperty.call(w[field], key));
     if (afectadas.length === 0) return true;
     const updates = afectadas.map((w) => {
-      const obj = { ...(w[field] || {}) }; delete obj[key];
-      return { ...w, [field]: obj };
+      const obj = { ...(w[field] || {}) }; delete obj[key]; return { ...w, [field]: obj };
     });
-    await supabase.from("cashflow_weeks").upsert(updates);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
-    return true;
+    await supabase.from("cashflow_weeks").upsert(updates); fetchData(); return true;
   };
 
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
@@ -401,43 +337,31 @@ export default function App() {
   
   const procesadas = useMemo(() => {
     const arqueosDict = {};
-    arqueosList.forEach(a => {
-      if (a.fecha_corte) arqueosDict[a.fecha_corte] = Number(a.saldo_efectivo || 0) + Number(a.saldo_banco || 0);
-    });
-
-    const fechasSet = new Set(weeks.map((w) => w.week_start));
-    Object.keys(arqueosDict).forEach(f => fechasSet.add(f));
+    arqueosList.forEach(a => { if (a.fecha_corte) arqueosDict[a.fecha_corte] = Number(a.saldo_efectivo || 0) + Number(a.saldo_banco || 0); });
+    const fechasSet = new Set(weeks.map((w) => w.week_start)); Object.keys(arqueosDict).forEach(f => fechasSet.add(f));
     const fechasArray = Array.from(fechasSet).sort();
-
     const fechasConArqueo = Object.keys(arqueosDict).sort();
     const firstArqueoDate = fechasConArqueo.length > 0 ? fechasConArqueo[0] : null;
 
     const getTC = (date) => {
       if (!tcList || tcList.length === 0) return 1;
-      const validTCs = tcList
-          .filter(t => t.fecha_corte <= date)
-          .sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
+      const validTCs = tcList.filter(t => t.fecha_corte <= date).sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
       return validTCs.length > 0 ? Number(validTCs[0].saldo_efectivo) || 1 : 1;
     };
 
     let currentSaldo = 0;
-    
     if (firstArqueoDate) {
          let flowSum = 0;
          for (let f of fechasArray) {
              if (f >= firstArqueoDate) break; 
              const w = weeks.find(week => week.week_start === f) || {};
              const tcActual = getTC(f);
-             
              const calcSum = (obj) => {
-                 let t = 0;
-                 Object.values(obj || {}).forEach(v => {
+                 let t = 0; Object.values(obj || {}).forEach(v => {
                      if (typeof v === 'object' && v !== null) t += Number(v.ars || 0) + (Number(v.usd || 0) * tcActual);
                      else t += Number(v || 0);
-                 });
-                 return t;
+                 }); return t;
              };
-             
              flowSum += (calcSum(w.income) - calcSum(w.expense));
          }
          currentSaldo = arqueosDict[firstArqueoDate] - flowSum;
@@ -446,50 +370,31 @@ export default function App() {
     return fechasArray.map((fecha) => {
       const w = weeks.find((week) => week.week_start === fecha) || { income: {}, expense: {}, notes: "{}" };
       const tcActual = getTC(fecha);
-      
       const calcSum = (obj) => {
-          let t = 0;
-          Object.values(obj || {}).forEach(v => {
+          let t = 0; Object.values(obj || {}).forEach(v => {
               if (typeof v === 'object' && v !== null) t += Number(v.ars || 0) + (Number(v.usd || 0) * tcActual);
               else t += Number(v || 0);
-          });
-          return t;
+          }); return t;
       };
 
-      const ing = calcSum(w.income);
-      const eg = calcSum(w.expense);
-      const pos = ing - eg;
+      const ing = calcSum(w.income); const eg = calcSum(w.expense); const pos = ing - eg;
+      let parsedNotes = {}; try { parsedNotes = JSON.parse(w.notes || "{}"); } catch(e) {}
       
-      let parsedNotes = {};
-      try { parsedNotes = JSON.parse(w.notes || "{}"); } catch(e) {}
-      
-      let esArqueo = false;
-      let ajuste = 0;
-      
+      let esArqueo = false; let ajuste = 0;
       if (arqueosDict[fecha] !== undefined) {
-          esArqueo = true;
-          ajuste = arqueosDict[fecha] - currentSaldo; 
-          currentSaldo = arqueosDict[fecha];
+          esArqueo = true; ajuste = arqueosDict[fecha] - currentSaldo; currentSaldo = arqueosDict[fecha];
       }
-
       currentSaldo += pos;
 
-      return { 
-        ...w, week_start: fecha, totalIngresos: ing, totalEgresos: eg, 
-        posicion: pos, saldoAcumulado: currentSaldo, parsedNotes, 
-        esArqueo, ajuste 
-      };
+      return { ...w, week_start: fecha, totalIngresos: ing, totalEgresos: eg, posicion: pos, saldoAcumulado: currentSaldo, parsedNotes, esArqueo, ajuste };
     });
   }, [weeks, arqueosList, tcList]);
 
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
     const hoy = todayISO();
-    
     const pasadas = procesadas.filter((w) => w.week_start <= hoy);
-    const saldoHoy = pasadas.length 
-      ? pasadas[pasadas.length - 1].saldoAcumulado 
-      : (arqueosList.length ? (Number(arqueosList[0].saldo_efectivo) + Number(arqueosList[0].saldo_banco)) : 0);
+    const saldoHoy = pasadas.length ? pasadas[pasadas.length - 1].saldoAcumulado : (arqueosList.length ? (Number(arqueosList[0].saldo_efectivo) + Number(arqueosList[0].saldo_banco)) : 0);
 
     let diasDeCaja = null, deficitActual = false, sinQuemaNeta = false;
     const semanaDeficit = procesadas.find((w) => w.week_start >= hoy && w.saldoAcumulado < 0);
@@ -497,9 +402,7 @@ export default function App() {
 
     if (saldoHoy < 0) { deficitActual = true; diasDeCaja = 0; } 
     else if (semanaDeficit) {
-      const fechaDeficitD = new Date(semanaDeficit.week_start + "T00:00:00");
-      const fechaHoyD = new Date(hoy + "T00:00:00");
-      diasDeCaja = Math.ceil((fechaDeficitD.getTime() - fechaHoyD.getTime()) / (1000 * 3600 * 24));
+      diasDeCaja = Math.ceil((new Date(semanaDeficit.week_start + "T00:00:00").getTime() - new Date(hoy + "T00:00:00").getTime()) / (1000 * 3600 * 24));
     } else { sinQuemaNeta = true; }
 
     const ultimaFecha = procesadas[procesadas.length - 1].week_start;
@@ -515,14 +418,11 @@ export default function App() {
     const flujoNetoMes = ingresosMes - egresosMes;
     const cobertura = egresosMes > 0 ? Math.round((ingresosMes / egresosMes) * 100) : (ingresosMes > 0 ? 100 : 0);
 
-    const fechaLimite = new Date();
-    fechaLimite.setDate(fechaLimite.getDate() + 30);
+    const fechaLimite = new Date(); fechaLimite.setDate(fechaLimite.getDate() + 30);
     const fechaLimiteISO = fechaLimite.toISOString().slice(0, 10);
-    
     const datosProyectados = procesadas.filter(w => w.week_start >= hoy && w.week_start <= fechaLimiteISO);
 
-    let maxEgresoVal = 0;
-    let maxEgresoCat = "Sin egresos proyectados";
+    let maxEgresoVal = 0; let maxEgresoCat = "Sin egresos proyectados";
     if (datosProyectados.length > 0) {
       const sumasEgresos = {};
       const getTC = (d) => {
@@ -535,25 +435,18 @@ export default function App() {
          const rawWeek = weeks.find(raw => raw.week_start === w.week_start) || {};
          const tc = getTC(w.week_start);
          Object.entries(rawWeek.expense || {}).forEach(([k, v]) => {
-            let pVal = 0;
-            if (typeof v === 'object' && v !== null) pVal = Number(v.ars||0) + Number(v.usd||0)*tc;
-            else pVal = Number(v||0);
+            let pVal = 0; if (typeof v === 'object' && v !== null) pVal = Number(v.ars||0) + Number(v.usd||0)*tc; else pVal = Number(v||0);
             sumasEgresos[k] = (sumasEgresos[k] || 0) + pVal;
          });
       });
       Object.entries(sumasEgresos).forEach(([k, v]) => {
          if (v > maxEgresoVal) {
-            maxEgresoVal = v;
-            const catObj = expenseCats.find(c => c.key === k);
-            maxEgresoCat = catObj ? catObj.label : k.replace('custom_', '');
+            maxEgresoVal = v; const catObj = expenseCats.find(c => c.key === k); maxEgresoCat = catObj ? catObj.label : k.replace('custom_', '');
          }
       });
     }
 
-    return { 
-      diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy,
-      flujoNetoMes, cobertura, maxEgresoVal, maxEgresoCat
-    };
+    return { diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy, flujoNetoMes, cobertura, maxEgresoVal, maxEgresoCat };
   }, [procesadas, arqueosList, expenseCats, weeks, tcList]);
 
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: tokens.ink, color: "#fff", fontFamily: tokens.fontBody }}><style>{fontImport}</style>Iniciando entorno seguro…</div>;
@@ -562,7 +455,7 @@ export default function App() {
     <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
       <style>{globalStyles}</style>
 
-      {/* ---------- RIEL DE INSTRUMENTOS (SIDEBAR) ---------- */}
+      {/* ---------- SIDEBAR ---------- */}
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
           <img src="/link-banner.png" alt="LINK" style={{ width: "100%", height: "85px", objectFit: "cover", objectPosition: "left center", display: "block" }} />
@@ -605,27 +498,17 @@ export default function App() {
               <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Indicadores y mercado en tiempo real, integrado desde tu proyecto externo.</p>
             </div>
             <div style={{ flex: 1, background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
-              <iframe 
-                src="https://monitor-econ-mico.vercel.app/" 
-                style={{ width: "100%", height: "100%", border: "none" }}
-                title="Monitor Económico"
-              />
+              <iframe src="https://monitor-econ-mico.vercel.app/" style={{ width: "100%", height: "100%", border: "none" }} title="Monitor Económico" />
             </div>
           </div>
         )}
 
         {tab === "presupuesto" && (
           <PresupuestoAnualTab 
-            planIncomeCats={PLAN_INCOME_CATS}
-            planExpenseCats={PLAN_EXPENSE_CATS}
-            dailyIncomeCats={incomeCats} 
-            dailyExpenseCats={expenseCats} 
-            fmt={fmt} 
-            planesFondos={planesFondos}
-            mappingGuardado={mapping}
-            onGuardarPlan={guardarPlanDeFondos}
-            onGuardarMapeo={guardarMapeo}
-            tcList={tcList} 
+            planIncomeCats={PLAN_INCOME_CATS} planExpenseCats={PLAN_EXPENSE_CATS}
+            dailyIncomeCats={incomeCats} dailyExpenseCats={expenseCats} 
+            fmt={fmt} planesFondos={planesFondos} mappingGuardado={mapping}
+            onGuardarPlan={guardarPlanDeFondos} onGuardarMapeo={guardarMapeo} tcList={tcList} 
           />
         )}
 
@@ -639,32 +522,10 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, position: "sticky", top: 32 }}>
-                  <CargarMovimiento 
-                    incomeCats={incomeCats} 
-                    expenseCats={expenseCats} 
-                    weeks={weeks} 
-                    onGuardar={guardarMovimiento} 
-                    onEliminar={eliminarMovimiento} 
-                    formatDate={formatDate} 
-                    movimientoAEditar={movimientoAEditar}
-                    setMovimientoAEditar={setMovimientoAEditar}
-                  />
+                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} formatDate={formatDate} movimientoAEditar={movimientoAEditar} setMovimientoAEditar={setMovimientoAEditar} />
                 </div>
               )}
-              <FlujoTable 
-                procesadas={procesadas} 
-                weeks={weeks} 
-                tcList={tcList} 
-                incomeCats={incomeCats} 
-                expenseCats={expenseCats} 
-                fmt={fmt} 
-                onMoverMovimiento={moverMovimiento} 
-                formatDate={formatDate} 
-                onEditClick={(item) => {
-                  setMostrarPanel(true);
-                  setMovimientoAEditar(item); 
-                }}
-              />
+              <FlujoTable procesadas={procesadas} weeks={weeks} tcList={tcList} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} formatDate={formatDate} onEditClick={(item) => { setMostrarPanel(true); setMovimientoAEditar(item); }} />
             </div>
           </div>
         )}
@@ -674,7 +535,6 @@ export default function App() {
         {tab === "configuracion" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 1200 }}>
             <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2></div>
-            
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, alignItems: "start" }}>
                 
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22 }}>
@@ -847,9 +707,9 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const [planDraft, setPlanDraft] = useState({});
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
 
-  // ESTADO DEL SIMULADOR "SANDBOX"
+  // ESTADO DEL SIMULADOR CON BARRAS
   const [simulacionActiva, setSimulacionActiva] = useState(false);
-  const [simDraft, setSimDraft] = useState({});
+  const [simData, setSimData] = useState({ globalIng: 0, globalEg: 0, cats: {}, meses: {} });
 
   useEffect(() => {
     setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
@@ -863,26 +723,14 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     if (editMode) setSimulacionActiva(false);
   }, [editMode]);
 
-  const toggleSimulador = () => {
-    if (!simulacionActiva) {
-      setSimDraft(JSON.parse(JSON.stringify(planDraft)));
-      setSimulacionActiva(true);
-      setEditMode(false);
-    } else {
-      setSimulacionActiva(false);
-    }
-  };
-
   const ultimoDolar = useMemo(() => {
     if (!tcList || tcList.length === 0) return 1; 
     const sorted = [...tcList].sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
     return Number(sorted[0].saldo_efectivo) || 1;
   }, [tcList]);
 
-  // LA MAGIA: Si el simulador está activo, escribe en simDraft, sino en planDraft
   const handleInputChange = (tipo, conceptoKey, mesKey, value) => {
-    const setter = simulacionActiva ? setSimDraft : setPlanDraft;
-    setter(prev => {
+    setPlanDraft(prev => {
       const newState = { ...prev };
       if (!newState[tipo]) newState[tipo] = {};
       if (!newState[tipo][conceptoKey]) newState[tipo][conceptoKey] = {};
@@ -895,27 +743,37 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     setMappingDraft(prev => ({ ...prev, [tipo]: { ...prev[tipo], [dailyKey]: planKey } }));
   };
 
-  // El plan activo para TODOS los cálculos es el simulado si está encendido, o el real si está apagado
-  const activePlan = simulacionActiva ? simDraft : planDraft;
+  // MATEMÁTICA DEL SIMULADOR POR PORCENTAJES
+  const getSimVal = (tipo, conceptoKey, mesKey) => {
+    const baseVal = planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
+    if (!simulacionActiva) return baseVal;
+    
+    const glob = tipo === 'ingreso' ? (simData.globalIng || 0) : (simData.globalEg || 0);
+    const cat = simData.cats[conceptoKey] || 0;
+    const mes = simData.meses[mesKey] || 0;
+    
+    const totalPct = glob + cat + mes;
+    return baseVal * (1 + totalPct / 100);
+  };
 
   const calcularTotalFila = (tipo, conceptoKey) => {
     let total = 0;
-    meses.forEach(m => { total += (activePlan?.[tipo]?.[conceptoKey]?.[m.k] || 0); });
+    meses.forEach(m => { total += getSimVal(tipo, conceptoKey, m.k); });
     return total;
   };
 
   const calcularTotalColumna = (tipo, mesKey) => {
     let total = 0;
     const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
-    catalogo.forEach(c => { total += (activePlan?.[tipo]?.[c.key]?.[mesKey] || 0); });
+    catalogo.forEach(c => { total += getSimVal(tipo, c.key, mesKey); });
     return total;
   };
 
   const calcSemestre = (tipo, mesesFilter) => {
     let t = 0;
-    const dataTipo = activePlan?.[tipo] || {};
-    Object.keys(dataTipo).forEach(catKey => {
-      mesesFilter.forEach(m => { t += (dataTipo[catKey]?.[m] || 0); });
+    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
+    catalogo.forEach(c => {
+      mesesFilter.forEach(m => { t += getSimVal(tipo, c.key, m); });
     });
     return t;
   };
@@ -1031,9 +889,8 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               </>
             ) : (
               <>
-                {/* BOTÓN SIMULADOR */}
-                <button onClick={toggleSimulador} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
-                  <Wand2 size={16} /> {simulacionActiva ? "Cerrar Simulador" : "Simulador Sandbox"}
+                <button onClick={() => { setSimulacionActiva(!simulacionActiva); setSimData({globalIng:0, globalEg:0, cats:{}, meses:{}}); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
+                  <Wand2 size={16} /> {simulacionActiva ? "Apagar Simulador" : "Simular Escenarios"}
                 </button>
 
                 <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -1052,12 +909,32 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
       {view === "presupuesto" && (
         <>
           {simulacionActiva && !editMode && (
-            <div style={{ background: tokens.surface, borderRadius: 10, border: `2px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
-              <div>
-                <h3 style={{ margin: "0 0 4px 0", fontSize: 15, color: tokens.gold, display: 'flex', alignItems: 'center', gap: 6 }}><Wand2 size={16} /> Modo Simulación Activo</h3>
-                <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Edita cualquier celda en la tabla inferior para armar tu escenario. <strong>Tus datos reales están a salvo y no se modificarán.</strong></p>
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `2px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', flexDirection: 'column', gap: 16, boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: "0 0 4px 0", fontSize: 15, color: tokens.gold, display: 'flex', alignItems: 'center', gap: 6 }}><Wand2 size={16} /> Modo Simulación Activo</h3>
+                  <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Mueve las barras globales aquí, o las barras de la tabla para ajustar meses y conceptos individualmente. <strong>Tus datos reales están a salvo.</strong></p>
+                </div>
+                <button onClick={() => setSimData({globalIng:0, globalEg:0, cats:{}, meses:{}})} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, color: tokens.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}><RotateCcw size={14}/> Resetear todas las barras</button>
               </div>
-              <button onClick={() => setSimDraft(JSON.parse(JSON.stringify(planDraft)))} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, color: tokens.textMuted }}>Restaurar Originales</button>
+              
+              <div style={{ display: 'flex', gap: 32, padding: "16px", background: colorTablaBg, borderRadius: 8, border: `1px solid ${colorLineaSuave}` }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: tokens.positive, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ajuste Global Ingresos</label>
+                    <span style={{ fontSize: 13, fontWeight: 800, fontFamily: tokens.fontMono, color: simData.globalIng !== 0 ? tokens.positive : tokens.textMuted }}>{simData.globalIng > 0 ? '+' : ''}{simData.globalIng}%</span>
+                  </div>
+                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.globalIng} onChange={(e) => setSimData({...simData, globalIng: Number(e.target.value)})} />
+                </div>
+                <div style={{ width: 1, background: colorLineaFuerte }}></div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: tokens.negative, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ajuste Global Egresos</label>
+                    <span style={{ fontSize: 13, fontWeight: 800, fontFamily: tokens.fontMono, color: simData.globalEg !== 0 ? tokens.negative : tokens.textMuted }}>{simData.globalEg > 0 ? '+' : ''}{simData.globalEg}%</span>
+                  </div>
+                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.globalEg} onChange={(e) => setSimData({...simData, globalEg: Number(e.target.value)})} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -1139,24 +1016,46 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                 <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
                   <thead>
                     <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, transition: "border-color 0.3s" }}>
-                      <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Categoría del Presupuesto</th>
-                      {meses.map(m => <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m.n}</th>)}
+                      <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>
+                        Categoría del Presupuesto
+                      </th>
+                      {meses.map(m => (
+                        <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>
+                          <div>{m.n}</div>
+                          {simulacionActiva && (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: 8 }}>
+                              <input type="range" className="sim-slider" min="-100" max="100" value={simData.meses[m.k] || 0} onChange={(e) => setSimData(prev => ({...prev, meses: {...prev.meses, [m.k]: Number(e.target.value)}}))} style={{width: 60}} />
+                              <span style={{ fontSize: 10, fontWeight: 700, color: simData.meses[m.k] !== 0 ? tokens.gold : tokens.textMuted }}>{simData.meses[m.k] > 0 ? '+' : ''}{simData.meses[m.k] || 0}%</span>
+                            </div>
+                          )}
+                        </th>
+                      ))}
                       <th style={{ padding: 14, textAlign: "right", minWidth: 100, fontFamily: tokens.fontMono, color: tokens.text }}>Total Anual</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS {simulacionActiva && "(Simulado)"}</td></tr>
+                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS</td></tr>
                     {planIncomeCats.map(c => (
                        <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                          <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <span style={{fontWeight: 500}}>{c.label}</span>
+                              {simulacionActiva && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 80}} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                           {meses.map(m => {
-                            const valBase = activePlan?.["ingreso"]?.[c.key]?.[m.k] || "";
+                            const valBase = planDraft?.ingreso?.[c.key]?.[m.k] || "";
                             return (
                               <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                {(editMode || simulacionActiva) ? (
-                                  <input type="number" className="plan-input" style={{ borderColor: simulacionActiva ? tokens.gold : tokens.rule }} value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
                                 ) : (
-                                  <span style={{ color: valBase ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valBase ? `$ ${fmt(valBase)}` : "-"}</span>
+                                  <span style={{ color: getSimVal("ingreso", c.key, m.k) ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{getSimVal("ingreso", c.key, m.k) ? `$ ${fmt(getSimVal("ingreso", c.key, m.k))}` : "-"}</span>
                                 )}
                               </td>
                             );
@@ -1165,23 +1064,33 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                        </tr>
                     ))}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos Proyectados</td>
+                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
                       <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
                     </tr>
 
-                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS {simulacionActiva && "(Simulado)"}</td></tr>
+                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS</td></tr>
                     {planExpenseCats.map(c => (
                        <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                          <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <span style={{fontWeight: 500}}>{c.label}</span>
+                              {simulacionActiva && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 80}} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                           {meses.map(m => {
-                            const valBase = activePlan?.["egreso"]?.[c.key]?.[m.k] || "";
+                            const valBase = planDraft?.egreso?.[c.key]?.[m.k] || "";
                             return (
                               <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                {(editMode || simulacionActiva) ? (
-                                  <input type="number" className="plan-input" style={{ borderColor: simulacionActiva ? tokens.gold : tokens.rule }} value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
                                 ) : (
-                                  <span style={{ color: valBase ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valBase ? `$ ${fmt(valBase)}` : "-"}</span>
+                                  <span style={{ color: getSimVal("egreso", c.key, m.k) ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{getSimVal("egreso", c.key, m.k) ? `$ ${fmt(getSimVal("egreso", c.key, m.k))}` : "-"}</span>
                                 )}
                               </td>
                             );
@@ -1190,7 +1099,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                        </tr>
                     ))}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos Proyectados</td>
+                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
                       <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
                     </tr>
