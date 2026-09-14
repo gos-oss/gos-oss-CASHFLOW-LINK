@@ -11,9 +11,9 @@ import {
 } from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
-  ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
+  ListChecks, Tag, SlidersHorizontal, Compass,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity, Wand2
+  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity, Wand2, RotateCcw, Power
 } from "lucide-react";
 
 // =========================================================================
@@ -28,27 +28,72 @@ const PLAN_INCOME_CATS = [
 ];
 
 const PLAN_EXPENSE_CATS = [
-  { key: "custom_proyectos", label: "Proyectos" },
+  { 
+    isGroup: true, 
+    label: "Desglose de Proyectos", 
+    subCats: [
+      { key: "custom_torre-red", label: "TORRE RED" },
+      { key: "custom_isaura", label: "ISAURA" },
+      { key: "custom_duo", label: "DUO" },
+      { key: "custom_300", label: "#300 (General)" },
+      { key: "custom_300-t1-am", label: "#300 - T1 + AM" },
+      { key: "custom_300-t2-am", label: "#300 - T2 + AM" },
+      { key: "custom_300-t3-am", label: "#300 - T3 + AM" },
+      { key: "custom_300-t4-am", label: "#300 - T4 + AM" },
+      { key: "custom_300-corporativo", label: "#300 - CORPORATIVO" },
+      { key: "custom_300-infra", label: "#300 - INFRA" },
+      { key: "custom_boulevard", label: "BOULEVARD" },
+      { key: "custom_torre-green", label: "TORRE GREEN" },
+      { key: "custom_plus-duo", label: "+DUO" },
+      { key: "custom_auria", label: "AURIA" },
+      { key: "custom_marcos-paz-82", label: "MARCOS PAZ 82" },
+      { key: "custom_neuquen", label: "NEUQUEN" }
+    ]
+  },
   { key: "custom_rrhh", label: "RRHH" },
   { key: "custom_administracion", label: "Gastos de Estructura" },
   { key: "custom_inversiones", label: "Inversiones" },
   { key: "custom_pasivos-financieros", label: "Pasivos Financieros" }
 ];
 
+// =========================================================================
+// DATOS REALES EXTRAÍDOS DIRECTAMENTE DE TUS EXCEL (2026 Y 2027)
+// =========================================================================
 const DEFAULT_PLAN_2026 = {
   "ingreso": {
-    "custom_cupos-socios": { "01": 188542320, "02": 188542320, "03": 188542320, "04": 188542320, "05": 188542320, "06": 188542320, "07": 233273820, "08": 233273820, "09": 233273820, "10": 233273820, "11": 233273820, "12": 233273820 },
-    "custom_cuotas-mensuales": { "01": 216094107, "02": 210193927, "03": 207243837, "04": 208718882, "05": 210931449, "06": 221256765, "07": 166503716, "08": 394424755, "09": 391424755, "10": 138308206, "11": 135987535, "12": 120871098 },
-    "custom_ventas-cdo": { "01": 516840002, "02": 752453282, "03": 512761659, "04": 962711702, "05": 400627107, "06": 171320000 },
-    "custom_pesa": { "05": 389439155, "06": 241673234, "07": 241673234, "08": 241673234, "09": 241673234 },
-    "custom_aportes": {}
+    "custom_cupos-socios": {"01": 188542320, "02": 188542320, "03": 188542320, "04": 188542320, "05": 188542320, "06": 188542320, "07": 233273820, "08": 233273820, "09": 233273820, "10": 233273820, "11": 233273820, "12": 233273820},
+    "custom_cuotas-mensuales": {"01": 216094107, "02": 210193927, "03": 207243837, "04": 208718882, "05": 210931449, "06": 221256765, "07": 166503716, "08": 394424755, "09": 391424755, "10": 138308205, "11": 135987535, "12": 120871098},
+    "custom_ventas-cdo": {"01": 471643592, "02": 477543773, "03": 480493863, "04": 479018818, "05": 179921317, "06": 217557503, "07": 214152451, "08": 271670000},
+    "custom_pesa": {"05": 389439154, "06": 248923431, "07": 248923431, "08": 248923431, "09": 248923431}
   },
   "egreso": {
-    "custom_proyectos": { "01": 527696546, "02": 516555380, "03": 506392974, "04": 515654521, "05": 462546516, "06": 611412024, "07": 691180691, "08": 797872530, "09": 739456323, "10": 431512925, "11": 167967569, "12": 142497135 },
-    "custom_rrhh": { "01": 369633317, "02": 397685053, "03": 441780756, "04": 358521345, "05": 475970162, "06": 331050035, "07": 359717500, "08": 343916425, "09": 343980114, "10": 344578753, "11": 344262539, "12": 513292012 },
-    "custom_administracion": { "01": 82469483, "02": 92452971, "03": 114416954, "04": 163553088, "05": 179058699, "06": 245285356, "07": 236069287, "08": 292313592, "09": 238368041, "10": 260249313, "11": 220946940, "12": 121042528 },
-    "custom_inversiones": { "01": 80318625, "02": 78125625, "03": 77029125, "04": 77577375, "05": 78399750, "06": 82237500, "07": 82003500, "08": 82003500, "09": 82003500, "10": 82003500, "11": 7003500, "12": 7003500 },
-    "custom_pasivos-financieros": { "01": 57268446, "02": 55950406, "03": 55291386, "04": 55620896, "05": 73580581, "06": 76742101, "07": 76742101, "08": 79132921, "09": 76742101, "10": 76742101, "11": 76742101, "12": 76742101 }
+    "custom_duo": {"01": 356384338, "02": 356384338, "03": 356384338, "04": 356384338, "05": 356384338, "06": 356384338, "07": 34161634, "08": 97952376, "09": 287148042, "10": 124680989},
+    "custom_300": {"01": 38681705, "02": 38936291, "03": 38457672, "04": 38651151, "05": 39700051, "06": 37021814, "07": 39231587, "08": 42846754, "09": 28987101, "10": 29403225, "11": 24324539, "12": 24226764},
+    "custom_boulevard": {"01": 59173434, "02": 57847286, "03": 54816315, "04": 64856702, "05": 53868840, "06": 45723402, "07": 94977865, "08": 20905253, "09": 21287089, "10": 43573541, "11": 84850270, "12": 105764448},
+    "custom_torre-green": {"07": 22809604, "09": 15495938, "10": 14429867, "11": 9950226, "12": 19195745},
+    "custom_rrhh": {"01": 815400, "02": 586308, "03": 586308, "04": 586308, "05": 641670, "06": 641670, "07": 1030574, "08": 1073982, "09": 685077, "10": 1073982, "11": 1073982, "12": 1073982},
+    "custom_administracion": {"01": 31668265, "02": 31668265, "03": 31668265, "04": 31668265, "05": 31668265, "06": 31668265, "07": 31668265, "08": 31668265, "09": 31668265, "10": 31668265, "11": 31668265, "12": 31668265},
+    "custom_inversiones": {"01": 80318625, "02": 78125625, "03": 77029125, "04": 77577375, "05": 78399750, "06": 80592750, "07": 84736950, "08": 84736950, "09": 84736950, "10": 84736950, "11": 7236950, "12": 7236950},
+    "custom_pasivos-financieros": {"01": 57268446, "02": 55950406, "03": 55291386, "04": 55620896, "05": 73580580, "06": 75387163, "07": 79000330, "08": 79743600, "09": 79000330, "10": 79000330, "11": 79000330, "12": 79000330},
+  }
+};
+
+const DEFAULT_PLAN_2027 = {
+  "ingreso": {
+    "custom_cupos-socios": {"01": 257444876, "02": 257444876, "03": 257444876, "04": 257444876, "05": 257444876, "06": 257444876, "07": 257444876, "08": 257444876, "09": 257444876, "10": 257444876, "11": 257444876, "12": 257444876},
+    "custom_cuotas-mensuales": {"01": 113295831, "02": 109548122, "03": 105735735, "04": 105735735, "05": 105735735, "06": 102862746, "07": 97833898, "08": 97833898, "09": 93118900, "10": 92547465, "11": 90134803, "12": 78152291}
+  },
+  "egreso": {
+    "custom_300-t3-am": {"01": 168416897, "02": 163730213, "03": 157243469, "04": 149033027, "05": 139199732, "06": 127871237, "07": 115205292, "08": 101394420, "09": 86672683, "10": 71325859, "11": 55707547, "12": 40266747},
+    "custom_300-t4-am": {"03": 4593796, "04": 20380768, "05": 41099631, "06": 64007714, "07": 87608204, "08": 110875190, "09": 133043788, "10": 153520200, "11": 171834915, "12": 187615422},
+    "custom_boulevard": {"01": 172411763, "02": 159937647, "03": 145387705, "04": 129009362, "05": 111110379, "06": 92072589, "07": 72373742, "08": 52624916, "09": 33642437, "10": 16616115, "11": 3732693},
+    "custom_torre-green": {"01": 109440800, "02": 126694964, "03": 142316771, "04": 156001180, "05": 167505524, "06": 176640458, "07": 183263873, "08": 187276822, "09": 188620908, "10": 187276822, "11": 183263873, "12": 176640458},
+    "custom_plus-duo": {"01": 40958735, "02": 82768771, "03": 129197013, "04": 177274028, "05": 224963321, "06": 270743220, "07": 313427922, "08": 352074373, "09": 385927935, "10": 414388282, "11": 436986997, "12": 453372519},
+    "custom_auria": {"06": 6266480, "07": 27895292, "08": 56479243, "09": 88347208, "10": 121501726, "11": 154572337, "12": 186533159},
+    "custom_neuquen": {"01": 117937723, "02": 184483147, "03": 253715099, "04": 322771841, "05": 389511166, "06": 452258263, "07": 509674567, "08": 560681187, "09": 604410742, "10": 640175564, "11": 667446136, "12": 685836389},
+    "custom_administracion": {"01": 28284198, "02": 32389613, "03": 28806648, "04": 24539869, "05": 27031930, "06": 25296381, "07": 27887914, "08": 26164293, "09": 32400810, "10": 27001562, "11": 29623698, "12": 27882789},
+    "custom_inversiones": {"01": 7187180, "02": 7187180, "03": 7187180, "04": 7187180, "05": 7187180, "06": 7187180, "07": 7187180, "08": 7187180, "09": 7187180, "10": 7187180, "11": 7187180, "12": 7187180},
+    "custom_pasivos-financieros": {"01": 59222932, "02": 50889517, "03": 50888404, "04": 50745203},
   }
 };
 
@@ -99,8 +144,34 @@ const globalStyles = `
     padding: 8px 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-family: ${tokens.fontBody};
   }
   
-  .recharts-legend-item-text {
-    color: #94A3B8 !important;
+  .recharts-legend-item-text { color: #94A3B8 !important; }
+
+  /* ESTILOS PARA BARRAS SIMULADOR (SANDBOX) */
+  .sim-slider {
+    -webkit-appearance: none; width: 100%; height: 5px; border-radius: 3px; background: #DCE1E8; outline: none; cursor: pointer;
+  }
+  .sim-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: ${tokens.gold}; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .sim-slider:active::-webkit-slider-thumb { transform: scale(1.2); }
+
+  /* ESTILOS TOGGLE ACTIVO/INACTIVO */
+  .toggle-switch {
+    position: relative; display: inline-block; width: 34px; height: 18px;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .slider-toggle {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 18px;
+  }
+  .slider-toggle:before {
+    position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%;
+  }
+  input:checked + .slider-toggle { background-color: ${tokens.positive}; }
+  input:checked + .slider-toggle:before { transform: translateX(16px); }
+  
+  .sim-row-disabled {
+    opacity: 0.4;
+    transition: opacity 0.3s ease;
   }
 `;
 
@@ -141,19 +212,15 @@ export default function App() {
   const [fechaTC, setFechaTC] = useState(todayISO());
   const [valorTC, setValorTC] = useState("");
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
     if (fechaSaldo) {
       const existing = arqueosList.find(a => a.fecha_corte === fechaSaldo);
       if (existing) {
-        setSaldoEfectivo(existing.saldo_efectivo);
-        setSaldoBanco(existing.saldo_banco);
+        setSaldoEfectivo(existing.saldo_efectivo); setSaldoBanco(existing.saldo_banco);
       } else {
-        setSaldoEfectivo("");
-        setSaldoBanco("");
+        setSaldoEfectivo(""); setSaldoBanco("");
       }
     }
   }, [fechaSaldo, arqueosList]);
@@ -172,10 +239,8 @@ export default function App() {
     
     const { data: sData } = await supabase.from("cashflow_settings").select("*");
     if (sData) {
-      const listArq = sData.filter(s => s.id.startsWith("arqueo_") || s.id === "general");
-      setArqueosList(listArq);
-      const listTC = sData.filter(s => s.id.startsWith("tc_"));
-      setTcList(listTC);
+      setArqueosList(sData.filter(s => s.id.startsWith("arqueo_") || s.id === "general"));
+      setTcList(sData.filter(s => s.id.startsWith("tc_")));
     }
 
     const { data: pData } = await supabase.from("cashflow_plan").select("*");
@@ -184,131 +249,99 @@ export default function App() {
       if (mapRow) setMapping(mapRow.data || { ingreso: {}, egreso: {} });
 
       let planesTemporales = {};
-      pData.forEach(r => {
-        if (r.id !== "mapping") planesTemporales[r.id] = r.data;
-      });
+      pData.forEach(r => { if (r.id !== "mapping") planesTemporales[r.id] = r.data; });
 
-      if (!planesTemporales["2026"] || (planesTemporales["2026"].egreso && planesTemporales["2026"].egreso["custom_300"])) {
+      if (!planesTemporales["2026"]) {
         planesTemporales["2026"] = DEFAULT_PLAN_2026;
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
       }
+      if (!planesTemporales["2027"]) {
+        planesTemporales["2027"] = DEFAULT_PLAN_2027;
+        await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
+      }
+      
       setPlanesFondos(planesTemporales);
     } else {
-      setPlanesFondos({ "2026": DEFAULT_PLAN_2026 });
+      setPlanesFondos({ "2026": DEFAULT_PLAN_2026, "2027": DEFAULT_PLAN_2027 });
       await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
+      await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
     }
-
     setLoaded(true);
   };
 
   const guardarSaldos = async () => {
     if (!fechaSaldo) return alert("Seleccioná una fecha para el arqueo.");
-    const idUnico = "arqueo_" + fechaSaldo;
-    
     const { error } = await supabase.from("cashflow_settings").upsert({
-      id: idUnico, 
-      fecha_corte: fechaSaldo, 
-      saldo_efectivo: Number(saldoEfectivo) || 0, 
-      saldo_banco: Number(saldoBanco) || 0,
+      id: "arqueo_" + fechaSaldo, fecha_corte: fechaSaldo, saldo_efectivo: Number(saldoEfectivo) || 0, saldo_banco: Number(saldoBanco) || 0,
     });
-    
     if (error) alert("Error al guardar arqueo: " + error.message);
-    else {
-      alert(`¡Arqueo de Apertura guardado exitosamente para el ${formatDate(fechaSaldo)}!`);
-      fetchData();
-    }
+    else { alert(`¡Arqueo guardado!`); fetchData(); }
   };
 
   const eliminarArqueo = async (id) => {
-    if (!window.confirm("¿Seguro que deseas eliminar este arqueo histórico? La línea de tiempo se recalculará.")) return;
+    if (!window.confirm("¿Eliminar este arqueo?")) return;
     await supabase.from("cashflow_settings").delete().eq("id", id);
     fetchData();
   };
 
   const guardarTC = async () => {
     if (!fechaTC || !valorTC) return alert("Seleccioná una fecha y un valor para el Tipo de Cambio.");
-    const idUnico = "tc_" + fechaTC;
-    
     const { error } = await supabase.from("cashflow_settings").upsert({
-      id: idUnico, 
-      fecha_corte: fechaTC, 
-      saldo_efectivo: Number(valorTC),
-      saldo_banco: 0,
+      id: "tc_" + fechaTC, fecha_corte: fechaTC, saldo_efectivo: Number(valorTC), saldo_banco: 0,
     });
-    
     if (error) alert("Error al guardar TC: " + error.message);
-    else {
-      alert(`¡Tipo de Cambio guardado exitosamente para el ${formatDate(fechaTC)}!`);
-      fetchData();
-    }
+    else { alert(`¡Tipo de Cambio guardado!`); fetchData(); }
   };
 
   const eliminarTC = async (id) => {
-    if (!window.confirm("¿Seguro que deseas eliminar este Tipo de Cambio histórico?")) return;
+    if (!window.confirm("¿Eliminar este Tipo de Cambio?")) return;
     await supabase.from("cashflow_settings").delete().eq("id", id);
     fetchData();
   };
 
   const guardarPlanDeFondos = async (nuevoPlan, year) => {
     setPlanesFondos(prev => ({ ...prev, [year]: nuevoPlan }));
-    const { error } = await supabase.from("cashflow_plan").upsert({ id: year, data: nuevoPlan });
-    if (error) alert("Error al guardar el presupuesto: " + error.message);
+    await supabase.from("cashflow_plan").upsert({ id: year, data: nuevoPlan });
   };
 
   const guardarMapeo = async (nuevoMapeo) => {
     setMapping(nuevoMapeo);
-    const { error } = await supabase.from("cashflow_plan").upsert({ id: "mapping", data: nuevoMapeo });
-    if (error) alert("Error al guardar el mapeo: " + error.message);
-    else alert("Mapeo actualizado correctamente.");
+    await supabase.from("cashflow_plan").upsert({ id: "mapping", data: nuevoMapeo });
+    alert("Mapeo actualizado.");
   };
 
   const handleImportarSemanas = async (semanasNuevas) => {
     await supabase.from("cashflow_weeks").upsert(semanasNuevas);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
+    fetchData();
   };
 
   const handleBorrarDatos = async () => {
-    if (!window.confirm("¿Borrar proyecciones? El tablero quedará en 0.")) return;
+    if (!window.confirm("¿Borrar proyecciones?")) return;
     await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
+    fetchData();
   };
 
   const guardarMovimiento = async ({ fecha, tipo, key, montoArs, montoUsd, estado, nota }) => {
-    const existente = weeks.find((w) => w.week_start === fecha);
-    const base = existente || { id: fecha, week_start: fecha, status: estado, saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
-    
-    let currentNotes = {};
-    try { currentNotes = JSON.parse(base.notes || "{}"); } catch(e) {}
-    if (nota && nota.trim() !== "") currentNotes[`${tipo}_${key}`] = nota;
-    else delete currentNotes[`${tipo}_${key}`];
+    const base = weeks.find((w) => w.week_start === fecha) || { id: fecha, week_start: fecha, status: estado, income: {}, expense: {}, notes: "" };
+    let currentNotes = {}; try { currentNotes = JSON.parse(base.notes || "{}"); } catch(e) {}
+    if (nota) currentNotes[`${tipo}_${key}`] = nota; else delete currentNotes[`${tipo}_${key}`];
 
     const actualizada = { ...base, status: estado || base.status, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) }, notes: JSON.stringify(currentNotes) };
-    
     const field = tipo === "ingreso" ? "income" : "expense";
     actualizada[field][key] = { ars: Number(montoArs) || 0, usd: Number(montoUsd) || 0 };
 
     await supabase.from("cashflow_weeks").upsert(actualizada);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
-    return true;
+    fetchData(); return true;
   };
 
   const eliminarMovimiento = async (fecha, tipo, key) => {
-    const existente = weeks.find((w) => w.week_start === fecha);
-    if (!existente) return;
-    let currentNotes = {};
-    try { currentNotes = JSON.parse(existente.notes || "{}"); } catch(e) {}
+    const existente = weeks.find((w) => w.week_start === fecha); if (!existente) return;
+    let currentNotes = {}; try { currentNotes = JSON.parse(existente.notes || "{}"); } catch(e) {}
     delete currentNotes[`${tipo}_${key}`];
     
     const actualizada = { ...existente, income: { ...(existente.income || {}) }, expense: { ...(existente.expense || {}) }, notes: JSON.stringify(currentNotes) };
-    const field = tipo === "ingreso" ? "income" : "expense";
-    delete actualizada[field][key];
-    
-    await supabase.from("cashflow_weeks").upsert(actualizada);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
+    const field = tipo === "ingreso" ? "income" : "expense"; delete actualizada[field][key];
+    await supabase.from("cashflow_weeks").upsert(actualizada); fetchData();
   };
 
   const moverMovimiento = async (origenFecha, destinoFecha, tipo, key, ars, usd) => {
@@ -317,128 +350,87 @@ export default function App() {
     let notaMovida = null;
     if (origen) {
       let upOrigen = { ...origen, income: { ...(origen.income || {}) }, expense: { ...(origen.expense || {}) } };
-      const field = tipo === "ingreso" ? "income" : "expense";
-      delete upOrigen[field][key];
-      let origenNotes = {};
-      try { origenNotes = JSON.parse(origen.notes || "{}"); } catch(e) {}
+      const field = tipo === "ingreso" ? "income" : "expense"; delete upOrigen[field][key];
+      let origenNotes = {}; try { origenNotes = JSON.parse(origen.notes || "{}"); } catch(e) {}
       if (origenNotes[`${tipo}_${key}`]) { notaMovida = origenNotes[`${tipo}_${key}`]; delete origenNotes[`${tipo}_${key}`]; }
-      upOrigen.notes = JSON.stringify(origenNotes);
-      await supabase.from("cashflow_weeks").upsert(upOrigen);
+      upOrigen.notes = JSON.stringify(origenNotes); await supabase.from("cashflow_weeks").upsert(upOrigen);
     }
-    const destino = weeks.find((w) => w.week_start === destinoFecha) || { id: destinoFecha, week_start: destinoFecha, status: "proyectado", saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
+    const destino = weeks.find((w) => w.week_start === destinoFecha) || { id: destinoFecha, week_start: destinoFecha, status: "proyectado", income: {}, expense: {}, notes: "" };
     let upDestino = { ...destino, income: { ...(destino.income || {}) }, expense: { ...(destino.expense || {}) } };
     const field2 = tipo === "ingreso" ? "income" : "expense";
-    
     const valDest = upDestino[field2][key];
     let dArs = 0, dUsd = 0;
-    if (typeof valDest === 'object' && valDest !== null) {
-        dArs = Number(valDest.ars || 0); dUsd = Number(valDest.usd || 0);
-    } else {
-        dArs = Number(valDest || 0);
-    }
+    if (typeof valDest === 'object' && valDest !== null) { dArs = Number(valDest.ars || 0); dUsd = Number(valDest.usd || 0); } 
+    else { dArs = Number(valDest || 0); }
     upDestino[field2][key] = { ars: dArs + Number(ars), usd: dUsd + Number(usd) };
 
     if (notaMovida) {
-      let destinoNotes = {};
-      try { destinoNotes = JSON.parse(destino.notes || "{}"); } catch(e) {}
-      destinoNotes[`${tipo}_${key}`] = notaMovida;
-      upDestino.notes = JSON.stringify(destinoNotes);
+      let destinoNotes = {}; try { destinoNotes = JSON.parse(destino.notes || "{}"); } catch(e) {}
+      destinoNotes[`${tipo}_${key}`] = notaMovida; upDestino.notes = JSON.stringify(destinoNotes);
     }
-    await supabase.from("cashflow_weeks").upsert(upDestino);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
+    await supabase.from("cashflow_weeks").upsert(upDestino); fetchData();
   };
 
-  const fieldFor = (grupo) => (grupo === "ingreso" ? "income" : "expense");
-
   const agregarConcepto = async (grupo, label) => {
-    const field = fieldFor(grupo);
-    const key = "custom_" + slugify(label);
-    const anchor = new Date().toISOString().slice(0, 10);
+    const field = grupo === "ingreso" ? "income" : "expense";
+    const key = "custom_" + slugify(label); const anchor = new Date().toISOString().slice(0, 10);
     const existente = weeks.find((w) => w.week_start === anchor);
-    const base = existente || { id: anchor, week_start: anchor, status: "proyectado", saldo_inicial: 0, saldo_bancos: 0, saldo_credimas: 0, income: {}, expense: {}, notes: "" };
+    const base = existente || { id: anchor, week_start: anchor, status: "proyectado", income: {}, expense: {}, notes: "" };
     const actualizada = { ...base, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) } };
     if (actualizada[field][key] === undefined) actualizada[field][key] = { ars: 0, usd: 0 };
-    await supabase.from("cashflow_weeks").upsert(actualizada);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
-    return true;
+    await supabase.from("cashflow_weeks").upsert(actualizada); fetchData(); return true;
   };
 
   const renombrarConcepto = async (grupo, oldKey, newLabel) => {
-    const field = fieldFor(grupo);
-    const newKey = "custom_" + slugify(newLabel);
+    const field = grupo === "ingreso" ? "income" : "expense"; const newKey = "custom_" + slugify(newLabel);
     const afectadas = weeks.filter((w) => w[field] && Object.prototype.hasOwnProperty.call(w[field], oldKey));
     if (afectadas.length === 0) return agregarConcepto(grupo, newLabel);
     const updates = afectadas.map((w) => {
-      const obj = { ...(w[field] || {}) };
-      const val = obj[oldKey]; delete obj[oldKey]; obj[newKey] = val;
-      return { ...w, [field]: obj };
+      const obj = { ...(w[field] || {}) }; const val = obj[oldKey]; delete obj[oldKey]; obj[newKey] = val; return { ...w, [field]: obj };
     });
-    await supabase.from("cashflow_weeks").upsert(updates);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
-    return true;
+    await supabase.from("cashflow_weeks").upsert(updates); fetchData(); return true;
   };
 
   const eliminarConcepto = async (grupo, key) => {
-    const field = fieldFor(grupo);
+    const field = grupo === "ingreso" ? "income" : "expense";
     const afectadas = weeks.filter((w) => w[field] && Object.prototype.hasOwnProperty.call(w[field], key));
     if (afectadas.length === 0) return true;
     const updates = afectadas.map((w) => {
-      const obj = { ...(w[field] || {}) }; delete obj[key];
-      return { ...w, [field]: obj };
+      const obj = { ...(w[field] || {}) }; delete obj[key]; return { ...w, [field]: obj };
     });
-    await supabase.from("cashflow_weeks").upsert(updates);
-    const { data } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
-    setWeeks(data || []);
-    return true;
+    await supabase.from("cashflow_weeks").upsert(updates); fetchData(); return true;
   };
-
-  const formatLabel = (k) => k.replace("custom_", "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
   const incomeCats = useMemo(() => discoverCategories(weeks, BASE_INCOME, "income"), [weeks]);
   const expenseCats = useMemo(() => discoverCategories(weeks, BASE_EXPENSE, "expense"), [weeks]);
   
   const procesadas = useMemo(() => {
     const arqueosDict = {};
-    arqueosList.forEach(a => {
-      if (a.fecha_corte) arqueosDict[a.fecha_corte] = Number(a.saldo_efectivo || 0) + Number(a.saldo_banco || 0);
-    });
-
-    const fechasSet = new Set(weeks.map((w) => w.week_start));
-    Object.keys(arqueosDict).forEach(f => fechasSet.add(f));
+    arqueosList.forEach(a => { if (a.fecha_corte) arqueosDict[a.fecha_corte] = Number(a.saldo_efectivo || 0) + Number(a.saldo_banco || 0); });
+    const fechasSet = new Set(weeks.map((w) => w.week_start)); Object.keys(arqueosDict).forEach(f => fechasSet.add(f));
     const fechasArray = Array.from(fechasSet).sort();
-
     const fechasConArqueo = Object.keys(arqueosDict).sort();
     const firstArqueoDate = fechasConArqueo.length > 0 ? fechasConArqueo[0] : null;
 
     const getTC = (date) => {
       if (!tcList || tcList.length === 0) return 1;
-      const validTCs = tcList
-          .filter(t => t.fecha_corte <= date)
-          .sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
+      const validTCs = tcList.filter(t => t.fecha_corte <= date).sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
       return validTCs.length > 0 ? Number(validTCs[0].saldo_efectivo) || 1 : 1;
     };
 
     let currentSaldo = 0;
-    
     if (firstArqueoDate) {
          let flowSum = 0;
          for (let f of fechasArray) {
              if (f >= firstArqueoDate) break; 
              const w = weeks.find(week => week.week_start === f) || {};
              const tcActual = getTC(f);
-             
              const calcSum = (obj) => {
-                 let t = 0;
-                 Object.values(obj || {}).forEach(v => {
+                 let t = 0; Object.values(obj || {}).forEach(v => {
                      if (typeof v === 'object' && v !== null) t += Number(v.ars || 0) + (Number(v.usd || 0) * tcActual);
                      else t += Number(v || 0);
-                 });
-                 return t;
+                 }); return t;
              };
-             
              flowSum += (calcSum(w.income) - calcSum(w.expense));
          }
          currentSaldo = arqueosDict[firstArqueoDate] - flowSum;
@@ -447,50 +439,31 @@ export default function App() {
     return fechasArray.map((fecha) => {
       const w = weeks.find((week) => week.week_start === fecha) || { income: {}, expense: {}, notes: "{}" };
       const tcActual = getTC(fecha);
-      
       const calcSum = (obj) => {
-          let t = 0;
-          Object.values(obj || {}).forEach(v => {
+          let t = 0; Object.values(obj || {}).forEach(v => {
               if (typeof v === 'object' && v !== null) t += Number(v.ars || 0) + (Number(v.usd || 0) * tcActual);
               else t += Number(v || 0);
-          });
-          return t;
+          }); return t;
       };
 
-      const ing = calcSum(w.income);
-      const eg = calcSum(w.expense);
-      const pos = ing - eg;
+      const ing = calcSum(w.income); const eg = calcSum(w.expense); const pos = ing - eg;
+      let parsedNotes = {}; try { parsedNotes = JSON.parse(w.notes || "{}"); } catch(e) {}
       
-      let parsedNotes = {};
-      try { parsedNotes = JSON.parse(w.notes || "{}"); } catch(e) {}
-      
-      let esArqueo = false;
-      let ajuste = 0;
-      
+      let esArqueo = false; let ajuste = 0;
       if (arqueosDict[fecha] !== undefined) {
-          esArqueo = true;
-          ajuste = arqueosDict[fecha] - currentSaldo; 
-          currentSaldo = arqueosDict[fecha];
+          esArqueo = true; ajuste = arqueosDict[fecha] - currentSaldo; currentSaldo = arqueosDict[fecha];
       }
-
       currentSaldo += pos;
 
-      return { 
-        ...w, week_start: fecha, totalIngresos: ing, totalEgresos: eg, 
-        posicion: pos, saldoAcumulado: currentSaldo, parsedNotes, 
-        esArqueo, ajuste 
-      };
+      return { ...w, week_start: fecha, totalIngresos: ing, totalEgresos: eg, posicion: pos, saldoAcumulado: currentSaldo, parsedNotes, esArqueo, ajuste };
     });
   }, [weeks, arqueosList, tcList]);
 
   const kpis = useMemo(() => {
     if (procesadas.length === 0) return null;
     const hoy = todayISO();
-    
     const pasadas = procesadas.filter((w) => w.week_start <= hoy);
-    const saldoHoy = pasadas.length 
-      ? pasadas[pasadas.length - 1].saldoAcumulado 
-      : (arqueosList.length ? (Number(arqueosList[0].saldo_efectivo) + Number(arqueosList[0].saldo_banco)) : 0);
+    const saldoHoy = pasadas.length ? pasadas[pasadas.length - 1].saldoAcumulado : (arqueosList.length ? (Number(arqueosList[0].saldo_efectivo) + Number(arqueosList[0].saldo_banco)) : 0);
 
     let diasDeCaja = null, deficitActual = false, sinQuemaNeta = false;
     const semanaDeficit = procesadas.find((w) => w.week_start >= hoy && w.saldoAcumulado < 0);
@@ -498,9 +471,7 @@ export default function App() {
 
     if (saldoHoy < 0) { deficitActual = true; diasDeCaja = 0; } 
     else if (semanaDeficit) {
-      const fechaDeficitD = new Date(semanaDeficit.week_start + "T00:00:00");
-      const fechaHoyD = new Date(hoy + "T00:00:00");
-      diasDeCaja = Math.ceil((fechaDeficitD.getTime() - fechaHoyD.getTime()) / (1000 * 3600 * 24));
+      diasDeCaja = Math.ceil((new Date(semanaDeficit.week_start + "T00:00:00").getTime() - new Date(hoy + "T00:00:00").getTime()) / (1000 * 3600 * 24));
     } else { sinQuemaNeta = true; }
 
     const ultimaFecha = procesadas[procesadas.length - 1].week_start;
@@ -516,14 +487,11 @@ export default function App() {
     const flujoNetoMes = ingresosMes - egresosMes;
     const cobertura = egresosMes > 0 ? Math.round((ingresosMes / egresosMes) * 100) : (ingresosMes > 0 ? 100 : 0);
 
-    const fechaLimite = new Date();
-    fechaLimite.setDate(fechaLimite.getDate() + 30);
+    const fechaLimite = new Date(); fechaLimite.setDate(fechaLimite.getDate() + 30);
     const fechaLimiteISO = fechaLimite.toISOString().slice(0, 10);
-    
     const datosProyectados = procesadas.filter(w => w.week_start >= hoy && w.week_start <= fechaLimiteISO);
 
-    let maxEgresoVal = 0;
-    let maxEgresoCat = "Sin egresos proyectados";
+    let maxEgresoVal = 0; let maxEgresoCat = "Sin egresos proyectados";
     if (datosProyectados.length > 0) {
       const sumasEgresos = {};
       const getTC = (d) => {
@@ -536,25 +504,18 @@ export default function App() {
          const rawWeek = weeks.find(raw => raw.week_start === w.week_start) || {};
          const tc = getTC(w.week_start);
          Object.entries(rawWeek.expense || {}).forEach(([k, v]) => {
-            let pVal = 0;
-            if (typeof v === 'object' && v !== null) pVal = Number(v.ars||0) + Number(v.usd||0)*tc;
-            else pVal = Number(v||0);
+            let pVal = 0; if (typeof v === 'object' && v !== null) pVal = Number(v.ars||0) + Number(v.usd||0)*tc; else pVal = Number(v||0);
             sumasEgresos[k] = (sumasEgresos[k] || 0) + pVal;
          });
       });
       Object.entries(sumasEgresos).forEach(([k, v]) => {
          if (v > maxEgresoVal) {
-            maxEgresoVal = v;
-            const catObj = expenseCats.find(c => c.key === k);
-            maxEgresoCat = catObj ? catObj.label : k.replace('custom_', '');
+            maxEgresoVal = v; const catObj = expenseCats.find(c => c.key === k); maxEgresoCat = catObj ? catObj.label : k.replace('custom_', '');
          }
       });
     }
 
-    return { 
-      diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy,
-      flujoNetoMes, cobertura, maxEgresoVal, maxEgresoCat
-    };
+    return { diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy, flujoNetoMes, cobertura, maxEgresoVal, maxEgresoCat };
   }, [procesadas, arqueosList, expenseCats, weeks, tcList]);
 
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: tokens.ink, color: "#fff", fontFamily: tokens.fontBody }}><style>{fontImport}</style>Iniciando entorno seguro…</div>;
@@ -563,7 +524,7 @@ export default function App() {
     <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
       <style>{globalStyles}</style>
 
-      {/* ---------- RIEL DE INSTRUMENTOS (SIDEBAR) ---------- */}
+      {/* ---------- SIDEBAR ---------- */}
       <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
           <img src="/link-banner.png" alt="LINK" style={{ width: "100%", height: "85px", objectFit: "cover", objectPosition: "left center", display: "block" }} />
@@ -598,7 +559,7 @@ export default function App() {
         
         {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
         
-        {/* MÓDULO: MONITOR ECONÓMICO (SIN ARCHIVOS EXTERNOS) */}
+        {/* MÓDULO: MONITOR ECONÓMICO */}
         {tab === "monitor" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", gap: 16 }}>
             <div>
@@ -606,27 +567,17 @@ export default function App() {
               <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Indicadores y mercado en tiempo real, integrado desde tu proyecto externo.</p>
             </div>
             <div style={{ flex: 1, background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
-              <iframe 
-                src="https://monitor-econ-mico.vercel.app/" 
-                style={{ width: "100%", height: "100%", border: "none" }}
-                title="Monitor Económico"
-              />
+              <iframe src="https://monitor-econ-mico.vercel.app/" style={{ width: "100%", height: "100%", border: "none" }} title="Monitor Económico" />
             </div>
           </div>
         )}
 
         {tab === "presupuesto" && (
           <PresupuestoAnualTab 
-            planIncomeCats={PLAN_INCOME_CATS}
-            planExpenseCats={PLAN_EXPENSE_CATS}
-            dailyIncomeCats={incomeCats} 
-            dailyExpenseCats={expenseCats} 
-            fmt={fmt} 
-            planesFondos={planesFondos}
-            mappingGuardado={mapping}
-            onGuardarPlan={guardarPlanDeFondos}
-            onGuardarMapeo={guardarMapeo}
-            tcList={tcList} 
+            planIncomeCats={PLAN_INCOME_CATS} planExpenseCats={PLAN_EXPENSE_CATS}
+            dailyIncomeCats={incomeCats} dailyExpenseCats={expenseCats} 
+            fmt={fmt} planesFondos={planesFondos} mappingGuardado={mapping}
+            onGuardarPlan={guardarPlanDeFondos} onGuardarMapeo={guardarMapeo} tcList={tcList} 
           />
         )}
 
@@ -640,32 +591,10 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, position: "sticky", top: 32 }}>
-                  <CargarMovimiento 
-                    incomeCats={incomeCats} 
-                    expenseCats={expenseCats} 
-                    weeks={weeks} 
-                    onGuardar={guardarMovimiento} 
-                    onEliminar={eliminarMovimiento} 
-                    formatDate={formatDate} 
-                    movimientoAEditar={movimientoAEditar}
-                    setMovimientoAEditar={setMovimientoAEditar}
-                  />
+                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} formatDate={formatDate} movimientoAEditar={movimientoAEditar} setMovimientoAEditar={setMovimientoAEditar} />
                 </div>
               )}
-              <FlujoTable 
-                procesadas={procesadas} 
-                weeks={weeks} 
-                tcList={tcList} 
-                incomeCats={incomeCats} 
-                expenseCats={expenseCats} 
-                fmt={fmt} 
-                onMoverMovimiento={moverMovimiento} 
-                formatDate={formatDate} 
-                onEditClick={(item) => {
-                  setMostrarPanel(true);
-                  setMovimientoAEditar(item); 
-                }}
-              />
+              <FlujoTable procesadas={procesadas} weeks={weeks} tcList={tcList} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} formatDate={formatDate} onEditClick={(item) => { setMostrarPanel(true); setMovimientoAEditar(item); }} />
             </div>
           </div>
         )}
@@ -675,7 +604,6 @@ export default function App() {
         {tab === "configuracion" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 1200 }}>
             <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Configuración</h2></div>
-            
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, alignItems: "start" }}>
                 
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22 }}>
@@ -780,10 +708,12 @@ function KpiCard({ icon: Icon, label, value, sub, tone }) {
   );
 }
 
-function SemesterCard({ title, ingresos, egresos, neto, fmt }) {
+function SemesterCard({ title, ingresos, egresos, neto, fmt, simulated = false }) {
   return (
-    <div style={{ background: tokens.surface, padding: "20px", borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, display: "flex", flexDirection: "column" }}>
-      <h4 style={{ margin: "0 0 16px 0", fontSize: 12, color: tokens.textFaint, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{title}</h4>
+    <div style={{ background: tokens.surface, padding: "20px", borderRadius: 10, border: `2px solid ${simulated ? tokens.gold : colorLineaFuerte}`, display: "flex", flexDirection: "column", transition: "all 0.3s" }}>
+      <h4 style={{ margin: "0 0 16px 0", fontSize: 12, color: simulated ? tokens.gold : tokens.textFaint, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>
+        {title}
+      </h4>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ fontSize: 12.5, color: tokens.textMuted }}>Ingresos</span>
         <span style={{ fontSize: 13.5, fontWeight: 600, color: tokens.positive, fontFamily: tokens.fontMono }}>$ {fmt(ingresos)}</span>
@@ -849,8 +779,8 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
 
   const [simulacionActiva, setSimulacionActiva] = useState(false);
-  const [varIngresos, setVarIngresos] = useState(0); 
-  const [varEgresos, setVarEgresos] = useState(0);   
+  const [simData, setSimData] = useState({ globalIng: 0, globalEg: 0, cats: {}, meses: {}, active: {} });
+  const [expandedGroups, setExpandedGroups] = useState({ "Desglose de Proyectos": true });
 
   useEffect(() => {
     setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
@@ -864,11 +794,34 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     if (editMode) setSimulacionActiva(false);
   }, [editMode]);
 
+  const toggleGroup = (groupLabel) => {
+    setExpandedGroups(prev => ({ ...prev, [groupLabel]: !prev[groupLabel] }));
+  };
+
+  const initSimActive = () => {
+     let act = {};
+     planIncomeCats.forEach(c => act[c.key] = true);
+     planExpenseCats.forEach(c => {
+       if(c.isGroup) c.subCats.forEach(sub => act[sub.key] = true);
+       else act[c.key] = true;
+     });
+     return act;
+  };
+
   const ultimoDolar = useMemo(() => {
     if (!tcList || tcList.length === 0) return 1; 
     const sorted = [...tcList].sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
     return Number(sorted[0].saldo_efectivo) || 1;
   }, [tcList]);
+
+  const flatExpenseCats = useMemo(() => {
+    const flat = [];
+    planExpenseCats.forEach(c => {
+      if (c.isGroup) flat.push(...c.subCats);
+      else flat.push(c);
+    });
+    return flat;
+  }, [planExpenseCats]);
 
   const handleInputChange = (tipo, conceptoKey, mesKey, value) => {
     setPlanDraft(prev => {
@@ -884,30 +837,39 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     setMappingDraft(prev => ({ ...prev, [tipo]: { ...prev[tipo], [dailyKey]: planKey } }));
   };
 
-  const multIng = simulacionActiva ? 1 + (varIngresos / 100) : 1;
-  const multEg = simulacionActiva ? 1 + (varEgresos / 100) : 1;
+  const getSimVal = (tipo, conceptoKey, mesKey) => {
+    const baseVal = planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
+    if (!simulacionActiva) return baseVal;
+    
+    // Si el proyecto está apagado desde el switch, devuelve 0
+    if (simData.active[conceptoKey] === false) return 0;
+    
+    const glob = tipo === 'ingreso' ? (simData.globalIng || 0) : (simData.globalEg || 0);
+    const cat = simData.cats[conceptoKey] || 0;
+    const mes = simData.meses[mesKey] || 0;
+    
+    const totalPct = glob + cat + mes;
+    return baseVal * (1 + totalPct / 100);
+  };
 
   const calcularTotalFila = (tipo, conceptoKey) => {
     let total = 0;
-    const mult = tipo === "ingreso" ? multIng : multEg;
-    meses.forEach(m => { total += (planDraft?.[tipo]?.[conceptoKey]?.[m.k] || 0) * mult; });
+    meses.forEach(m => { total += getSimVal(tipo, conceptoKey, m.k); });
     return total;
   };
 
   const calcularTotalColumna = (tipo, mesKey) => {
     let total = 0;
-    const mult = tipo === "ingreso" ? multIng : multEg;
-    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
-    catalogo.forEach(c => { total += (planDraft?.[tipo]?.[c.key]?.[mesKey] || 0) * mult; });
+    const catalogo = tipo === "ingreso" ? planIncomeCats : flatExpenseCats;
+    catalogo.forEach(c => { total += getSimVal(tipo, c.key, mesKey); });
     return total;
   };
 
   const calcSemestre = (tipo, mesesFilter) => {
     let t = 0;
-    const mult = tipo === "ingreso" ? multIng : multEg;
-    const dataTipo = planDraft?.[tipo] || {};
-    Object.keys(dataTipo).forEach(catKey => {
-      mesesFilter.forEach(m => { t += (dataTipo[catKey]?.[m] || 0) * mult; });
+    const catalogo = tipo === "ingreso" ? planIncomeCats : flatExpenseCats;
+    catalogo.forEach(c => {
+      mesesFilter.forEach(m => { t += getSimVal(tipo, c.key, m); });
     });
     return t;
   };
@@ -921,19 +883,19 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const egS2 = calcSemestre("egreso", keysS2);
 
   const totalIng = planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
-  const totalEg = planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
+  const totalEg = flatExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
 
   const pieIngresos = planIncomeCats.map(c => {
     const val = calcularTotalFila("ingreso", c.key);
     return { name: c.label, value: val, perc: totalIng > 0 ? (val / totalIng) * 100 : 0 };
   }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
 
-  const pieEgresos = planExpenseCats.map(c => {
+  const pieEgresos = flatExpenseCats.map(c => {
     const val = calcularTotalFila("egreso", c.key);
     return { name: c.label, value: val, perc: totalEg > 0 ? (val / totalEg) * 100 : 0 };
   }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
 
-  const MODERN_PALETTE = ['#3B82F6', '#14DBB6', '#FFCC4D', '#FF6666', '#A385FF', '#4ADE80', '#F97316', '#0EA5E9'];
+  const MODERN_PALETTE = ['#3B82F6', '#14DBB6', '#FFCC4D', '#FF6666', '#A385FF', '#4ADE80', '#F97316', '#0EA5E9', '#EC4899', '#8B5CF6', '#10B981', '#F59E0B', '#6366F1', '#14B8A6'];
   const COLORS_ING = MODERN_PALETTE;
   const COLORS_EG = MODERN_PALETTE;
 
@@ -1014,7 +976,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
           {view === "presupuesto" ? (
             editMode ? (
               <>
-                <button onClick={() => setPlanDraft(DEFAULT_PLAN_2026)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.negativeSoft, color: tokens.negative, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                <button onClick={() => setPlanDraft(selectedYear === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.negativeSoft, color: tokens.negative, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
                   Restaurar Valores Excel
                 </button>
                 <button onClick={guardarTodo} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.positive, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -1023,9 +985,12 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               </>
             ) : (
               <>
-                {/* BOTÓN SIMULADOR */}
-                <button onClick={() => setSimulacionActiva(!simulacionActiva)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
-                  <Wand2 size={16} /> {simulacionActiva ? "Cerrar Simulador" : "Simular Escenarios"}
+                {/* BOTÓN SIMULADOR AVANZADO */}
+                <button onClick={() => { 
+                  if (!simulacionActiva) setSimData({globalIng:0, globalEg:0, cats:{}, meses:{}, active: initSimActive()}); 
+                  setSimulacionActiva(!simulacionActiva); 
+                }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
+                  <Wand2 size={16} /> {simulacionActiva ? "Apagar Simulador" : "Simular Escenarios"}
                 </button>
 
                 <button onClick={() => setEditMode(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
@@ -1043,30 +1008,41 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
       
       {view === "presupuesto" && (
         <>
+          {/* PANEL DEL SIMULADOR ESTÉTICO */}
           {simulacionActiva && !editMode && (
-            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', gap: 32, alignItems: 'center', boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
-              <div>
-                <h3 style={{ margin: "0 0 4px 0", fontSize: 15, color: tokens.text, display: 'flex', alignItems: 'center', gap: 6 }}><Wand2 size={16} color={tokens.gold} /> Simulador Activo</h3>
-                <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Ajusta los porcentajes para proyectar escenarios de aumento o caída.</p>
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `2px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', flexDirection: 'column', gap: 16, boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: "0 0 4px 0", fontSize: 15, color: tokens.gold, display: 'flex', alignItems: 'center', gap: 6 }}><Wand2 size={16} /> Modo Simulación Activo</h3>
+                  <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Mueve las barras globales aquí, o usa los controles en la tabla para apagar proyectos o ajustar meses. <strong>Tus datos reales están a salvo.</strong></p>
+                </div>
+                <button onClick={() => setSimData({globalIng:0, globalEg:0, cats:{}, meses:{}, active: initSimActive()})} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, color: tokens.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}><RotateCcw size={14}/> Resetear toda la simulación</button>
               </div>
-              <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: tokens.positive, textTransform: "uppercase" }}>Variación Ingresos (%)</label>
-                  <input type="number" value={varIngresos} onChange={(e) => setVarIngresos(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, outline: "none", width: 140, fontFamily: tokens.fontMono, fontSize: 15, fontWeight: 600 }} />
+              
+              <div style={{ display: 'flex', gap: 32, padding: "16px", background: colorTablaBg, borderRadius: 8, border: `1px solid ${colorLineaSuave}` }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: tokens.positive, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ajuste Global Ingresos</label>
+                    <span style={{ fontSize: 13, fontWeight: 800, fontFamily: tokens.fontMono, color: simData.globalIng !== 0 ? tokens.positive : tokens.textMuted }}>{simData.globalIng > 0 ? '+' : ''}{simData.globalIng}%</span>
+                  </div>
+                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.globalIng} onChange={(e) => setSimData({...simData, globalIng: Number(e.target.value)})} />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, textTransform: "uppercase" }}>Variación Egresos (%)</label>
-                  <input type="number" value={varEgresos} onChange={(e) => setVarEgresos(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, outline: "none", width: 140, fontFamily: tokens.fontMono, fontSize: 15, fontWeight: 600 }} />
+                <div style={{ width: 1, background: colorLineaFuerte }}></div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: tokens.negative, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ajuste Global Egresos</label>
+                    <span style={{ fontSize: 13, fontWeight: 800, fontFamily: tokens.fontMono, color: simData.globalEg !== 0 ? tokens.negative : tokens.textMuted }}>{simData.globalEg > 0 ? '+' : ''}{simData.globalEg}%</span>
+                  </div>
+                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.globalEg} onChange={(e) => setSimData({...simData, globalEg: Number(e.target.value)})} />
                 </div>
-                <button onClick={() => { setVarIngresos(0); setVarEgresos(0); }} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, height: 38, alignSelf: 'flex-end', color: tokens.textMuted }}>Resetear a 0%</button>
               </div>
             </div>
           )}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
-            <SemesterCard title="Primer Semestre (Ene - Jun)" ingresos={ingS1} egresos={egS1} neto={ingS1 - egS1} fmt={fmt} />
-            <SemesterCard title="Segundo Semestre (Jul - Dic)" ingresos={ingS2} egresos={egS2} neto={ingS2 - egS2} fmt={fmt} />
-            <SemesterCard title={simulacionActiva ? "Total Acumulado SIMULADO" : "Total Acumulado Anual"} ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} />
+            <SemesterCard title="Primer Semestre (Ene - Jun)" ingresos={ingS1} egresos={egS1} neto={ingS1 - egS1} fmt={fmt} simulated={simulacionActiva} />
+            <SemesterCard title="Segundo Semestre (Jul - Dic)" ingresos={ingS2} egresos={egS2} neto={ingS2 - egS2} fmt={fmt} simulated={simulacionActiva} />
+            <SemesterCard title={simulacionActiva ? "Total Acumulado SIMULADO" : "Total Acumulado Anual"} ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} simulated={simulacionActiva} />
           </div>
 
           {!editMode && (
@@ -1093,7 +1069,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               {/* INDICADOR CENTRAL: FLUJO NETO MENSUAL USD */}
               <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: "24px 20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
                 <h3 style={{ margin: "0 0 20px 0", color: '#fff', fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>
-                  Flujo Neto Promedio<br/><span style={{fontSize: 12, color: '#94A3B8', fontWeight: 500}}>Mensualizado en USD</span>
+                  Flujo Promedio<br/><span style={{fontSize: 12, color: '#94A3B8', fontWeight: 500}}>Mensualizado USD</span>
                 </h3>
                 
                 <div style={{ width: "100%", marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid #334155" }}>
@@ -1141,62 +1117,178 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                 <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
                   <thead>
                     <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, transition: "border-color 0.3s" }}>
-                      <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>Categoría del Presupuesto</th>
-                      {meses.map(m => <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>{m.n}</th>)}
+                      <th className="sticky-col" style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg }}>
+                        Categoría del Presupuesto
+                      </th>
+                      {meses.map(m => (
+                        <th key={m.k} style={{ padding: 14, textAlign: "right", minWidth: 90, fontFamily: tokens.fontMono }}>
+                          <div>{m.n}</div>
+                          {simulacionActiva && (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: 8 }}>
+                              <input type="range" className="sim-slider" min="-100" max="100" value={simData.meses[m.k] || 0} onChange={(e) => setSimData(prev => ({...prev, meses: {...prev.meses, [m.k]: Number(e.target.value)}}))} style={{width: 60}} />
+                              <span style={{ fontSize: 10, fontWeight: 700, color: simData.meses[m.k] !== 0 ? tokens.gold : tokens.textMuted }}>{simData.meses[m.k] > 0 ? '+' : ''}{simData.meses[m.k] || 0}%</span>
+                            </div>
+                          )}
+                        </th>
+                      ))}
                       <th style={{ padding: 14, textAlign: "right", minWidth: 100, fontFamily: tokens.fontMono, color: tokens.text }}>Total Anual</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS {simulacionActiva && "(Simulado)"}</td></tr>
-                    {planIncomeCats.map(c => (
-                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                          <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
-                          {meses.map(m => {
-                            const valBase = planDraft?.ingreso?.[c.key]?.[m.k] || "";
-                            const valShow = valBase ? valBase * multIng : "";
-                            return (
-                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                {editMode ? (
-                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
-                                ) : (
-                                  <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
+                    {planIncomeCats.map(c => {
+                       const isOff = simulacionActiva && !simData.active[c.key];
+                       return (
+                         <tr key={c.key} className={`flujo-row ${isOff ? 'sim-row-disabled' : ''}`} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                            <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                  <span style={{fontWeight: 500}}>{c.label}</span>
+                                  {simulacionActiva && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 70}} disabled={isOff} />
+                                      <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {simulacionActiva && (
+                                  <label className="toggle-switch" title={isOff ? "Encender Categoría" : "Apagar Categoría"}>
+                                    <input type="checkbox" checked={!isOff} onChange={() => setSimData(prev => ({...prev, active: {...prev.active, [c.key]: !prev.active[c.key]}}))} />
+                                    <span className="slider-toggle"></span>
+                                  </label>
                                 )}
-                              </td>
-                            );
-                          })}
-                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
-                       </tr>
-                    ))}
+                              </div>
+                            </td>
+                            {meses.map(m => {
+                              const valBase = planDraft?.ingreso?.[c.key]?.[m.k] || "";
+                              const valShow = getSimVal("ingreso", c.key, m.k);
+                              return (
+                                <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                  {editMode ? (
+                                    <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                  ) : (
+                                    <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
+                         </tr>
+                       );
+                    })}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos Proyectados</td>
+                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
                       <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
                     </tr>
 
                     <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS {simulacionActiva && "(Simulado)"}</td></tr>
-                    {planExpenseCats.map(c => (
-                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                          <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
-                          {meses.map(m => {
-                            const valBase = planDraft?.egreso?.[c.key]?.[m.k] || "";
-                            const valShow = valBase ? valBase * multEg : "";
-                            return (
-                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                {editMode ? (
-                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
-                                ) : (
-                                  <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
-                                )}
+                    {planExpenseCats.map(item => {
+                      if (item.isGroup) {
+                        return (
+                          <React.Fragment key={item.label}>
+                            <tr className="flujo-row" style={{ backgroundColor: colorTotalBg, borderBottom: `1px solid ${colorLineaSuave}` }}>
+                              <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 800, color: tokens.text, background: colorTotalBg, cursor: 'pointer' }} onClick={() => toggleGroup(item.label)}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  {expandedGroups[item.label] ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
+                                  {item.label}
+                                </div>
                               </td>
-                            );
-                          })}
-                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
-                       </tr>
-                    ))}
+                              {meses.map(m => {
+                                const groupMonthTotal = item.subCats.reduce((acc, sub) => acc + getSimVal("egreso", sub.key, m.k), 0);
+                                return <td key={m.k} style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>{groupMonthTotal > 0 ? `$ ${fmt(groupMonthTotal)}` : "-"}</td>;
+                              })}
+                              <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 800, fontFamily: tokens.fontMono, color: tokens.text }}>
+                                $ {fmt(item.subCats.reduce((acc, sub) => acc + calcularTotalFila("egreso", sub.key), 0))}
+                              </td>
+                            </tr>
+                            {expandedGroups[item.label] && item.subCats.map(sub => {
+                              const isOff = simulacionActiva && !simData.active[sub.key];
+                              return (
+                                <tr key={sub.key} className={`flujo-row ${isOff ? 'sim-row-disabled' : ''}`} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                                  <td className="sticky-col" style={{ padding: "9px 14px 9px 40px", color: tokens.textMuted, background: colorTablaBg }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        <span style={{fontWeight: 500}}>{sub.label}</span>
+                                        {simulacionActiva && (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[sub.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [sub.key]: Number(e.target.value)}}))} style={{width: 70}} disabled={isOff} />
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[sub.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[sub.key] > 0 ? '+' : ''}{simData.cats[sub.key] || 0}%</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      {simulacionActiva && (
+                                        <label className="toggle-switch" title={isOff ? "Encender Proyecto" : "Apagar Proyecto"}>
+                                          <input type="checkbox" checked={!isOff} onChange={() => setSimData(prev => ({...prev, active: {...prev.active, [sub.key]: !prev.active[sub.key]}}))} />
+                                          <span className="slider-toggle"></span>
+                                        </label>
+                                      )}
+                                    </div>
+                                  </td>
+                                  {meses.map(m => {
+                                    const valBase = planDraft?.egreso?.[sub.key]?.[m.k] || "";
+                                    const valShow = getSimVal("egreso", sub.key, m.k);
+                                    return (
+                                      <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                        {editMode ? (
+                                          <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", sub.key, m.k, e.target.value)} placeholder="0" />
+                                        ) : (
+                                          <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", sub.key))}</td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      } else {
+                        const isOff = simulacionActiva && !simData.active[item.key];
+                        return (
+                          <tr key={item.key} className={`flujo-row ${isOff ? 'sim-row-disabled' : ''}`} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                            <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                  <span style={{fontWeight: 500}}>{item.label}</span>
+                                  {simulacionActiva && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[item.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [item.key]: Number(e.target.value)}}))} style={{width: 70}} disabled={isOff} />
+                                      <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[item.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[item.key] > 0 ? '+' : ''}{simData.cats[item.key] || 0}%</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {simulacionActiva && (
+                                  <label className="toggle-switch" title={isOff ? "Encender Categoría" : "Apagar Categoría"}>
+                                    <input type="checkbox" checked={!isOff} onChange={() => setSimData(prev => ({...prev, active: {...prev.active, [item.key]: !prev.active[item.key]}}))} />
+                                    <span className="slider-toggle"></span>
+                                  </label>
+                                )}
+                              </div>
+                            </td>
+                            {meses.map(m => {
+                              const valBase = planDraft?.egreso?.[item.key]?.[m.k] || "";
+                              const valShow = getSimVal("egreso", item.key, m.k);
+                              return (
+                                <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                  {editMode ? (
+                                    <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", item.key, m.k, e.target.value)} placeholder="0" />
+                                  ) : (
+                                    <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", item.key))}</td>
+                         </tr>
+                        );
+                      }
+                    })}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
-                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos Proyectados</td>
+                      <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
-                      <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
+                      <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(flatExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1232,7 +1324,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                 <div style={{ width: "45%" }}>
                   <select className="map-select" value={mappingDraft.egreso?.[c.key] || ""} onChange={(e) => handleMappingChange("egreso", c.key, e.target.value)}>
                     <option value="">(Sin asignar)</option>
-                    {planExpenseCats.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                    {flatExpenseCats.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
                   </select>
                 </div>
               </div>
