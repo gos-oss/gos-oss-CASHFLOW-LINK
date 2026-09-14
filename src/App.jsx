@@ -7,7 +7,7 @@ import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, ComposedChart, Line
+  PieChart, Pie, Cell, Legend, ComposedChart, Line, BarChart, Bar, LabelList
 } from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
@@ -1215,6 +1215,47 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               </div>
             </div>
           )}
+
+          {/* ── RANKING DE PROYECTOS — quién pesa más en el año, responde a la simulación ── */}
+          <div className="kf-card-dark" style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: 15, fontWeight: 700 }}>Proyectos — Total {selectedYear}{simulacionActiva ? " (simulado)" : ""}</h3>
+              <span style={{ fontSize: 11, color: '#94A3B8' }}>{PLAN_PROJECT_CATS.filter(p => calcularTotalFila("egreso", p.key) > 0).length} con actividad este año</span>
+            </div>
+            <p style={{ margin: "2px 0 16px 0", fontSize: 12, color: '#64748B' }}>
+              {simulacionActiva ? "Se actualiza con los sliders y los proyectos que apagaste arriba." : "Ordenado de mayor a menor peso en el presupuesto anual."}
+            </p>
+            {(() => {
+              const ranking = PLAN_PROJECT_CATS
+                .map(c => ({ key: c.key, name: c.label, value: calcularTotalFila("egreso", c.key), activo: isProyectoActivo(c.key) }))
+                .filter(d => d.value > 0 || (simulacionActiva && !d.activo))
+                .sort((a, b) => b.value - a.value);
+              if (ranking.length === 0) {
+                return <div style={{ padding: "20px 0", textAlign: "center", color: '#64748B', fontSize: 12.5 }}>Ningún proyecto tiene monto cargado para {selectedYear}.</div>;
+              }
+              return (
+                <div style={{ height: Math.max(ranking.length * 30, 60) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={ranking} layout="vertical" margin={{ top: 0, right: 60, left: 10, bottom: 0 }}>
+                      <XAxis type="number" hide />
+                      <YAxis type="category" dataKey="name" width={130} tick={{ fill: '#CBD5E1', fontSize: 11.5 }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ background: '#0F172A', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: '#fff', fontWeight: 700 }}
+                        formatter={(value) => [`$ ${fmt(value)}`, "Total anual"]}
+                      />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16}>
+                        {ranking.map((d, i) => (
+                          <Cell key={d.key} fill={simulacionActiva && !d.activo ? "#334155" : tokens.gold} fillOpacity={simulacionActiva && !d.activo ? 0.5 : 1} />
+                        ))}
+                        <LabelList dataKey="value" position="right" formatter={(v) => v > 0 ? `$ ${fmt(v)}` : "apagado"} style={{ fill: '#94A3B8', fontSize: 10.5, fontFamily: tokens.fontMono }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()}
+          </div>
 
           <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, overflow: "hidden", transition: "border-color 0.3s" }}>
              <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
