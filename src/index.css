@@ -150,3 +150,27 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* --- POLISH GENERAL: tarjetas con vida (hover + transición) en toda la app --- */
+.kf-card {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.kf-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.18);
+  border-color: #C9AE6B;
+}
+.kf-card-dark {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.kf-card-dark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.55);
+  border-color: #4B5C7A;
+}
+.sim-slider {
+  transition: filter 0.15s ease;
+}
+.sim-slider:hover {
+  filter: brightness(1.08);
+}
