@@ -7,13 +7,13 @@ import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, ComposedChart, Line, BarChart, Bar, LabelList
 } from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
-  ListChecks, Tag, SlidersHorizontal, Compass,
+  ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity, Wand2, RotateCcw, Power
+  CalendarDays, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw
 } from "lucide-react";
 
 // =========================================================================
@@ -27,74 +27,89 @@ const PLAN_INCOME_CATS = [
   { key: "custom_aportes", label: "Aportes" }
 ];
 
+// Proyectos individuales — desglosados para poder simular cada uno por separado
+// (activar/desactivar). Superset de los proyectos vistos en los presupuestos
+// 2026 y 2027; un proyecto en $0 en un año simplemente no tuvo actividad ese año.
+const PLAN_PROJECT_CATS = [
+  { key: "proy_torre-blue", label: "Torre Blue", group: "proyectos" },
+  { key: "proy_zoe", label: "Zoe", group: "proyectos" },
+  { key: "proy_torre-red", label: "Torre Red", group: "proyectos" },
+  { key: "proy_isaura", label: "Isaura", group: "proyectos" },
+  { key: "proy_duo", label: "DUO", group: "proyectos" },
+  { key: "proy_300", label: "#300", group: "proyectos" },
+  { key: "proy_boulevard", label: "Boulevard", group: "proyectos" },
+  { key: "proy_torre-green", label: "Torre Green", group: "proyectos" },
+  { key: "proy_mas-duo", label: "+DUO", group: "proyectos" },
+  { key: "proy_auria", label: "Auria", group: "proyectos" },
+  { key: "proy_neuquen", label: "Neuquén", group: "proyectos" },
+  { key: "proy_300-t3-am", label: "#300 - T3 + AM", group: "proyectos" },
+  { key: "proy_300-t4-am", label: "#300 - T4 + AM", group: "proyectos" },
+];
+
 const PLAN_EXPENSE_CATS = [
-  { 
-    isGroup: true, 
-    label: "Desglose de Proyectos", 
-    subCats: [
-      { key: "custom_torre-red", label: "TORRE RED" },
-      { key: "custom_isaura", label: "ISAURA" },
-      { key: "custom_duo", label: "DUO" },
-      { key: "custom_300", label: "#300 (General)" },
-      { key: "custom_300-t1-am", label: "#300 - T1 + AM" },
-      { key: "custom_300-t2-am", label: "#300 - T2 + AM" },
-      { key: "custom_300-t3-am", label: "#300 - T3 + AM" },
-      { key: "custom_300-t4-am", label: "#300 - T4 + AM" },
-      { key: "custom_300-corporativo", label: "#300 - CORPORATIVO" },
-      { key: "custom_300-infra", label: "#300 - INFRA" },
-      { key: "custom_boulevard", label: "BOULEVARD" },
-      { key: "custom_torre-green", label: "TORRE GREEN" },
-      { key: "custom_plus-duo", label: "+DUO" },
-      { key: "custom_auria", label: "AURIA" },
-      { key: "custom_marcos-paz-82", label: "MARCOS PAZ 82" },
-      { key: "custom_neuquen", label: "NEUQUEN" }
-    ]
-  },
+  ...PLAN_PROJECT_CATS,
   { key: "custom_rrhh", label: "RRHH" },
   { key: "custom_administracion", label: "Gastos de Estructura" },
   { key: "custom_inversiones", label: "Inversiones" },
   { key: "custom_pasivos-financieros", label: "Pasivos Financieros" }
 ];
 
-// =========================================================================
-// DATOS REALES EXTRAÍDOS DIRECTAMENTE DE TUS EXCEL (2026 Y 2027)
-// =========================================================================
 const DEFAULT_PLAN_2026 = {
   "ingreso": {
-    "custom_cupos-socios": {"01": 188542320, "02": 188542320, "03": 188542320, "04": 188542320, "05": 188542320, "06": 188542320, "07": 233273820, "08": 233273820, "09": 233273820, "10": 233273820, "11": 233273820, "12": 233273820},
-    "custom_cuotas-mensuales": {"01": 216094107, "02": 210193927, "03": 207243837, "04": 208718882, "05": 210931449, "06": 221256765, "07": 166503716, "08": 394424755, "09": 391424755, "10": 138308205, "11": 135987535, "12": 120871098},
-    "custom_ventas-cdo": {"01": 471643592, "02": 477543773, "03": 480493863, "04": 479018818, "05": 179921317, "06": 217557503, "07": 214152451, "08": 271670000},
-    "custom_pesa": {"05": 389439154, "06": 248923431, "07": 248923431, "08": 248923431, "09": 248923431}
+    "custom_cupos-socios": { "01": 188542320, "02": 188542320, "03": 188542320, "04": 188542320, "05": 188542320, "06": 188542320, "07": 233273820, "08": 233273820, "09": 233273820, "10": 233273820, "11": 233273820, "12": 233273820 },
+    "custom_cuotas-mensuales": { "01": 216094107, "02": 210193927, "03": 207243837, "04": 208718882, "05": 210931449, "06": 221256765, "07": 166503716, "08": 394424755, "09": 391424755, "10": 138308206, "11": 135987535, "12": 120871098 },
+    "custom_ventas-cdo": { "01": 471643593, "02": 477543773, "03": 480493863, "04": 479018818, "05": 179921317, "06": 217557504, "07": 214152451, "08": 271670000, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "custom_pesa": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 389439155, "06": 248923431, "07": 248923431, "08": 248923431, "09": 248923431, "10": 0, "11": 0, "12": 0 },
+    "custom_aportes": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
   },
   "egreso": {
-    "custom_duo": {"01": 356384338, "02": 356384338, "03": 356384338, "04": 356384338, "05": 356384338, "06": 356384338, "07": 34161634, "08": 97952376, "09": 287148042, "10": 124680989},
-    "custom_300": {"01": 38681705, "02": 38936291, "03": 38457672, "04": 38651151, "05": 39700051, "06": 37021814, "07": 39231587, "08": 42846754, "09": 28987101, "10": 29403225, "11": 24324539, "12": 24226764},
-    "custom_boulevard": {"01": 59173434, "02": 57847286, "03": 54816315, "04": 64856702, "05": 53868840, "06": 45723402, "07": 94977865, "08": 20905253, "09": 21287089, "10": 43573541, "11": 84850270, "12": 105764448},
-    "custom_torre-green": {"07": 22809604, "09": 15495938, "10": 14429867, "11": 9950226, "12": 19195745},
-    "custom_rrhh": {"01": 815400, "02": 586308, "03": 586308, "04": 586308, "05": 641670, "06": 641670, "07": 1030574, "08": 1073982, "09": 685077, "10": 1073982, "11": 1073982, "12": 1073982},
-    "custom_administracion": {"01": 31668265, "02": 31668265, "03": 31668265, "04": 31668265, "05": 31668265, "06": 31668265, "07": 31668265, "08": 31668265, "09": 31668265, "10": 31668265, "11": 31668265, "12": 31668265},
-    "custom_inversiones": {"01": 80318625, "02": 78125625, "03": 77029125, "04": 77577375, "05": 78399750, "06": 80592750, "07": 84736950, "08": 84736950, "09": 84736950, "10": 84736950, "11": 7236950, "12": 7236950},
-    "custom_pasivos-financieros": {"01": 57268446, "02": 55950406, "03": 55291386, "04": 55620896, "05": 73580580, "06": 75387163, "07": 79000330, "08": 79743600, "09": 79000330, "10": 79000330, "11": 79000330, "12": 79000330},
-  }
+    "proy_torre-blue": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_zoe": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_torre-red": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_isaura": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_duo": { "01": 356384338, "02": 356384338, "03": 356384338, "04": 356384338, "05": 356384338, "06": 356384338, "07": 34161635, "08": 97952376, "09": 287148043, "10": 124680990, "11": 0, "12": 0 },
+    "proy_300": { "01": 38681705, "02": 38936292, "03": 38457672, "04": 38651151, "05": 39700052, "06": 37021814, "07": 39231587, "08": 42846754, "09": 28987102, "10": 29403226, "11": 24324540, "12": 24226764 },
+    "proy_boulevard": { "01": 59173435, "02": 57847286, "03": 54816315, "04": 64856703, "05": 53868840, "06": 45723403, "07": 94977865, "08": 20905253, "09": 21287090, "10": 43573541, "11": 84850271, "12": 105764448 },
+    "proy_torre-green": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 22809604, "08": 0, "09": 15495939, "10": 14429867, "11": 9950226, "12": 19195745 },
+    "proy_mas-duo": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_auria": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_neuquen": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_300-t3-am": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_300-t4-am": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "custom_rrhh": { "01": 369633317, "02": 397685053, "03": 441780756, "04": 358521345, "05": 475970162, "06": 331050035, "07": 536536134, "08": 513321326, "09": 648915774, "10": 551957302, "11": 520529781, "12": 548314385 },
+    "custom_administracion": { "01": 71586530, "02": 80850508, "03": 103285984, "04": 151720670, "05": 167830241, "06": 233343182, "07": 242145502, "08": 290031520, "09": 243703467, "10": 257845660, "11": 226979694, "12": 118455502 },
+    "custom_inversiones": { "01": 80318625, "02": 78125625, "03": 77029125, "04": 77577375, "05": 78399750, "06": 80592750, "07": 84736950, "08": 84736950, "09": 84736950, "10": 84736950, "11": 7236950, "12": 7236950 },
+    "custom_pasivos-financieros": { "01": 57268446, "02": 55950406, "03": 55291386, "04": 55620896, "05": 73580581, "06": 75387164, "07": 79000330, "08": 79743600, "09": 79000330, "10": 79000330, "11": 79000330, "12": 79000330 },
+  },
 };
 
 const DEFAULT_PLAN_2027 = {
   "ingreso": {
-    "custom_cupos-socios": {"01": 257444876, "02": 257444876, "03": 257444876, "04": 257444876, "05": 257444876, "06": 257444876, "07": 257444876, "08": 257444876, "09": 257444876, "10": 257444876, "11": 257444876, "12": 257444876},
-    "custom_cuotas-mensuales": {"01": 113295831, "02": 109548122, "03": 105735735, "04": 105735735, "05": 105735735, "06": 102862746, "07": 97833898, "08": 97833898, "09": 93118900, "10": 92547465, "11": 90134803, "12": 78152291}
+    "custom_cupos-socios": { "01": 257444876, "02": 257444876, "03": 257444876, "04": 257444876, "05": 257444876, "06": 257444876, "07": 257444876, "08": 257444876, "09": 257444876, "10": 257444876, "11": 257444876, "12": 257444876 },
+    "custom_cuotas-mensuales": { "01": 113295831, "02": 109548122, "03": 105735735, "04": 105735735, "05": 105735735, "06": 102862746, "07": 97833898, "08": 97833898, "09": 93118900, "10": 92547465, "11": 90134803, "12": 78152291 },
+    "custom_ventas-cdo": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "custom_pesa": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "custom_aportes": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
   },
   "egreso": {
-    "custom_300-t3-am": {"01": 168416897, "02": 163730213, "03": 157243469, "04": 149033027, "05": 139199732, "06": 127871237, "07": 115205292, "08": 101394420, "09": 86672683, "10": 71325859, "11": 55707547, "12": 40266747},
-    "custom_300-t4-am": {"03": 4593796, "04": 20380768, "05": 41099631, "06": 64007714, "07": 87608204, "08": 110875190, "09": 133043788, "10": 153520200, "11": 171834915, "12": 187615422},
-    "custom_boulevard": {"01": 172411763, "02": 159937647, "03": 145387705, "04": 129009362, "05": 111110379, "06": 92072589, "07": 72373742, "08": 52624916, "09": 33642437, "10": 16616115, "11": 3732693},
-    "custom_torre-green": {"01": 109440800, "02": 126694964, "03": 142316771, "04": 156001180, "05": 167505524, "06": 176640458, "07": 183263873, "08": 187276822, "09": 188620908, "10": 187276822, "11": 183263873, "12": 176640458},
-    "custom_plus-duo": {"01": 40958735, "02": 82768771, "03": 129197013, "04": 177274028, "05": 224963321, "06": 270743220, "07": 313427922, "08": 352074373, "09": 385927935, "10": 414388282, "11": 436986997, "12": 453372519},
-    "custom_auria": {"06": 6266480, "07": 27895292, "08": 56479243, "09": 88347208, "10": 121501726, "11": 154572337, "12": 186533159},
-    "custom_neuquen": {"01": 117937723, "02": 184483147, "03": 253715099, "04": 322771841, "05": 389511166, "06": 452258263, "07": 509674567, "08": 560681187, "09": 604410742, "10": 640175564, "11": 667446136, "12": 685836389},
-    "custom_administracion": {"01": 28284198, "02": 32389613, "03": 28806648, "04": 24539869, "05": 27031930, "06": 25296381, "07": 27887914, "08": 26164293, "09": 32400810, "10": 27001562, "11": 29623698, "12": 27882789},
-    "custom_inversiones": {"01": 7187180, "02": 7187180, "03": 7187180, "04": 7187180, "05": 7187180, "06": 7187180, "07": 7187180, "08": 7187180, "09": 7187180, "10": 7187180, "11": 7187180, "12": 7187180},
-    "custom_pasivos-financieros": {"01": 59222932, "02": 50889517, "03": 50888404, "04": 50745203},
-  }
+    "proy_torre-blue": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_zoe": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_torre-red": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_isaura": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_duo": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_300": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "proy_boulevard": { "01": 172411763, "02": 159937647, "03": 145387705, "04": 129009363, "05": 111110380, "06": 92072590, "07": 72373743, "08": 52624916, "09": 33642438, "10": 16616116, "11": 3732693, "12": 0 },
+    "proy_torre-green": { "01": 109440800, "02": 126694964, "03": 142316772, "04": 156001181, "05": 167505525, "06": 176640459, "07": 183263874, "08": 187276822, "09": 188620908, "10": 187276822, "11": 183263874, "12": 176640459 },
+    "proy_mas-duo": { "01": 40958735, "02": 82768771, "03": 129197014, "04": 177274029, "05": 224963322, "06": 270743221, "07": 313427922, "08": 352074373, "09": 385927936, "10": 414388283, "11": 436986998, "12": 453372519 },
+    "proy_auria": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 6266480, "07": 27895293, "08": 56479244, "09": 88347209, "10": 121501726, "11": 154572337, "12": 186533160 },
+    "proy_neuquen": { "01": 117937723, "02": 184483148, "03": 253715100, "04": 322771841, "05": 389511167, "06": 452258264, "07": 509674567, "08": 560681188, "09": 604410743, "10": 640175564, "11": 667446137, "12": 685836390 },
+    "proy_300-t3-am": { "01": 168416898, "02": 163730214, "03": 157243470, "04": 149033028, "05": 139199733, "06": 127871237, "07": 115205293, "08": 101394420, "09": 86672684, "10": 71325860, "11": 55707548, "12": 40266748 },
+    "proy_300-t4-am": { "01": 0, "02": 0, "03": 4593796, "04": 20380769, "05": 41099631, "06": 64007715, "07": 87608204, "08": 110875191, "09": 133043788, "10": 153520200, "11": 171834916, "12": 187615423 },
+    "custom_rrhh": { "01": 236815521, "02": 236815521, "03": 236815521, "04": 236815521, "05": 236815521, "06": 350872103, "07": 236815521, "08": 236815521, "09": 236815521, "10": 236815521, "11": 236815521, "12": 301213650 },
+    "custom_administracion": { "01": 90606111, "02": 97137747, "03": 119725719, "04": 73063940, "05": 96883255, "06": 78921432, "07": 76386484, "08": 88528963, "09": 79169543, "10": 68281956, "11": 70245627, "12": 34586780 },
+    "custom_inversiones": { "01": 7187180, "02": 7187180, "03": 7187180, "04": 7187180, "05": 7187180, "06": 7187180, "07": 7187180, "08": 7187180, "09": 7187180, "10": 7187180, "11": 7187180, "12": 7187180 },
+    "custom_pasivos-financieros": { "01": 59222933, "02": 50889518, "03": 50888404, "04": 50745203, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+  },
 };
 
 const colorTablaBg = "#F4F6F8";       
@@ -146,7 +161,7 @@ const globalStyles = `
   
   .recharts-legend-item-text { color: #94A3B8 !important; }
 
-  /* ESTILOS PARA BARRAS SIMULADOR (SANDBOX) */
+  /* ESTILOS PARA LAS BARRITAS DEL SIMULADOR */
   .sim-slider {
     -webkit-appearance: none; width: 100%; height: 5px; border-radius: 3px; background: #DCE1E8; outline: none; cursor: pointer;
   }
@@ -154,25 +169,6 @@ const globalStyles = `
     -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: ${tokens.gold}; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   }
   .sim-slider:active::-webkit-slider-thumb { transform: scale(1.2); }
-
-  /* ESTILOS TOGGLE ACTIVO/INACTIVO */
-  .toggle-switch {
-    position: relative; display: inline-block; width: 34px; height: 18px;
-  }
-  .toggle-switch input { opacity: 0; width: 0; height: 0; }
-  .slider-toggle {
-    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 18px;
-  }
-  .slider-toggle:before {
-    position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%;
-  }
-  input:checked + .slider-toggle { background-color: ${tokens.positive}; }
-  input:checked + .slider-toggle:before { transform: translateX(16px); }
-  
-  .sim-row-disabled {
-    opacity: 0.4;
-    transition: opacity 0.3s ease;
-  }
 `;
 
 const formatDate = (isoStr) => {
@@ -184,6 +180,7 @@ const formatDate = (isoStr) => {
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// NAVEGACIÓN
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
   { id: "monitor", label: "Monitor Económico", icon: Activity },
@@ -251,15 +248,22 @@ export default function App() {
       let planesTemporales = {};
       pData.forEach(r => { if (r.id !== "mapping") planesTemporales[r.id] = r.data; });
 
-      if (!planesTemporales["2026"]) {
+      // Migración: si el 2026 todavía tiene el esquema viejo (Proyectos como una sola fila
+      // agregada, sin desglose por proyecto individual), lo reemplaza por los datos reales
+      // ya desglosados. Una vez migrado (existe "proy_duo"), no se vuelve a tocar.
+      const necesitaMigracion2026 = !planesTemporales["2026"]
+        || !planesTemporales["2026"].egreso
+        || !planesTemporales["2026"].egreso["proy_duo"];
+      if (necesitaMigracion2026) {
         planesTemporales["2026"] = DEFAULT_PLAN_2026;
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
       }
-      if (!planesTemporales["2027"]) {
+
+      if (!planesTemporales["2027"] || !planesTemporales["2027"].egreso || !planesTemporales["2027"].egreso["proy_neuquen"]) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
         await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
       }
-      
+
       setPlanesFondos(planesTemporales);
     } else {
       setPlanesFondos({ "2026": DEFAULT_PLAN_2026, "2027": DEFAULT_PLAN_2027 });
@@ -697,7 +701,7 @@ function Field({ label, children }) {
 function KpiCard({ icon: Icon, label, value, sub, tone }) {
   const color = tone === "neg" ? tokens.negative : tone === "pos" ? tokens.positive : tokens.text;
   return (
-    <div style={{ background: tokens.surface, padding: "20px 22px", borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div className="kf-card" style={{ background: tokens.surface, padding: "20px 22px", borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
       <div>
         <div style={{ fontSize: 11, color: tokens.textFaint, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
         <div style={{ fontFamily: tokens.fontMono, fontSize: 25, fontWeight: 600, color, marginTop: 6, letterSpacing: "-0.5px" }}>{value}</div>
@@ -708,23 +712,72 @@ function KpiCard({ icon: Icon, label, value, sub, tone }) {
   );
 }
 
-function SemesterCard({ title, ingresos, egresos, neto, fmt, simulated = false }) {
+/* Interruptor on/off — usado para activar/desactivar proyectos en el simulador */
+function ToggleSwitch({ on, onChange, size = 15 }) {
   return (
-    <div style={{ background: tokens.surface, padding: "20px", borderRadius: 10, border: `2px solid ${simulated ? tokens.gold : colorLineaFuerte}`, display: "flex", flexDirection: "column", transition: "all 0.3s" }}>
-      <h4 style={{ margin: "0 0 16px 0", fontSize: 12, color: simulated ? tokens.gold : tokens.textFaint, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>
-        {title}
-      </h4>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+    <div
+      onClick={(e) => { e.stopPropagation(); onChange(!on); }}
+      role="switch"
+      aria-checked={on}
+      style={{
+        width: size * 1.8, height: size, borderRadius: size, flexShrink: 0,
+        background: on ? tokens.positive : colorLineaFuerte, position: "relative",
+        cursor: "pointer", transition: "background 0.15s ease",
+      }}
+    >
+      <div style={{
+        position: "absolute", top: 1.5, left: on ? size * 0.82 : 1.5,
+        width: size - 3, height: size - 3, borderRadius: "50%", background: "#fff",
+        transition: "left 0.15s ease", boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+      }} />
+    </div>
+  );
+}
+
+/* Pastilla de variación % (base → simulado). positiveIsGood invierte el semáforo para egresos. */
+function DeltaBadge({ base, sim, positiveIsGood = true, size = "sm" }) {
+  const diff = sim - base;
+  if (Math.abs(diff) < 0.5) return null;
+  const pct = base !== 0 ? (diff / Math.abs(base)) * 100 : 0;
+  const isUp = diff > 0;
+  const good = positiveIsGood ? isUp : !isUp;
+  const color = good ? tokens.positive : tokens.negative;
+  const bg = good ? tokens.positiveSoft : tokens.negativeSoft;
+  const Icon = isUp ? TrendingUp : TrendingDown;
+  const fs = size === "lg" ? 12 : 10.5;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: fs, fontWeight: 700, color, background: bg, padding: "2px 7px", borderRadius: 20, whiteSpace: "nowrap" }}>
+      <Icon size={size === "lg" ? 13 : 11} /> {isUp ? "+" : ""}{pct.toFixed(1)}%
+    </span>
+  );
+}
+
+function SemesterCard({ title, ingresos, egresos, neto, fmt, ingresosBase, egresosBase }) {
+  const showDelta = ingresosBase != null && egresosBase != null;
+  const netoBase = showDelta ? ingresosBase - egresosBase : null;
+  return (
+    <div className="kf-card" style={{ background: tokens.surface, padding: "20px", borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, display: "flex", flexDirection: "column" }}>
+      <h4 style={{ margin: "0 0 16px 0", fontSize: 12, color: tokens.textFaint, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{title}</h4>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <span style={{ fontSize: 12.5, color: tokens.textMuted }}>Ingresos</span>
-        <span style={{ fontSize: 13.5, fontWeight: 600, color: tokens.positive, fontFamily: tokens.fontMono }}>$ {fmt(ingresos)}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {showDelta && <DeltaBadge base={ingresosBase} sim={ingresos} positiveIsGood={true} />}
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: tokens.positive, fontFamily: tokens.fontMono }}>$ {fmt(ingresos)}</span>
+        </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${colorLineaSuave}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${colorLineaSuave}` }}>
         <span style={{ fontSize: 12.5, color: tokens.textMuted }}>Egresos</span>
-        <span style={{ fontSize: 13.5, fontWeight: 600, color: tokens.negative, fontFamily: tokens.fontMono }}>$ {fmt(egresos)}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {showDelta && <DeltaBadge base={egresosBase} sim={egresos} positiveIsGood={false} />}
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: tokens.negative, fontFamily: tokens.fontMono }}>$ {fmt(egresos)}</span>
+        </div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: tokens.text }}>Flujo Neto</span>
-        <span style={{ fontSize: 16, fontWeight: 700, fontFamily: tokens.fontMono, color: neto >= 0 ? tokens.positive : tokens.negative }}>$ {fmt(neto)}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {showDelta && <DeltaBadge base={netoBase} sim={neto} positiveIsGood={true} size="lg" />}
+          <span style={{ fontSize: 16, fontWeight: 700, fontFamily: tokens.fontMono, color: neto >= 0 ? tokens.positive : tokens.negative }}>$ {fmt(neto)}</span>
+        </div>
       </div>
     </div>
   );
@@ -778,9 +831,14 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const [planDraft, setPlanDraft] = useState({});
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
 
+  // ESTADO DEL SIMULADOR CON BARRAS
   const [simulacionActiva, setSimulacionActiva] = useState(false);
-  const [simData, setSimData] = useState({ globalIng: 0, globalEg: 0, cats: {}, meses: {}, active: {} });
-  const [expandedGroups, setExpandedGroups] = useState({ "Desglose de Proyectos": true });
+  const [simData, setSimData] = useState({ globalIng: 0, globalEg: 0, cats: {}, meses: {} });
+  const [proyectosExpanded, setProyectosExpanded] = useState(true);
+  // Todos activos por defecto — false explícito = el proyecto está "apagado" en la simulación.
+  const [proyectosActivos, setProyectosActivos] = useState({});
+  const projectKeys = useMemo(() => new Set(PLAN_PROJECT_CATS.map(p => p.key)), []);
+  const isProyectoActivo = (key) => proyectosActivos[key] !== false;
 
   useEffect(() => {
     setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
@@ -794,34 +852,11 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     if (editMode) setSimulacionActiva(false);
   }, [editMode]);
 
-  const toggleGroup = (groupLabel) => {
-    setExpandedGroups(prev => ({ ...prev, [groupLabel]: !prev[groupLabel] }));
-  };
-
-  const initSimActive = () => {
-     let act = {};
-     planIncomeCats.forEach(c => act[c.key] = true);
-     planExpenseCats.forEach(c => {
-       if(c.isGroup) c.subCats.forEach(sub => act[sub.key] = true);
-       else act[c.key] = true;
-     });
-     return act;
-  };
-
   const ultimoDolar = useMemo(() => {
     if (!tcList || tcList.length === 0) return 1; 
     const sorted = [...tcList].sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
     return Number(sorted[0].saldo_efectivo) || 1;
   }, [tcList]);
-
-  const flatExpenseCats = useMemo(() => {
-    const flat = [];
-    planExpenseCats.forEach(c => {
-      if (c.isGroup) flat.push(...c.subCats);
-      else flat.push(c);
-    });
-    return flat;
-  }, [planExpenseCats]);
 
   const handleInputChange = (tipo, conceptoKey, mesKey, value) => {
     setPlanDraft(prev => {
@@ -837,13 +872,14 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     setMappingDraft(prev => ({ ...prev, [tipo]: { ...prev[tipo], [dailyKey]: planKey } }));
   };
 
+  // MATEMÁTICA DEL SIMULADOR POR PORCENTAJES
   const getSimVal = (tipo, conceptoKey, mesKey) => {
     const baseVal = planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
     if (!simulacionActiva) return baseVal;
-    
-    // Si el proyecto está apagado desde el switch, devuelve 0
-    if (simData.active[conceptoKey] === false) return 0;
-    
+
+    // Proyecto desactivado en la simulación → no aporta al escenario simulado.
+    if (tipo === "egreso" && projectKeys.has(conceptoKey) && !isProyectoActivo(conceptoKey)) return 0;
+
     const glob = tipo === 'ingreso' ? (simData.globalIng || 0) : (simData.globalEg || 0);
     const cat = simData.cats[conceptoKey] || 0;
     const mes = simData.meses[mesKey] || 0;
@@ -860,16 +896,25 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
 
   const calcularTotalColumna = (tipo, mesKey) => {
     let total = 0;
-    const catalogo = tipo === "ingreso" ? planIncomeCats : flatExpenseCats;
+    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
     catalogo.forEach(c => { total += getSimVal(tipo, c.key, mesKey); });
     return total;
   };
 
   const calcSemestre = (tipo, mesesFilter) => {
     let t = 0;
-    const catalogo = tipo === "ingreso" ? planIncomeCats : flatExpenseCats;
+    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
     catalogo.forEach(c => {
       mesesFilter.forEach(m => { t += getSimVal(tipo, c.key, m); });
+    });
+    return t;
+  };
+
+  const calcSemestreBase = (tipo, mesesFilter) => {
+    let t = 0;
+    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
+    catalogo.forEach(c => {
+      mesesFilter.forEach(m => { t += planDraft?.[tipo]?.[c.key]?.[m] || 0; });
     });
     return t;
   };
@@ -882,20 +927,49 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const egS1 = calcSemestre("egreso", keysS1);
   const egS2 = calcSemestre("egreso", keysS2);
 
+  const ingS1Base = simulacionActiva ? calcSemestreBase("ingreso", keysS1) : ingS1;
+  const ingS2Base = simulacionActiva ? calcSemestreBase("ingreso", keysS2) : ingS2;
+  const egS1Base = simulacionActiva ? calcSemestreBase("egreso", keysS1) : egS1;
+  const egS2Base = simulacionActiva ? calcSemestreBase("egreso", keysS2) : egS2;
+
   const totalIng = planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
-  const totalEg = flatExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
+  const totalEg = planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
+
+  // ── VALORES BASE (sin simulación) — para comparar el impacto del simulador ──
+  const getBaseVal = (tipo, conceptoKey, mesKey) => planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
+  const calcularTotalColumnaBase = (tipo, mesKey) => {
+    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
+    return catalogo.reduce((acc, c) => acc + getBaseVal(tipo, c.key, mesKey), 0);
+  };
+  const totalIngBase = simulacionActiva ? planIncomeCats.reduce((acc, c) => acc + meses.reduce((a, m) => a + getBaseVal("ingreso", c.key, m.k), 0), 0) : totalIng;
+  const totalEgBase = simulacionActiva ? planExpenseCats.reduce((acc, c) => acc + meses.reduce((a, m) => a + getBaseVal("egreso", c.key, m.k), 0), 0) : totalEg;
+
+  // ── SERIE MENSUAL: base vs simulado (alimenta el gráfico de evolución) ──
+  const evolucionMensual = meses.map((m) => ({
+    mes: m.n,
+    ingresoBase: calcularTotalColumnaBase("ingreso", m.k),
+    ingresoSim: calcularTotalColumna("ingreso", m.k),
+    egresoBase: calcularTotalColumnaBase("egreso", m.k),
+    egresoSim: calcularTotalColumna("egreso", m.k),
+  }));
 
   const pieIngresos = planIncomeCats.map(c => {
     const val = calcularTotalFila("ingreso", c.key);
     return { name: c.label, value: val, perc: totalIng > 0 ? (val / totalIng) * 100 : 0 };
   }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
 
-  const pieEgresos = flatExpenseCats.map(c => {
-    const val = calcularTotalFila("egreso", c.key);
-    return { name: c.label, value: val, perc: totalEg > 0 ? (val / totalEg) * 100 : 0 };
-  }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+  const otherExpenseCats = planExpenseCats.filter(c => !projectKeys.has(c.key));
+  const totalProyectosSim = PLAN_PROJECT_CATS.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
 
-  const MODERN_PALETTE = ['#3B82F6', '#14DBB6', '#FFCC4D', '#FF6666', '#A385FF', '#4ADE80', '#F97316', '#0EA5E9', '#EC4899', '#8B5CF6', '#10B981', '#F59E0B', '#6366F1', '#14B8A6'];
+  const pieEgresos = [
+    { name: "Proyectos", value: totalProyectosSim, perc: totalEg > 0 ? (totalProyectosSim / totalEg) * 100 : 0 },
+    ...otherExpenseCats.map(c => {
+      const val = calcularTotalFila("egreso", c.key);
+      return { name: c.label, value: val, perc: totalEg > 0 ? (val / totalEg) * 100 : 0 };
+    }),
+  ].filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+
+  const MODERN_PALETTE = ['#3B82F6', '#14DBB6', '#FFCC4D', '#FF6666', '#A385FF', '#4ADE80', '#F97316', '#0EA5E9'];
   const COLORS_ING = MODERN_PALETTE;
   const COLORS_EG = MODERN_PALETTE;
 
@@ -985,11 +1059,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               </>
             ) : (
               <>
-                {/* BOTÓN SIMULADOR AVANZADO */}
-                <button onClick={() => { 
-                  if (!simulacionActiva) setSimData({globalIng:0, globalEg:0, cats:{}, meses:{}, active: initSimActive()}); 
-                  setSimulacionActiva(!simulacionActiva); 
-                }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
+                <button onClick={() => { setSimulacionActiva(!simulacionActiva); setSimData({globalIng:0, globalEg:0, cats:{}, meses:{}}); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: simulacionActiva ? tokens.gold : tokens.surface, color: simulacionActiva ? "#fff" : tokens.text, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
                   <Wand2 size={16} /> {simulacionActiva ? "Apagar Simulador" : "Simular Escenarios"}
                 </button>
 
@@ -1008,15 +1078,14 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
       
       {view === "presupuesto" && (
         <>
-          {/* PANEL DEL SIMULADOR ESTÉTICO */}
           {simulacionActiva && !editMode && (
             <div style={{ background: tokens.surface, borderRadius: 10, border: `2px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', flexDirection: 'column', gap: 16, boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h3 style={{ margin: "0 0 4px 0", fontSize: 15, color: tokens.gold, display: 'flex', alignItems: 'center', gap: 6 }}><Wand2 size={16} /> Modo Simulación Activo</h3>
-                  <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Mueve las barras globales aquí, o usa los controles en la tabla para apagar proyectos o ajustar meses. <strong>Tus datos reales están a salvo.</strong></p>
+                  <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>Mueve las barras globales aquí, o las barras de la tabla para ajustar meses y conceptos individualmente. <strong>Tus datos reales están a salvo.</strong></p>
                 </div>
-                <button onClick={() => setSimData({globalIng:0, globalEg:0, cats:{}, meses:{}, active: initSimActive()})} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, color: tokens.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}><RotateCcw size={14}/> Resetear toda la simulación</button>
+                <button onClick={() => setSimData({globalIng:0, globalEg:0, cats:{}, meses:{}})} style={{ padding: "8px 16px", borderRadius: 6, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, cursor: "pointer", fontSize: 12, fontWeight: 600, color: tokens.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}><RotateCcw size={14}/> Resetear todas las barras</button>
               </div>
               
               <div style={{ display: 'flex', gap: 32, padding: "16px", background: colorTablaBg, borderRadius: 8, border: `1px solid ${colorLineaSuave}` }}>
@@ -1040,15 +1109,50 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
           )}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
-            <SemesterCard title="Primer Semestre (Ene - Jun)" ingresos={ingS1} egresos={egS1} neto={ingS1 - egS1} fmt={fmt} simulated={simulacionActiva} />
-            <SemesterCard title="Segundo Semestre (Jul - Dic)" ingresos={ingS2} egresos={egS2} neto={ingS2 - egS2} fmt={fmt} simulated={simulacionActiva} />
-            <SemesterCard title={simulacionActiva ? "Total Acumulado SIMULADO" : "Total Acumulado Anual"} ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} simulated={simulacionActiva} />
+            <SemesterCard title="Primer Semestre (Ene - Jun)" ingresos={ingS1} egresos={egS1} neto={ingS1 - egS1} fmt={fmt} ingresosBase={simulacionActiva ? ingS1Base : null} egresosBase={simulacionActiva ? egS1Base : null} />
+            <SemesterCard title="Segundo Semestre (Jul - Dic)" ingresos={ingS2} egresos={egS2} neto={ingS2 - egS2} fmt={fmt} ingresosBase={simulacionActiva ? ingS2Base : null} egresosBase={simulacionActiva ? egS2Base : null} />
+            <SemesterCard title={simulacionActiva ? "Total Acumulado SIMULADO" : "Total Acumulado Anual"} ingresos={ingS1 + ingS2} egresos={egS1 + egS2} neto={(ingS1 + ingS2) - (egS1 + egS2)} fmt={fmt} ingresosBase={simulacionActiva ? (ingS1Base + ingS2Base) : null} egresosBase={simulacionActiva ? (egS1Base + egS2Base) : null} />
           </div>
+
+          {simulacionActiva && !editMode && (
+            <div className="kf-card-dark" style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: 15, fontWeight: 700 }}>Evolución Mensual — Base vs. Simulado</h3>
+                <div style={{ display: "flex", gap: 16, fontSize: 11, color: '#94A3B8' }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 0, borderTop: "2px dashed #64748B" }} /> Base</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 2, background: "#4ADE80", borderRadius: 2 }} /> Ingresos simulado</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 2, background: "#FF6666", borderRadius: 2 }} /> Egresos simulado</span>
+                </div>
+              </div>
+              <p style={{ margin: "2px 0 16px 0", fontSize: 12, color: '#64748B' }}>Cómo se mueve cada mes del año a medida que ajustás las barras del simulador.</p>
+              <div style={{ height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={evolucionMensual} margin={{ top: 6, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#293449" vertical={false} />
+                    <XAxis dataKey="mes" tick={{ fill: '#94A3B8', fontSize: 11 }} axisLine={{ stroke: '#334155' }} tickLine={false} />
+                    <YAxis tick={{ fill: '#94A3B8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
+                    <Tooltip
+                      contentStyle={{ background: '#0F172A', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}
+                      formatter={(value, name) => {
+                        const labels = { ingresoBase: 'Ingresos base', ingresoSim: 'Ingresos simulado', egresoBase: 'Egresos base', egresoSim: 'Egresos simulado' };
+                        return [`$ ${fmt(value)}`, labels[name] || name];
+                      }}
+                    />
+                    <Line type="monotone" dataKey="ingresoBase" stroke="#64748B" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                    <Line type="monotone" dataKey="egresoBase" stroke="#64748B" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                    <Line type="monotone" dataKey="ingresoSim" stroke="#4ADE80" strokeWidth={2.5} dot={{ r: 3, fill: "#4ADE80" }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="egresoSim" stroke="#FF6666" strokeWidth={2.5} dot={{ r: 3, fill: "#FF6666" }} activeDot={{ r: 5 }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
           {!editMode && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 240px 1fr", gap: 18 }}>
               {/* GRÁFICO INGRESOS */}
-              <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
+              <div className="kf-card-dark" style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
                 <h3 style={{ margin: "0 0 16px 0", color: '#fff', fontSize: 15, textAlign: "center", fontWeight: 700 }}>Participación — Ingresos</h3>
                 <div style={{ height: 240 }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -1067,9 +1171,9 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               </div>
 
               {/* INDICADOR CENTRAL: FLUJO NETO MENSUAL USD */}
-              <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: "24px 20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
+              <div className="kf-card-dark" style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: "24px 20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
                 <h3 style={{ margin: "0 0 20px 0", color: '#fff', fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>
-                  Flujo Promedio<br/><span style={{fontSize: 12, color: '#94A3B8', fontWeight: 500}}>Mensualizado USD</span>
+                  Flujo Neto Promedio<br/><span style={{fontSize: 12, color: '#94A3B8', fontWeight: 500}}>Mensualizado en USD</span>
                 </h3>
                 
                 <div style={{ width: "100%", marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid #334155" }}>
@@ -1092,7 +1196,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               </div>
 
               {/* GRÁFICO EGRESOS */}
-              <div style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
+              <div className="kf-card-dark" style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
                 <h3 style={{ margin: "0 0 16px 0", color: '#fff', fontSize: 15, textAlign: "center", fontWeight: 700 }}>Participación — Egresos</h3>
                 <div style={{ height: 240 }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -1111,6 +1215,47 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               </div>
             </div>
           )}
+
+          {/* ── RANKING DE PROYECTOS — quién pesa más en el año, responde a la simulación ── */}
+          <div className="kf-card-dark" style={{ background: '#172033', borderRadius: 10, border: `1px solid #334155`, padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: 15, fontWeight: 700 }}>Proyectos — Total {selectedYear}{simulacionActiva ? " (simulado)" : ""}</h3>
+              <span style={{ fontSize: 11, color: '#94A3B8' }}>{PLAN_PROJECT_CATS.filter(p => calcularTotalFila("egreso", p.key) > 0).length} con actividad este año</span>
+            </div>
+            <p style={{ margin: "2px 0 16px 0", fontSize: 12, color: '#64748B' }}>
+              {simulacionActiva ? "Se actualiza con los sliders y los proyectos que apagaste arriba." : "Ordenado de mayor a menor peso en el presupuesto anual."}
+            </p>
+            {(() => {
+              const ranking = PLAN_PROJECT_CATS
+                .map(c => ({ key: c.key, name: c.label, value: calcularTotalFila("egreso", c.key), activo: isProyectoActivo(c.key) }))
+                .filter(d => d.value > 0 || (simulacionActiva && !d.activo))
+                .sort((a, b) => b.value - a.value);
+              if (ranking.length === 0) {
+                return <div style={{ padding: "20px 0", textAlign: "center", color: '#64748B', fontSize: 12.5 }}>Ningún proyecto tiene monto cargado para {selectedYear}.</div>;
+              }
+              return (
+                <div style={{ height: Math.max(ranking.length * 30, 60) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={ranking} layout="vertical" margin={{ top: 0, right: 60, left: 10, bottom: 0 }}>
+                      <XAxis type="number" hide />
+                      <YAxis type="category" dataKey="name" width={130} tick={{ fill: '#CBD5E1', fontSize: 11.5 }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ background: '#0F172A', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: '#fff', fontWeight: 700 }}
+                        formatter={(value) => [`$ ${fmt(value)}`, "Total anual"]}
+                      />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16}>
+                        {ranking.map((d, i) => (
+                          <Cell key={d.key} fill={simulacionActiva && !d.activo ? "#334155" : tokens.gold} fillOpacity={simulacionActiva && !d.activo ? 0.5 : 1} />
+                        ))}
+                        <LabelList dataKey="value" position="right" formatter={(v) => v > 0 ? `$ ${fmt(v)}` : "apagado"} style={{ fill: '#94A3B8', fontSize: 10.5, fontFamily: tokens.fontMono }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()}
+          </div>
 
           <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, overflow: "hidden", transition: "border-color 0.3s" }}>
              <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
@@ -1135,160 +1280,155 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS {simulacionActiva && "(Simulado)"}</td></tr>
-                    {planIncomeCats.map(c => {
-                       const isOff = simulacionActiva && !simData.active[c.key];
-                       return (
-                         <tr key={c.key} className={`flujo-row ${isOff ? 'sim-row-disabled' : ''}`} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                            <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                  <span style={{fontWeight: 500}}>{c.label}</span>
-                                  {simulacionActiva && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 70}} disabled={isOff} />
-                                      <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
-                                    </div>
-                                  )}
+                    <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS</td></tr>
+                    {planIncomeCats.map(c => (
+                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <span style={{fontWeight: 500}}>{c.label}</span>
+                              {simulacionActiva && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 80}} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
                                 </div>
-                                {simulacionActiva && (
-                                  <label className="toggle-switch" title={isOff ? "Encender Categoría" : "Apagar Categoría"}>
-                                    <input type="checkbox" checked={!isOff} onChange={() => setSimData(prev => ({...prev, active: {...prev.active, [c.key]: !prev.active[c.key]}}))} />
-                                    <span className="slider-toggle"></span>
-                                  </label>
+                              )}
+                            </div>
+                          </td>
+                          {meses.map(m => {
+                            const valBase = planDraft?.ingreso?.[c.key]?.[m.k] || "";
+                            return (
+                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                ) : (
+                                  <span style={{ color: getSimVal("ingreso", c.key, m.k) ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{getSimVal("ingreso", c.key, m.k) ? `$ ${fmt(getSimVal("ingreso", c.key, m.k))}` : "-"}</span>
                                 )}
-                              </div>
-                            </td>
-                            {meses.map(m => {
-                              const valBase = planDraft?.ingreso?.[c.key]?.[m.k] || "";
-                              const valShow = getSimVal("ingreso", c.key, m.k);
-                              return (
-                                <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                  {editMode ? (
-                                    <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
-                                  ) : (
-                                    <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                            <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
-                         </tr>
-                       );
-                    })}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
+                       </tr>
+                    ))}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
                       <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
                       <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0))}</td>
                     </tr>
 
-                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS {simulacionActiva && "(Simulado)"}</td></tr>
-                    {planExpenseCats.map(item => {
-                      if (item.isGroup) {
-                        return (
-                          <React.Fragment key={item.label}>
-                            <tr className="flujo-row" style={{ backgroundColor: colorTotalBg, borderBottom: `1px solid ${colorLineaSuave}` }}>
-                              <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 800, color: tokens.text, background: colorTotalBg, cursor: 'pointer' }} onClick={() => toggleGroup(item.label)}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  {expandedGroups[item.label] ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
-                                  {item.label}
-                                </div>
-                              </td>
-                              {meses.map(m => {
-                                const groupMonthTotal = item.subCats.reduce((acc, sub) => acc + getSimVal("egreso", sub.key, m.k), 0);
-                                return <td key={m.k} style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>{groupMonthTotal > 0 ? `$ ${fmt(groupMonthTotal)}` : "-"}</td>;
-                              })}
-                              <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 800, fontFamily: tokens.fontMono, color: tokens.text }}>
-                                $ {fmt(item.subCats.reduce((acc, sub) => acc + calcularTotalFila("egreso", sub.key), 0))}
-                              </td>
-                            </tr>
-                            {expandedGroups[item.label] && item.subCats.map(sub => {
-                              const isOff = simulacionActiva && !simData.active[sub.key];
-                              return (
-                                <tr key={sub.key} className={`flujo-row ${isOff ? 'sim-row-disabled' : ''}`} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                                  <td className="sticky-col" style={{ padding: "9px 14px 9px 40px", color: tokens.textMuted, background: colorTablaBg }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                        <span style={{fontWeight: 500}}>{sub.label}</span>
-                                        {simulacionActiva && (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[sub.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [sub.key]: Number(e.target.value)}}))} style={{width: 70}} disabled={isOff} />
-                                            <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[sub.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[sub.key] > 0 ? '+' : ''}{simData.cats[sub.key] || 0}%</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      {simulacionActiva && (
-                                        <label className="toggle-switch" title={isOff ? "Encender Proyecto" : "Apagar Proyecto"}>
-                                          <input type="checkbox" checked={!isOff} onChange={() => setSimData(prev => ({...prev, active: {...prev.active, [sub.key]: !prev.active[sub.key]}}))} />
-                                          <span className="slider-toggle"></span>
-                                        </label>
-                                      )}
-                                    </div>
-                                  </td>
-                                  {meses.map(m => {
-                                    const valBase = planDraft?.egreso?.[sub.key]?.[m.k] || "";
-                                    const valShow = getSimVal("egreso", sub.key, m.k);
-                                    return (
-                                      <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                        {editMode ? (
-                                          <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", sub.key, m.k, e.target.value)} placeholder="0" />
-                                        ) : (
-                                          <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                  <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", sub.key))}</td>
-                                </tr>
-                              );
-                            })}
-                          </React.Fragment>
-                        );
-                      } else {
-                        const isOff = simulacionActiva && !simData.active[item.key];
-                        return (
-                          <tr key={item.key} className={`flujo-row ${isOff ? 'sim-row-disabled' : ''}`} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                            <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                  <span style={{fontWeight: 500}}>{item.label}</span>
-                                  {simulacionActiva && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[item.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [item.key]: Number(e.target.value)}}))} style={{width: 70}} disabled={isOff} />
-                                      <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[item.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[item.key] > 0 ? '+' : ''}{simData.cats[item.key] || 0}%</span>
-                                    </div>
-                                  )}
-                                </div>
+                    <tr><td colSpan={14} style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, background: colorTablaBg, borderTop: `2px solid ${colorLineaFuerte}` }}>EGRESOS</td></tr>
+                    {/* ── GRUPO PROYECTOS: colapsable, con activar/desactivar por proyecto ── */}
+                    <tr
+                      className="flujo-row"
+                      style={{ borderBottom: `1px solid ${colorLineaSuave}`, cursor: "pointer" }}
+                      onClick={() => setProyectosExpanded(v => !v)}
+                    >
+                      <td className="sticky-col" style={{ padding: "10px 14px 10px 14px", background: colorTablaBg }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {proyectosExpanded ? <ChevronDown size={14} color={tokens.textMuted} /> : <ChevronRight size={14} color={tokens.textMuted} />}
+                          <span style={{ fontWeight: 700, color: tokens.text }}>Proyectos</span>
+                          <span style={{ fontSize: 10, color: tokens.textFaint, fontWeight: 600 }}>
+                            ({PLAN_PROJECT_CATS.filter(p => isProyectoActivo(p.key)).length}/{PLAN_PROJECT_CATS.length} activos)
+                          </span>
+                        </div>
+                        {simulacionActiva && (
+                          <div style={{ display: "flex", gap: 6, marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setProyectosActivos(Object.fromEntries(PLAN_PROJECT_CATS.map(p => [p.key, true])))}
+                              style={{ fontSize: 10, fontWeight: 600, color: tokens.positive, background: tokens.positiveSoft, border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+                            >
+                              Activar todos
+                            </button>
+                            <button
+                              onClick={() => setProyectosActivos(Object.fromEntries(PLAN_PROJECT_CATS.map(p => [p.key, false])))}
+                              style={{ fontSize: 10, fontWeight: 600, color: tokens.negative, background: tokens.negativeSoft, border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+                            >
+                              Desactivar todos
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      {meses.map(m => (
+                        <td key={m.k} style={{ padding: "10px 14px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.textMuted }}>
+                          $ {fmt(PLAN_PROJECT_CATS.reduce((acc, c) => acc + getSimVal("egreso", c.key, m.k), 0))}
+                        </td>
+                      ))}
+                      <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>
+                        $ {fmt(PLAN_PROJECT_CATS.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}
+                      </td>
+                    </tr>
+
+                    {proyectosExpanded && PLAN_PROJECT_CATS.map(c => {
+                      const activo = isProyectoActivo(c.key);
+                      const apagado = simulacionActiva && !activo;
+                      return (
+                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}`, opacity: apagado ? 0.4 : 1, transition: "opacity 0.15s ease" }}>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 {simulacionActiva && (
-                                  <label className="toggle-switch" title={isOff ? "Encender Categoría" : "Apagar Categoría"}>
-                                    <input type="checkbox" checked={!isOff} onChange={() => setSimData(prev => ({...prev, active: {...prev.active, [item.key]: !prev.active[item.key]}}))} />
-                                    <span className="slider-toggle"></span>
-                                  </label>
+                                  <ToggleSwitch on={activo} onChange={(v) => setProyectosActivos(prev => ({ ...prev, [c.key]: v }))} />
                                 )}
+                                <span style={{ fontWeight: 500 }}>{c.label}</span>
+                                {apagado && <span style={{ fontSize: 9.5, color: tokens.negative, fontWeight: 700 }}>APAGADO</span>}
                               </div>
-                            </td>
-                            {meses.map(m => {
-                              const valBase = planDraft?.egreso?.[item.key]?.[m.k] || "";
-                              const valShow = getSimVal("egreso", item.key, m.k);
-                              return (
-                                <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
-                                  {editMode ? (
-                                    <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", item.key, m.k, e.target.value)} placeholder="0" />
-                                  ) : (
-                                    <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                            <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", item.key))}</td>
-                         </tr>
-                        );
-                      }
+                              {simulacionActiva && activo && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 80}} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          {meses.map(m => {
+                            const valBase = planDraft?.egreso?.[c.key]?.[m.k] || "";
+                            return (
+                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                ) : (
+                                  <span style={{ color: getSimVal("egreso", c.key, m.k) ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{getSimVal("egreso", c.key, m.k) ? `$ ${fmt(getSimVal("egreso", c.key, m.k))}` : "-"}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
+                       </tr>
+                      );
                     })}
+
+                    {/* ── Resto de categorías de egresos (sin desglose de proyecto) ── */}
+                    {otherExpenseCats.map(c => (
+                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <span style={{fontWeight: 500}}>{c.label}</span>
+                              {simulacionActiva && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 80}} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          {meses.map(m => {
+                            const valBase = planDraft?.egreso?.[c.key]?.[m.k] || "";
+                            return (
+                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                ) : (
+                                  <span style={{ color: getSimVal("egreso", c.key, m.k) ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{getSimVal("egreso", c.key, m.k) ? `$ ${fmt(getSimVal("egreso", c.key, m.k))}` : "-"}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
+                       </tr>
+                    ))}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
                       <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
-                      <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(flatExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
+                      <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0))}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1324,7 +1464,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                 <div style={{ width: "45%" }}>
                   <select className="map-select" value={mappingDraft.egreso?.[c.key] || ""} onChange={(e) => handleMappingChange("egreso", c.key, e.target.value)}>
                     <option value="">(Sin asignar)</option>
-                    {flatExpenseCats.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                    {planExpenseCats.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
                   </select>
                 </div>
               </div>
