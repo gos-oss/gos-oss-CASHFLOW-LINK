@@ -14,7 +14,7 @@ import {
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
   CalendarDays, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw,
-  Repeat, Building2, FileText, PiggyBank, Landmark, HardHat, Info
+  Repeat, Building2, FileText, PiggyBank, Landmark, HardHat, Info, Users
 } from "lucide-react";
 
 // =========================================================================
