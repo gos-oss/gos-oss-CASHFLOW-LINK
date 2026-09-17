@@ -5,6 +5,7 @@ import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
+import { computeProjectCurve } from "./curveEngine";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, ComposedChart, Line, BarChart, Bar, LabelList
@@ -708,6 +709,8 @@ export default function App() {
 }
 
 const fieldInputStyle = { width: "100%", padding: "8px 10px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box" };
+const curveFieldStyle = { display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted, fontWeight: 500 };
+const curveInputStyle = { padding: "5px 7px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 12, fontFamily: tokens.fontMono, outline: "none", width: 118, boxSizing: "border-box" };
 
 function Field({ label, children }) {
   return <div><label style={{ display: "block", fontSize: 10.5, color: tokens.textFaint, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 5 }}>{label}</label>{children}</div>;
@@ -906,9 +909,41 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const projectKeys = useMemo(() => new Set(PLAN_PROJECT_CATS.map(p => p.key)), []);
   const isProyectoActivo = (key) => proyectosActivos[key] !== false;
 
+  // ── CURVA S POR PROYECTO ──
+  // Por proyecto: { total, inicio: "YYYY-MM", duracionBase (meses), ritmo (%), activo }.
+  // Cuando activo=true, los 12 valores mensuales de ese proyecto dejan de editarse
+  // celda por celda y se recalculan en vivo con la curva S (mismo motor validado
+  // contra el Excel 2027_v2_0.xlsx). Se guarda junto con el resto del plan en
+  // planDraft.curvas, así que persiste en Supabase sin tocar el esquema.
+  const [curveParams, setCurveParams] = useState({});
+  const getCurveParams = (key) =>
+    curveParams[key] || { total: 0, inicio: "", duracionBase: 12, ritmo: 100, activo: false };
+  const updateCurveParam = (key, field, value) => {
+    setCurveParams(prev => ({ ...prev, [key]: { ...getCurveParams(key), [field]: value } }));
+  };
+
   useEffect(() => {
     setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
+    setCurveParams(planesFondos[selectedYear]?.curvas || {});
   }, [planesFondos, selectedYear, editMode, view]);
+
+  // Cada vez que cambian los parámetros de curva de un proyecto activo, sus 12
+  // valores mensuales en planDraft se recalculan automáticamente — planDraft
+  // sigue siendo la única fuente de verdad para totales, gráficos y heatmap.
+  useEffect(() => {
+    let cambio = false;
+    const egresoActualizado = {};
+    Object.entries(curveParams).forEach(([key, cp]) => {
+      if (!cp || !cp.activo) return;
+      const { monthly } = computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear);
+      egresoActualizado[key] = monthly;
+      cambio = true;
+    });
+    if (cambio) {
+      setPlanDraft(prev => ({ ...prev, egreso: { ...prev.egreso, ...egresoActualizado } }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [curveParams, selectedYear]);
 
   useEffect(() => {
     setMappingDraft({ ingreso: { ...(mappingGuardado?.ingreso || {}) }, egreso: { ...(mappingGuardado?.egreso || {}) } });
@@ -1041,7 +1076,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
 
   const guardarTodo = () => {
     if (view === "presupuesto") {
-      onGuardarPlan(planDraft, selectedYear); 
+      onGuardarPlan({ ...planDraft, curvas: curveParams }, selectedYear);
       setEditMode(false);
     } else {
       onGuardarMapeo(mappingDraft);
@@ -1086,6 +1121,11 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
     const rowMaxAbs = Math.max(...rowVals.map(v => Math.abs(v)), 0);
     const activo = isProject ? isProyectoActivo(c.key) : true;
     const apagado = isProject && simulacionActiva && !activo;
+    const cp = isProject ? getCurveParams(c.key) : null;
+    const curveResult = isProject
+      ? computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear)
+      : null;
+    const modoCurva = isProject && cp.activo;
 
     return (
       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}`, opacity: apagado ? 0.4 : 1, transition: "opacity 0.15s ease" }}>
@@ -1099,6 +1139,21 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               <span style={{ fontWeight: 500, color: tokens.text }}>{c.label}</span>
               {meta?.tip && <InfoTip text={meta.tip} />}
               {apagado && <span style={{ fontSize: 9.5, color: tokens.negative, fontWeight: 700 }}>APAGADO</span>}
+              {isProject && editMode && (
+                <button
+                  type="button"
+                  onClick={() => updateCurveParam(c.key, "activo", !cp.activo)}
+                  title="Calcular los 12 meses con curva S en vez de cargarlos a mano"
+                  style={{
+                    fontSize: 10, padding: "2px 8px", borderRadius: 5, cursor: "pointer", fontWeight: 700,
+                    border: `1px solid ${cp.activo ? tokens.gold : colorLineaFuerte}`,
+                    background: cp.activo ? tokens.goldSoft : "#fff",
+                    color: cp.activo ? tokens.gold : tokens.textMuted,
+                  }}
+                >
+                  {cp.activo ? "Curva S ✓" : "Curva S"}
+                </button>
+              )}
               {!editMode && <span style={{ marginLeft: "auto" }}><RowSparkline data={rowVals} color={accent} /></span>}
             </div>
             {simulacionActiva && activo && (
@@ -1109,19 +1164,58 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
             )}
           </div>
         </td>
-        {meses.map((m, i) => {
-          const valBase = planDraft?.[tipo]?.[c.key]?.[m.k] || "";
-          const simVal = rowVals[i];
-          return (
-            <td key={m.k} style={{ padding: "6px 10px", textAlign: "right", background: editMode ? "transparent" : heatBg(simVal, rowMaxAbs, heatColor) }}>
-              {editMode ? (
-                <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange(tipo, c.key, m.k, e.target.value)} placeholder="0" />
-              ) : (
-                <span style={{ color: simVal ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{simVal ? `$ ${fmt(simVal)}` : "-"}</span>
-              )}
-            </td>
-          );
-        })}
+        {editMode && modoCurva ? (
+          <td colSpan={meses.length} style={{ padding: "10px 14px", background: tokens.paper }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 16 }}>
+              <label style={curveFieldStyle}>
+                Presupuesto
+                <input type="number" value={cp.total} onChange={(e) => updateCurveParam(c.key, "total", Number(e.target.value) || 0)} style={curveInputStyle} />
+              </label>
+              <label style={curveFieldStyle}>
+                Inicio
+                <input type="month" value={cp.inicio} onChange={(e) => updateCurveParam(c.key, "inicio", e.target.value)} style={curveInputStyle} />
+              </label>
+              <label style={curveFieldStyle}>
+                Duración base (m)
+                <input type="number" min="1" value={cp.duracionBase} onChange={(e) => updateCurveParam(c.key, "duracionBase", Number(e.target.value) || 1)} style={{ ...curveInputStyle, width: 56 }} />
+              </label>
+              <label style={curveFieldStyle}>
+                Ritmo de ejecución
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input type="range" min="40" max="160" step="5" value={cp.ritmo} onChange={(e) => updateCurveParam(c.key, "ritmo", Number(e.target.value))} style={{ width: 90 }} />
+                  <span style={{ fontFamily: tokens.fontMono, fontSize: 11, color: tokens.gold, width: 32 }}>{cp.ritmo}%</span>
+                </div>
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted }}>
+                <span>Fin efectivo</span>
+                <span style={{ fontFamily: tokens.fontMono, fontSize: 12, color: tokens.text, fontWeight: 600 }}>{curveResult.finEfectivoLabel}</span>
+              </div>
+              <span
+                style={{
+                  fontSize: 10.5, fontFamily: tokens.fontMono, padding: "3px 9px", borderRadius: 5, fontWeight: 700,
+                  background: curveResult.atraso > 0.05 ? tokens.negativeSoft : curveResult.atraso < -0.05 ? tokens.positiveSoft : colorTablaBg,
+                  color: curveResult.atraso > 0.05 ? tokens.negative : curveResult.atraso < -0.05 ? tokens.positive : tokens.textMuted,
+                }}
+              >
+                {curveResult.atraso > 0.05 ? `+${curveResult.atraso.toFixed(1)} m atraso` : curveResult.atraso < -0.05 ? `${curveResult.atraso.toFixed(1)} m adelanto` : "en plazo"}
+              </span>
+            </div>
+          </td>
+        ) : (
+          meses.map((m, i) => {
+            const valBase = planDraft?.[tipo]?.[c.key]?.[m.k] || "";
+            const simVal = rowVals[i];
+            return (
+              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right", background: editMode ? "transparent" : heatBg(simVal, rowMaxAbs, heatColor) }}>
+                {editMode ? (
+                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange(tipo, c.key, m.k, e.target.value)} placeholder="0" disabled={modoCurva} />
+                ) : (
+                  <span style={{ color: simVal ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{simVal ? `$ ${fmt(simVal)}` : "-"}</span>
+                )}
+              </td>
+            );
+          })
+        )}
         <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila(tipo, c.key))}</td>
       </tr>
     );
