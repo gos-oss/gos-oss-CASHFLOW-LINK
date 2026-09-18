@@ -17,7 +17,7 @@ import {
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
   CalendarDays, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
-  Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2
+  Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2, Clock
 } from "lucide-react";
 
 // =========================================================================
@@ -628,17 +628,67 @@ export default function App() {
     await fetchData();
   };
 
-  const guardarMovimiento = async ({ fecha, tipo, key, montoArs, montoUsd, estado, nota }) => {
-    const base = weeks.find((w) => w.week_start === fecha) || { id: fecha, week_start: fecha, status: estado, income: {}, expense: {}, notes: "" };
-    let currentNotes = {}; try { currentNotes = JSON.parse(base.notes || "{}"); } catch(e) {}
-    if (nota) currentNotes[`${tipo}_${key}`] = nota; else delete currentNotes[`${tipo}_${key}`];
-
-    const actualizada = { ...base, status: estado || base.status, income: { ...(base.income || {}) }, expense: { ...(base.expense || {}) }, notes: JSON.stringify(currentNotes) };
+  const guardarMovimiento = async ({ fecha, tipo, key, montoArs, montoUsd, estado, nota, fechasFuturas = [] }) => {
+    const todasLasFechas = [fecha, ...(fechasFuturas || [])];
     const field = tipo === "ingreso" ? "income" : "expense";
-    actualizada[field][key] = { ars: Number(montoArs) || 0, usd: Number(montoUsd) || 0 };
+    const updates = [];
 
-    await supabase.from("cashflow_weeks").upsert(actualizada);
-    fetchData(); return true;
+    for (const f of todasLasFechas) {
+      const base = weeks.find((w) => w.week_start === f) || { 
+        id: f, 
+        week_start: f, 
+        status: f === fecha ? (estado || "proyectado") : "proyectado", 
+        income: {}, 
+        expense: {}, 
+        notes: "" 
+      };
+      let currentNotes = {}; 
+      try { currentNotes = JSON.parse(base.notes || "{}"); } catch(e) {}
+      if (nota) currentNotes[`${tipo}_${key}`] = nota; 
+      else delete currentNotes[`${tipo}_${key}`];
+
+      const actualizada = { 
+        ...base, 
+        status: f === fecha ? (estado || base.status || "proyectado") : "proyectado", 
+        income: { ...(base.income || {}) }, 
+        expense: { ...(base.expense || {}) }, 
+        notes: JSON.stringify(currentNotes) 
+      };
+      
+      actualizada[field][key] = { ars: Number(montoArs) || 0, usd: Number(montoUsd) || 0 };
+      updates.push(actualizada);
+    }
+
+    await supabase.from("cashflow_weeks").upsert(updates);
+    await fetchData(); 
+    return true;
+  };
+
+  const handleIncorporarSemanasFuturas = async (cantidadSemanas = 4) => {
+    const ordenadas = [...weeks].sort((a,b) => a.week_start.localeCompare(b.week_start));
+    const ultFecha = ordenadas.length > 0 ? ordenadas[ordenadas.length - 1].week_start : new Date().toISOString().slice(0, 10);
+    const [y, m, d] = ultFecha.split("-").map(Number);
+    
+    const nuevasSemanas = [];
+    for (let i = 1; i <= cantidadSemanas; i++) {
+      const dt = new Date(Date.UTC(y, m - 1, d + (i * 7)));
+      const fIso = dt.toISOString().slice(0, 10);
+      if (!weeks.some(w => w.week_start === fIso)) {
+        nuevasSemanas.push({
+          id: fIso,
+          week_start: fIso,
+          status: "proyectado",
+          income: {},
+          expense: {},
+          notes: "{}"
+        });
+      }
+    }
+
+    if (nuevasSemanas.length > 0) {
+      await supabase.from("cashflow_weeks").upsert(nuevasSemanas);
+      await fetchData();
+    }
   };
 
   const eliminarMovimiento = async (fecha, tipo, key) => {
@@ -963,6 +1013,29 @@ export default function App() {
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => handleIncorporarSemanasFuturas(4)}
+                  type="button"
+                  title="Incorpora 4 semanas futuras consecutivas para planificar proyecciones hacia adelante"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 14px",
+                    background: tokens.surface,
+                    color: tokens.ink,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <CalendarRange size={14} color={tokens.gold} />
+                  + Proyectar Semanas (+4)
+                </button>
+
                 <button
                   onClick={() => setMostrarImportadorMatriz(!mostrarImportadorMatriz)}
                   style={{
@@ -2293,6 +2366,17 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
   const [verIngresos, setVerIngresos] = useState(true);
   const [verEgresos, setVerEgresos] = useState(true);
   const [collapsedMonths, setCollapsedMonths] = useState(new Set()); 
+  const [soloFuturos, setSoloFuturos] = useState(false);
+
+  const fechaCorteFiltro = useMemo(() => {
+    const arqueoActivo = procesadas.find(p => p.esArqueo);
+    return arqueoActivo ? arqueoActivo.week_start : new Date().toISOString().slice(0, 10);
+  }, [procesadas]);
+
+  const procesadasFiltradas = useMemo(() => {
+    if (!soloFuturos) return procesadas;
+    return procesadas.filter(w => w.week_start >= fechaCorteFiltro);
+  }, [procesadas, soloFuturos, fechaCorteFiltro]);
 
   const toggleMonth = (mesKey) => {
     setCollapsedMonths(prev => {
@@ -2308,7 +2392,7 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
         setCollapsedMonths(new Set()); 
     } else {
         const allMonths = new Set();
-        procesadas.forEach(w => allMonths.add(w.week_start.substring(0, 7)));
+        procesadasFiltradas.forEach(w => allMonths.add(w.week_start.substring(0, 7)));
         setCollapsedMonths(allMonths);
     }
   };
@@ -2325,7 +2409,7 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
     const result = [];
     const mesesMap = {};
 
-    procesadas.forEach(w => {
+    procesadasFiltradas.forEach(w => {
         const mesKey = w.week_start.substring(0, 7);
         if (!mesesMap[mesKey]) {
             mesesMap[mesKey] = {
@@ -2367,14 +2451,14 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
         if (collapsedMonths.has(mesKey)) {
             result.push(mesesMap[mesKey]); 
         } else {
-            procesadas.filter(w => w.week_start.startsWith(mesKey)).forEach(d => {
+            procesadasFiltradas.filter(w => w.week_start.startsWith(mesKey)).forEach(d => {
                 const rawWeek = weeks.find(r => r.week_start === d.week_start) || {};
                 result.push({ ...d, isMonth: false, mesKey, rawIncome: rawWeek.income, rawExpense: rawWeek.expense }); 
             });
         }
     });
     return result;
-  }, [procesadas, collapsedMonths, weeks, tcList]);
+  }, [procesadasFiltradas, collapsedMonths, weeks, tcList]);
 
   const monthGroups = useMemo(() => {
     const groups = [];
@@ -2429,12 +2513,37 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
           <p style={{ margin: "4px 0 0", fontSize: 11, color: tokens.textMuted }}>* Haz clic en los valores para editarlos, o en los meses para agruparlos.</p>
         </div>
         
-        <button 
-          onClick={toggleAllMonths}
-          style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: collapsedMonths.size > 0 ? tokens.ink : "#fff", color: collapsedMonths.size > 0 ? "#fff" : tokens.text, border: `1px solid ${collapsedMonths.size > 0 ? tokens.ink : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12.5, transition: "all 0.2s" }}
-        >
-          <CalendarDays size={15} /> {collapsedMonths.size > 0 ? "Expandir Todo" : "Compactar Todo por Mes"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button 
+            type="button"
+            onClick={() => setSoloFuturos(prev => !prev)}
+            title="Muestra solo los períodos a partir de la fecha de corte"
+            style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: 6, 
+              padding: "6px 12px", 
+              background: soloFuturos ? "rgba(201, 174, 107, 0.15)" : "#fff", 
+              color: soloFuturos ? tokens.ink : tokens.textMuted, 
+              border: `1px solid ${soloFuturos ? "rgba(201, 174, 107, 0.6)" : colorLineaFuerte}`, 
+              borderRadius: 6, 
+              cursor: "pointer", 
+              fontWeight: 600, 
+              fontSize: 12.5, 
+              transition: "all 0.2s" 
+            }}
+          >
+            <Clock size={14} color={soloFuturos ? tokens.gold : tokens.textMuted} />
+            {soloFuturos ? `Períodos futuros (≥ ${formatDate(fechaCorteFiltro)})` : "Ver todos los períodos"}
+          </button>
+
+          <button 
+            onClick={toggleAllMonths}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: collapsedMonths.size > 0 ? tokens.ink : "#fff", color: collapsedMonths.size > 0 ? "#fff" : tokens.text, border: `1px solid ${collapsedMonths.size > 0 ? tokens.ink : colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12.5, transition: "all 0.2s" }}
+          >
+            <CalendarDays size={15} /> {collapsedMonths.size > 0 ? "Expandir Todo" : "Compactar Todo por Mes"}
+          </button>
+        </div>
       </div>
 
       <div className="table-container">

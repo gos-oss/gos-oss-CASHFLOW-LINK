@@ -1,11 +1,39 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { tokens } from "./tokens";
-import { Plus, Trash2, CalendarCheck2, FileSpreadsheet, Edit3 } from "lucide-react";
+import { Plus, Trash2, CalendarCheck2, FileSpreadsheet, Edit3, CalendarRange, Clock } from "lucide-react";
 
 const fieldInputStyle = {
   width: "100%", padding: "8px 10px", border: `1px solid ${tokens.rule || '#C2CAD4'}`, 
   borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box",
 };
+
+function calcularFechasFuturas(fechaBase, frecuencia, cantidad) {
+  if (!fechaBase || !cantidad || cantidad <= 0) return [];
+  const fechas = [];
+  const [y, m, d] = fechaBase.split("-").map(Number);
+  if (!y || !m || !d) return [];
+
+  for (let i = 1; i <= cantidad; i++) {
+    if (frecuencia === "semanal") {
+      const dt = new Date(Date.UTC(y, m - 1, d + (i * 7)));
+      fechas.push(dt.toISOString().slice(0, 10));
+    } else if (frecuencia === "quincenal") {
+      const dt = new Date(Date.UTC(y, m - 1, d + (i * 14)));
+      fechas.push(dt.toISOString().slice(0, 10));
+    } else if (frecuencia === "mensual") {
+      const targetMonth = m - 1 + i;
+      const dt = new Date(Date.UTC(y, targetMonth, d));
+      // Si desborda (ej 31 de feb), ajustar al último día del mes
+      if (dt.getUTCDate() !== d) {
+        const lastDayOfMonth = new Date(Date.UTC(y, targetMonth + 1, 0));
+        fechas.push(lastDayOfMonth.toISOString().slice(0, 10));
+      } else {
+        fechas.push(dt.toISOString().slice(0, 10));
+      }
+    }
+  }
+  return fechas;
+}
 
 function Field({ label, children }) {
   return (
@@ -30,7 +58,17 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _week
   
   const [nota, setNota] = useState("");
 
+  // PROYECCIÓN EN PERÍODOS FUTUROS DESDE LA FECHA
+  const [incorporarFuturos, setIncorporarFuturos] = useState(false);
+  const [frecuenciaFutura, setFrecuenciaFutura] = useState("semanal"); // "semanal" | "quincenal" | "mensual"
+  const [cantidadPeriodos, setCantidadPeriodos] = useState(4); // 2, 4, 8, 12, 24
+
   const tcActual = getTC && fecha ? getTC(fecha) : (getTC ? getTC(new Date().toISOString().slice(0, 10)) : 1);
+
+  const fechasFuturas = useMemo(() => {
+    if (!incorporarFuturos || !fecha || cantidadPeriodos <= 0) return [];
+    return calcularFechasFuturas(fecha, frecuenciaFutura, Number(cantidadPeriodos));
+  }, [incorporarFuturos, fecha, frecuenciaFutura, cantidadPeriodos]);
 
   useEffect(() => {
     if (movimientoAEditar) {
@@ -41,6 +79,7 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _week
       setMontoArs(movimientoAEditar.ars ? movimientoAEditar.ars.toString() : "");
       setMontoUsd(movimientoAEditar.usd ? movimientoAEditar.usd.toString() : "");
       setNota(movimientoAEditar.nota || "");
+      setIncorporarFuturos(false);
     } else {
       setFecha("");
       setTipo("ingreso");
@@ -49,11 +88,13 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _week
       setMontoArs("");
       setMontoUsd("");
       setNota("");
+      setIncorporarFuturos(false);
     }
   }, [movimientoAEditar]);
 
   const handleNuevo = () => {
     setMovimientoAEditar(null); 
+    setIncorporarFuturos(false);
   };
 
   const handleGuardar = async () => {
@@ -69,7 +110,8 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _week
       montoArs: Number(montoArs) || 0,
       montoUsd: Number(montoUsd) || 0,
       estado,
-      nota
+      nota,
+      fechasFuturas: incorporarFuturos ? fechasFuturas : []
     });
 
     if (exito) {
@@ -204,9 +246,130 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _week
         <textarea value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Ej: A quién se le debe, factura, etc." style={{ ...fieldInputStyle, height: 60, resize: "none" }} />
       </Field>
 
-      <button onClick={handleGuardar} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 14, marginTop: 10 }}>
+      {/* SECCIÓN: INCORPORAR EN PERÍODOS FUTUROS DESDE LA FECHA */}
+      <div style={{
+        background: incorporarFuturos ? "rgba(201, 174, 107, 0.08)" : tokens.paper,
+        border: `1px solid ${incorporarFuturos ? "rgba(201, 174, 107, 0.45)" : (tokens.rule || '#C2CAD4')}`,
+        borderRadius: 8,
+        padding: "12px 14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        transition: "all 0.2s"
+      }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", userSelect: "none" }}>
+          <input
+            type="checkbox"
+            checked={incorporarFuturos}
+            onChange={(e) => setIncorporarFuturos(e.target.checked)}
+            style={{ accentColor: tokens.gold, width: 16, height: 16, cursor: "pointer" }}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <CalendarRange size={15} color={incorporarFuturos ? tokens.gold : tokens.textMuted} />
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: tokens.ink }}>
+              Incorporar en períodos futuros desde la fecha
+            </span>
+          </div>
+        </label>
+
+        {incorporarFuturos && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4 }}>
+            {!fecha ? (
+              <p style={{ margin: 0, fontSize: 11.5, color: tokens.negative, fontWeight: 500 }}>
+                ⚠️ Selecciona primero una fecha inicial para proyectar los períodos futuros.
+              </p>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: tokens.textMuted, display: "block", marginBottom: 4 }}>
+                      Frecuencia
+                    </label>
+                    <select
+                      value={frecuenciaFutura}
+                      onChange={(e) => setFrecuenciaFutura(e.target.value)}
+                      style={fieldInputStyle}
+                    >
+                      <option value="semanal">Semanal (cada 7 días)</option>
+                      <option value="quincenal">Quincenal (cada 14 días)</option>
+                      <option value="mensual">Mensual (mismo día)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: tokens.textMuted, display: "block", marginBottom: 4 }}>
+                      Períodos a incorporar
+                    </label>
+                    <select
+                      value={cantidadPeriodos}
+                      onChange={(e) => setCantidadPeriodos(Number(e.target.value))}
+                      style={fieldInputStyle}
+                    >
+                      <option value={2}>+2 períodos</option>
+                      <option value={4}>+4 períodos (1 mes)</option>
+                      <option value={8}>+8 períodos (2 meses)</option>
+                      <option value={12}>+12 períodos (3 meses)</option>
+                      <option value={24}>+24 períodos (6 meses)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {fechasFuturas.length > 0 && (
+                  <div style={{
+                    background: "#fff",
+                    borderRadius: 6,
+                    border: `1px solid ${tokens.rule || '#C2CAD4'}`,
+                    padding: "8px 10px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: tokens.textMuted }}>
+                      <span>Se registrarán <strong>{fechasFuturas.length + 1} movimientos</strong>:</span>
+                      <span style={{ color: tokens.positive, fontWeight: 600 }}>Estado: Proyectado</span>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, maxHeight: 80, overflowY: "auto" }}>
+                      <span style={{
+                        background: tokens.ink,
+                        color: "#fff",
+                        padding: "2px 7px",
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontFamily: tokens.fontMono,
+                        fontWeight: 600
+                      }}>
+                        {formatDate ? formatDate(fecha) : fecha} (Base)
+                      </span>
+                      {fechasFuturas.map((f) => (
+                        <span
+                          key={f}
+                          style={{
+                            background: "rgba(201, 174, 107, 0.2)",
+                            color: tokens.ink,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            fontSize: 11,
+                            fontFamily: tokens.fontMono
+                          }}
+                        >
+                          +{formatDate ? formatDate(f) : f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      <button onClick={handleGuardar} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 14, marginTop: 4 }}>
         {movimientoAEditar ? <CalendarCheck2 size={18}/> : <Plus size={18}/>}
-        {movimientoAEditar ? `Guardar cambios` : "Guardar movimiento"}
+        {movimientoAEditar 
+          ? `Guardar cambios` 
+          : (incorporarFuturos && fechasFuturas.length > 0)
+          ? `Guardar e incorporar en ${fechasFuturas.length + 1} períodos`
+          : "Guardar movimiento"}
       </button>
     </div>
   );
