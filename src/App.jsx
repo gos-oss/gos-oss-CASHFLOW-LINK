@@ -5,15 +5,16 @@ import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
+import { computeProjectCurve } from "./curveEngine";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, BarChart, Bar
 } from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity, Wand2, RotateCcw
+  CalendarDays, Scale, Percent, TrendingDown, DollarSign, Activity, Wand2, RotateCcw, HardHat
 } from "lucide-react";
 
 // =========================================================================
@@ -847,7 +848,35 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
 
   useEffect(() => {
     setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
+    setCurveParams(planesFondos[selectedYear]?.curvas || {});
   }, [planesFondos, selectedYear, editMode, view]);
+
+  // ── CURVA S POR PROYECTO ──
+  // Por proyecto: { total, inicio: "YYYY-MM", duracionBase (meses), ritmo (%), activo }.
+  // Con activo=true, los 12 valores mensuales de ese proyecto se recalculan en vivo
+  // con la curva S (Presupuesto × [cos(π·x0) − cos(π·x1)] / 2) en vez de cargarse a
+  // mano. Se guarda junto con el resto del plan en planDraft.curvas.
+  const [curveParams, setCurveParams] = useState({});
+  const getCurveParams = (key) =>
+    curveParams[key] || { total: 0, inicio: "", duracionBase: 12, ritmo: 100, activo: false };
+  const updateCurveParam = (key, field, value) => {
+    setCurveParams(prev => ({ ...prev, [key]: { ...getCurveParams(key), [field]: value } }));
+  };
+
+  useEffect(() => {
+    let cambio = false;
+    const egresoActualizado = {};
+    Object.entries(curveParams).forEach(([key, cp]) => {
+      if (!cp || !cp.activo) return;
+      const { monthly } = computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear);
+      egresoActualizado[key] = monthly;
+      cambio = true;
+    });
+    if (cambio) {
+      setPlanDraft(prev => ({ ...prev, egreso: { ...prev.egreso, ...egresoActualizado } }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [curveParams, selectedYear]);
 
   useEffect(() => {
     setMappingDraft({ ingreso: { ...(mappingGuardado?.ingreso || {}) }, egreso: { ...(mappingGuardado?.egreso || {}) } });
@@ -961,9 +990,33 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const COLORS_ING = MODERN_PALETTE;
   const COLORS_EG = MODERN_PALETTE;
 
+  const proyectosSubCats = planExpenseCats.find(c => c.isGroup)?.subCats || [];
+  const curvasActivas = useMemo(() => proyectosSubCats
+    .map(c => {
+      const cp = getCurveParams(c.key);
+      return { ...c, cp, result: computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear) };
+    })
+    .filter(x => x.cp.activo),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [curveParams, selectedYear, planExpenseCats]);
+
+  const curvaChartData = meses.map(m => {
+    const row = { mes: m.n };
+    curvasActivas.forEach(x => { row[x.key] = x.result.monthly[m.k]; });
+    return row;
+  });
+
+  const proyectoMasAtrasado = curvasActivas
+    .filter(x => x.result.atraso > 0.05)
+    .sort((a, b) => b.result.atraso - a.result.atraso)[0];
+
+  const finMasLejano = curvasActivas
+    .filter(x => x.result.finEfectivo)
+    .sort((a, b) => b.result.finEfectivo - a.result.finEfectivo)[0];
+
   const guardarTodo = () => {
     if (view === "presupuesto") {
-      onGuardarPlan(planDraft, selectedYear); 
+      onGuardarPlan({ ...planDraft, curvas: curveParams }, selectedYear); 
       setEditMode(false);
     } else {
       onGuardarMapeo(mappingDraft);
@@ -1174,6 +1227,66 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
             </div>
           )}
 
+          {curvasActivas.length > 0 && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+                <KpiCard
+                  icon={HardHat}
+                  label="Proyecto con mayor atraso"
+                  value={proyectoMasAtrasado ? proyectoMasAtrasado.label : "En plazo"}
+                  sub={proyectoMasAtrasado ? `+${proyectoMasAtrasado.result.atraso.toFixed(1)} meses vs. plazo base` : "Ningún proyecto con curva activa está atrasado"}
+                  tone={proyectoMasAtrasado ? "neg" : "pos"}
+                />
+                <KpiCard
+                  icon={CalendarX2}
+                  label="Fin de obra más lejano"
+                  value={finMasLejano ? finMasLejano.result.finEfectivoLabel : "—"}
+                  sub={finMasLejano ? finMasLejano.label : "Sin curvas activas"}
+                  tone="neutral"
+                />
+              </div>
+
+              <div style={{ background: "#172033", borderRadius: 10, border: "1px solid #334155", padding: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <h3 style={{ margin: 0, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                    <HardHat size={16} color={tokens.gold} /> Cronograma de obra — curvas S activas
+                  </h3>
+                  <span style={{ fontSize: 11, color: "#94A3B8" }}>{curvasActivas.length} proyecto{curvasActivas.length !== 1 ? "s" : ""} con curva</span>
+                </div>
+                <p style={{ margin: "2px 0 16px 0", fontSize: 12, color: "#64748B" }}>
+                  Egreso mensual apilado según Presupuesto, Inicio, Duración base y Ritmo de cada obra.
+                </p>
+                <div style={{ height: 230 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={curvaChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#243044" vertical={false} />
+                      <XAxis dataKey="mes" tick={{ fill: "#94A3B8", fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: "#94A3B8", fontSize: 10.5 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${fmt(v)}`} width={60} />
+                      <Tooltip
+                        contentStyle={{ background: "#0F172A", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: "#fff", fontWeight: 700 }}
+                        formatter={(value, name) => [`$ ${fmt(value)}`, proyectosSubCats.find(c => c.key === name)?.label || name]}
+                      />
+                      {curvasActivas.map((x, i) => (
+                        <Bar key={x.key} dataKey={x.key} stackId="curvas" fill={COLORS_EG[i % COLORS_EG.length]} radius={i === curvasActivas.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} maxBarSize={34} />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+                  {curvasActivas.map((x, i) => (
+                    <div key={x.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#CBD5E1", background: "#0F172A", border: "1px solid #243044", borderRadius: 6, padding: "5px 9px" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: COLORS_EG[i % COLORS_EG.length], flex: "none" }} />
+                      {x.label}
+                      <span style={{ fontFamily: tokens.fontMono, color: "#64748B" }}>· fin {x.result.finEfectivoLabel}</span>
+                      {x.result.atraso > 0.05 && <span style={{ color: tokens.negative, fontWeight: 700 }}>+{x.result.atraso.toFixed(1)}m</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, overflow: "hidden", transition: "border-color 0.3s" }}>
              <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
                 <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
@@ -1264,14 +1377,34 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                                 $ {fmt(item.subCats.reduce((acc, sub) => acc + calcularTotalFila("egreso", sub.key), 0))}
                               </td>
                             </tr>
-                            {expandedGroups[item.label] && item.subCats.map(sub => {
+                              {expandedGroups[item.label] && item.subCats.map(sub => {
                               const isOff = simulacionActiva && !simData.active[sub.key];
+                              const cp = getCurveParams(sub.key);
+                              const curveResult = computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear);
+                              const modoCurva = cp.activo;
                               return (
                                 <tr key={sub.key} className={`flujo-row ${isOff ? 'sim-row-disabled' : ''}`} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                                   <td className="sticky-col" style={{ padding: "9px 14px 9px 40px", color: tokens.textMuted, background: colorTablaBg }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                        <span style={{fontWeight: 500}}>{sub.label}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                          <span style={{fontWeight: 500}}>{sub.label}</span>
+                                          {editMode && (
+                                            <button
+                                              type="button"
+                                              onClick={() => updateCurveParam(sub.key, "activo", !cp.activo)}
+                                              title="Calcular los 12 meses con curva S en vez de cargarlos a mano"
+                                              style={{
+                                                fontSize: 10, padding: "2px 8px", borderRadius: 5, cursor: "pointer", fontWeight: 700,
+                                                border: `1px solid ${cp.activo ? tokens.gold : colorLineaFuerte}`,
+                                                background: cp.activo ? "rgba(212,175,55,0.12)" : "#fff",
+                                                color: cp.activo ? tokens.gold : tokens.textMuted,
+                                              }}
+                                            >
+                                              {cp.activo ? "Curva S ✓" : "Curva S"}
+                                            </button>
+                                          )}
+                                        </div>
                                         {simulacionActiva && (
                                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[sub.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [sub.key]: Number(e.target.value)}}))} style={{width: 70}} disabled={isOff} />
@@ -1287,19 +1420,66 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                                       )}
                                     </div>
                                   </td>
-                                  {meses.map(m => {
+                                  {editMode && modoCurva ? (
+                                    <td colSpan={meses.length} style={{ padding: "10px 14px", background: tokens.paper }}>
+                                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 16 }}>
+                                        <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted, fontWeight: 500 }}>
+                                          Presupuesto
+                                          <input type="number" value={cp.total} onChange={(e) => updateCurveParam(sub.key, "total", Number(e.target.value) || 0)} style={{ padding: "5px 7px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 12, fontFamily: tokens.fontMono, outline: "none", width: 130 }} />
+                                        </label>
+                                        <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted, fontWeight: 500 }}>
+                                          Inicio
+                                          <input type="month" value={cp.inicio} onChange={(e) => updateCurveParam(sub.key, "inicio", e.target.value)} style={{ padding: "5px 7px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 12, fontFamily: tokens.fontMono, outline: "none", width: 118 }} />
+                                        </label>
+                                        <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted, fontWeight: 500 }}>
+                                          Duración base (m)
+                                          <input type="number" min="1" value={cp.duracionBase} onChange={(e) => updateCurveParam(sub.key, "duracionBase", Number(e.target.value) || 1)} style={{ padding: "5px 7px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 12, fontFamily: tokens.fontMono, outline: "none", width: 56 }} />
+                                        </label>
+                                        <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted, fontWeight: 500 }}>
+                                          Ritmo de ejecución
+                                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <input type="range" min="40" max="160" step="5" value={cp.ritmo} onChange={(e) => updateCurveParam(sub.key, "ritmo", Number(e.target.value))} style={{ width: 90 }} />
+                                            <span style={{ fontFamily: tokens.fontMono, fontSize: 11, color: tokens.gold, width: 32 }}>{cp.ritmo}%</span>
+                                          </div>
+                                        </label>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted }}>
+                                          <span>Fin efectivo</span>
+                                          <span style={{ fontFamily: tokens.fontMono, fontSize: 12, color: tokens.text, fontWeight: 600 }}>{curveResult.finEfectivoLabel}</span>
+                                        </div>
+                                        <span
+                                          style={{
+                                            fontSize: 10.5, fontFamily: tokens.fontMono, padding: "3px 9px", borderRadius: 5, fontWeight: 700,
+                                            background: curveResult.atraso > 0.05 ? "rgba(220,38,38,0.1)" : curveResult.atraso < -0.05 ? "rgba(22,163,74,0.1)" : colorTablaBg,
+                                            color: curveResult.atraso > 0.05 ? tokens.negative : curveResult.atraso < -0.05 ? tokens.positive : tokens.textMuted,
+                                          }}
+                                        >
+                                          {curveResult.atraso > 0.05 ? `+${curveResult.atraso.toFixed(1)} m atraso` : curveResult.atraso < -0.05 ? `${curveResult.atraso.toFixed(1)} m adelanto` : "en plazo"}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateCurveParam(sub.key, "activo", false)}
+                                          title="Volver a edición mes a mes"
+                                          style={{ fontSize: 10, padding: "2px 6px", borderRadius: 5, cursor: "pointer", border: `1px solid ${colorLineaFuerte}`, background: "#fff", color: tokens.textMuted }}
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    </td>
+                                  ) : (
+                                  meses.map(m => {
                                     const valBase = planDraft?.egreso?.[sub.key]?.[m.k] || "";
                                     const valShow = getSimVal("egreso", sub.key, m.k);
                                     return (
                                       <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
                                         {editMode ? (
-                                          <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", sub.key, m.k, e.target.value)} placeholder="0" />
+                                          <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", sub.key, m.k, e.target.value)} placeholder="0" disabled={modoCurva} />
                                         ) : (
                                           <span style={{ color: valShow ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{valShow ? `$ ${fmt(valShow)}` : "-"}</span>
                                         )}
                                       </td>
                                     );
-                                  })}
+                                  })
+                                  )}
                                   <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", sub.key))}</td>
                                 </tr>
                               );
