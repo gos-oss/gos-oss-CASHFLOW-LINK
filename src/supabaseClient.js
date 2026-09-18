@@ -116,6 +116,12 @@ function createMockQueryBuilder(table) {
           setTableData(table, filtered);
           return { data: null, error: null };
         },
+        async lt(col, val) {
+          const existing = getTableData(table);
+          const filtered = existing.filter((item) => (item[col] ?? '') >= val);
+          setTableData(table, filtered);
+          return { data: null, error: null };
+        },
       };
     },
   };
@@ -217,6 +223,16 @@ export const supabase = {
               return res;
             } catch {
               return createMockQueryBuilder(table).delete().not(col, op, val);
+            }
+          },
+          async lt(col, val) {
+            if (!delObj) return createMockQueryBuilder(table).delete().lt(col, val);
+            try {
+              const res = await delObj.lt(col, val);
+              if (res.error) return createMockQueryBuilder(table).delete().lt(col, val);
+              return res;
+            } catch {
+              return createMockQueryBuilder(table).delete().lt(col, val);
             }
           },
         };

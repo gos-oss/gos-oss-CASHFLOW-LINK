@@ -522,6 +522,29 @@ export default function App() {
     fetchData();
   };
 
+  const handleBorrarAnteriores2026 = async () => {
+    if (!window.confirm("¿Confirmas eliminar permanentemente todos los movimientos y semanas anteriores al año 2026?")) return;
+    try {
+      await supabase.from("cashflow_weeks").delete().lt("week_start", "2026-01-01");
+      // Limpiar también del localStorage si quedaron remanentes
+      if (typeof window !== "undefined" && window.localStorage) {
+        try {
+          const raw = window.localStorage.getItem("cf_mock_cashflow_weeks");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const filtrados = parsed.filter(w => (w.week_start || "") >= "2026-01-01");
+            window.localStorage.setItem("cf_mock_cashflow_weeks", JSON.stringify(filtrados));
+          }
+        } catch(e) {}
+      }
+      await fetchData();
+      alert("Se han eliminado exitosamente todos los datos y semanas anteriores al año 2026.");
+    } catch(err) {
+      console.error(err);
+      alert("Error al eliminar datos anteriores a 2026: " + err.message);
+    }
+  };
+
   const handleSincronizarHaciaSupabase = async () => {
     try {
       const localWeeks = getLocalStoreData("cashflow_weeks");
