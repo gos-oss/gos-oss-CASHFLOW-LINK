@@ -1062,6 +1062,31 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const otherExpenseCats = planExpenseCats.filter(c => !projectKeys.has(c.key));
   const totalProyectosSim = PLAN_PROJECT_CATS.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
 
+  // ── Curvas S activas: KPIs + datos para el gráfico apilado ──
+  const curvasActivas = useMemo(() => PLAN_PROJECT_CATS
+    .map(c => {
+      const cp = getCurveParams(c.key);
+      return { ...c, cp, result: computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear) };
+    })
+    .filter(x => x.cp.activo),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [curveParams, selectedYear]);
+
+  const curvaChartData = meses.map(m => {
+    const row = { mes: m.n };
+    curvasActivas.forEach(x => { row[x.key] = x.result.monthly[m.k]; });
+    return row;
+  });
+
+  const proyectoMasAtrasado = curvasActivas
+    .filter(x => x.result.atraso > 0.05)
+    .sort((a, b) => b.result.atraso - a.result.atraso)[0];
+
+  const finMasLejano = curvasActivas
+    .filter(x => x.result.finEfectivo)
+    .sort((a, b) => b.result.finEfectivo - a.result.finEfectivo)[0];
+
+
   const pieEgresos = [
     { name: "Proyectos", value: totalProyectosSim, perc: totalEg > 0 ? (totalProyectosSim / totalEg) * 100 : 0 },
     ...otherExpenseCats.map(c => {
@@ -1154,7 +1179,17 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                   {cp.activo ? "Curva S ✓" : "Curva S"}
                 </button>
               )}
-              {!editMode && <span style={{ marginLeft: "auto" }}><RowSparkline data={rowVals} color={accent} /></span>}
+              {isProject && editMode && cp.activo && (
+                <button
+                  type="button"
+                  onClick={() => setCurveParams(prev => ({ ...prev, [c.key]: { total: 0, inicio: "", duracionBase: 12, ritmo: 100, activo: false } }))}
+                  title="Restablecer curva de este proyecto"
+                  style={{ fontSize: 10, padding: "2px 6px", borderRadius: 5, cursor: "pointer", border: `1px solid ${colorLineaFuerte}`, background: "#fff", color: tokens.textMuted }}
+                >
+                  ×
+                </button>
+              )}
+              {(!editMode || modoCurva) && <span style={{ marginLeft: "auto" }}><RowSparkline data={rowVals} color={accent} /></span>}
             </div>
             {simulacionActiva && activo && (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1467,6 +1502,66 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
               );
             })()}
           </div>
+
+          {curvasActivas.length > 0 && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+                <KpiCard
+                  icon={HardHat}
+                  label="Proyecto con mayor atraso"
+                  value={proyectoMasAtrasado ? proyectoMasAtrasado.label : "En plazo"}
+                  sub={proyectoMasAtrasado ? `+${proyectoMasAtrasado.result.atraso.toFixed(1)} meses vs. plazo base` : "Ningún proyecto con curva activa está atrasado"}
+                  tone={proyectoMasAtrasado ? "neg" : "pos"}
+                />
+                <KpiCard
+                  icon={CalendarX2}
+                  label="Fin de obra más lejano"
+                  value={finMasLejano ? finMasLejano.result.finEfectivoLabel : "—"}
+                  sub={finMasLejano ? finMasLejano.label : "Sin curvas activas"}
+                  tone="neutral"
+                />
+              </div>
+
+              <div className="kf-card-dark" style={{ background: "#172033", borderRadius: 10, border: "1px solid #334155", padding: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <h3 style={{ margin: 0, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                    <HardHat size={16} color={tokens.gold} /> Cronograma de obra — curvas S activas
+                  </h3>
+                  <span style={{ fontSize: 11, color: "#94A3B8" }}>{curvasActivas.length} proyecto{curvasActivas.length !== 1 ? "s" : ""} con curva</span>
+                </div>
+                <p style={{ margin: "2px 0 16px 0", fontSize: 12, color: "#64748B" }}>
+                  Egreso mensual apilado según Presupuesto, Inicio, Duración base y Ritmo de cada obra.
+                </p>
+                <div style={{ height: 230 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={curvaChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#243044" vertical={false} />
+                      <XAxis dataKey="mes" tick={{ fill: "#94A3B8", fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: "#94A3B8", fontSize: 10.5 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${fmt(v)}`} width={60} />
+                      <Tooltip
+                        contentStyle={{ background: "#0F172A", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: "#fff", fontWeight: 700 }}
+                        formatter={(value, name) => [`$ ${fmt(value)}`, PLAN_PROJECT_CATS.find(c => c.key === name)?.label || name]}
+                      />
+                      {curvasActivas.map((x, i) => (
+                        <Bar key={x.key} dataKey={x.key} stackId="curvas" fill={COLORS_EG[i % COLORS_EG.length]} radius={i === curvasActivas.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} maxBarSize={34} />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+                  {curvasActivas.map((x, i) => (
+                    <div key={x.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#CBD5E1", background: "#0F172A", border: "1px solid #243044", borderRadius: 6, padding: "5px 9px" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: COLORS_EG[i % COLORS_EG.length], flex: "none" }} />
+                      {x.label}
+                      <span style={{ fontFamily: tokens.fontMono, color: "#64748B" }}>· fin {x.result.finEfectivoLabel}</span>
+                      {x.result.atraso > 0.05 && <span style={{ color: tokens.negative, fontWeight: 700 }}>+{x.result.atraso.toFixed(1)}m</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, overflow: "hidden", transition: "border-color 0.3s" }}>
              <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
