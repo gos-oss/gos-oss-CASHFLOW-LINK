@@ -18,7 +18,7 @@ function Field({ label, children }) {
   );
 }
 
-export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGuardar, onEliminar, formatDate, movimientoAEditar, setMovimientoAEditar }) {
+export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _weeks, onGuardar, onEliminar, formatDate, movimientoAEditar, setMovimientoAEditar, getTC }) {
   const [fecha, setFecha] = useState("");
   const [tipo, setTipo] = useState("ingreso");
   const [estado, setEstado] = useState("proyectado");
@@ -29,6 +29,8 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
   const [montoUsd, setMontoUsd] = useState("");
   
   const [nota, setNota] = useState("");
+
+  const tcActual = getTC && fecha ? getTC(fecha) : (getTC ? getTC(new Date().toISOString().slice(0, 10)) : 1);
 
   useEffect(() => {
     if (movimientoAEditar) {
@@ -137,6 +139,23 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks, onGua
           <input type="number" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} placeholder="0" style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} />
         </Field>
       </div>
+
+      {Number(montoUsd) > 0 && (
+        <div style={{ background: tcActual > 1 ? "#F8FAFC" : "#FEF2F2", border: `1px solid ${tcActual > 1 ? "#E2E8F0" : "#FECACA"}`, borderRadius: 6, padding: "8px 12px", fontSize: 11.5 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: tokens.textMuted }}>
+            <span>TC aplicado ({fecha ? formatDate(fecha) : "hoy"}):</span>
+            <span style={{ fontWeight: 600, fontFamily: tokens.fontMono, color: tcActual > 1 ? tokens.ink : tokens.negative }}>
+              {tcActual > 1 ? `$ ${Number(tcActual).toLocaleString("es-AR")} / USD` : "⚠️ Sin TC cargado (1:1)"}
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontWeight: 700, color: tipo === "ingreso" ? tokens.positive : tokens.negative }}>
+            <span>Equivalente en ARS:</span>
+            <span style={{ fontFamily: tokens.fontMono }}>
+              $ {Math.round(Number(montoUsd) * tcActual).toLocaleString("es-AR")}
+            </span>
+          </div>
+        </div>
+      )}
 
       <Field label="Observaciones / Nota (Opcional)">
         <textarea value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Ej: A quién se le debe, factura, etc." style={{ ...fieldInputStyle, height: 60, resize: "none" }} />

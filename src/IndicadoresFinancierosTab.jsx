@@ -124,7 +124,7 @@ function Card({ children, accent }) {
   );
 }
 
-export default function IndicadoresFinancierosTab() {
+export default function IndicadoresFinancierosTab({ onSyncTC }) {
   const [dolares, setDolares] = useState([]);
   const [macro, setMacro] = useState({});
   const [loading, setLoading] = useState(true);
@@ -136,6 +136,15 @@ export default function IndicadoresFinancierosTab() {
   const [formOpen, setFormOpen] = useState({});
   const [draft, setDraft] = useState({});
   const [toast, setToast] = useState("");
+
+  const handleApplyTC = (valor, label) => {
+    if (!valor) return;
+    if (onSyncTC) {
+      onSyncTC(valor, label);
+    }
+    setToast(`Dólar ${label} ($${fmtNum(valor, 0)}) vinculado al Cashflow`);
+    setTimeout(() => setToast(""), 3000);
+  };
 
   const fetchDolares = useCallback(async () => {
     try {
@@ -256,7 +265,33 @@ export default function IndicadoresFinancierosTab() {
             <Card key={t.slug} accent={t.color}>
               <div style={{ fontSize: 10, letterSpacing: "1px", textTransform: "uppercase", color: tokens.textFaint, marginBottom: 8 }}>USD {t.label}</div>
               <div style={{ fontFamily: tokens.fontDisplay, fontSize: 24, color: t.color, fontWeight: 600 }}>{venta}</div>
-              <div style={{ fontSize: 10.5, color: tokens.textMuted, marginTop: 4 }}>compra {compra}</div>
+              <div style={{ fontSize: 10.5, color: tokens.textMuted, marginTop: 4, marginBottom: d?.venta ? 8 : 0 }}>compra {compra}</div>
+              {d?.venta && (
+                <button
+                  onClick={() => handleApplyTC(d.venta, t.label)}
+                  title={`Fijar $${d.venta} como Tipo de Cambio en el Cashflow`}
+                  style={{
+                    width: "100%",
+                    background: "rgba(201, 174, 107, 0.12)",
+                    border: "1px solid rgba(201, 174, 107, 0.35)",
+                    borderRadius: 4,
+                    padding: "4px 6px",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: tokens.ink,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(201, 174, 107, 0.28)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(201, 174, 107, 0.12)")}
+                >
+                  <TrendingUp size={11} color={tokens.gold} /> Fijar en Cashflow
+                </button>
+              )}
             </Card>
           );
         })}

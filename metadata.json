@@ -1,0 +1,6 @@
+{
+  "name": "CASHFLOW LINK",
+  "description": "Sistema de gestión financiera, flujo de caja proyectado a 13 semanas y presupuesto anual.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

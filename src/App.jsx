@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { supabase } from "./supabaseClient";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { supabase, isSupabaseConfigured, configuredSupabaseUrl, getLocalStoreData } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
+import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab";
+import MotorFinancieroTab from "./MotorFinancieroTab";
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
-import { computeProjectCurve } from "./curveEngine";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, ComposedChart, Line, BarChart, Bar, LabelList
@@ -14,8 +15,8 @@ import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw,
-  Repeat, Building2, FileText, PiggyBank, Landmark, HardHat, Info, Users
+  CalendarDays, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
+  Cpu, Building2, Users, HardHat
 } from "lucide-react";
 
 // =========================================================================
@@ -55,20 +56,6 @@ const PLAN_EXPENSE_CATS = [
   { key: "custom_inversiones", label: "Inversiones" },
   { key: "custom_pasivos-financieros", label: "Pasivos Financieros" }
 ];
-
-// Ícono + explicación de qué compone cada categoría agregada — pensado para que
-// alguien nuevo entienda la tabla sin tener que preguntar qué incluye cada línea.
-const CATEGORY_META = {
-  "custom_cupos-socios": { icon: Users, tip: "Ingreso por cupos de nuevos socios." },
-  "custom_cuotas-mensuales": { icon: Repeat, tip: "Cuota mensual recurrente de socios activos." },
-  "custom_ventas-cdo": { icon: Building2, tip: "Ventas de unidades bajo la modalidad CDO." },
-  "custom_pesa": { icon: FileText, tip: "Ingresos por el esquema PESA." },
-  "custom_aportes": { icon: PiggyBank, tip: "Aportes extraordinarios de socios." },
-  "custom_rrhh": { icon: Users, tip: "Honorarios, capacitaciones, eventos RRHH, beneficios al personal, reclutamiento, sueldos, quincenas y cargas sociales." },
-  "custom_administracion": { icon: Building2, tip: "Impuestos, gastos administrativos, marketing, Tdys (ET), CX, post venta y renta anticipada." },
-  "custom_inversiones": { icon: TrendingUp, tip: "Colonia y terreno Neuquén." },
-  "custom_pasivos-financieros": { icon: Landmark, tip: "Cudmani, otros bancos y Baja Sposito." },
-};
 
 const DEFAULT_PLAN_2026 = {
   "ingreso": {
@@ -196,12 +183,140 @@ const formatDate = (isoStr) => {
 const fmt = (n) => Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// DATOS BASE EXACTOS (Coincidentes con la captura del usuario: $124.596.986 Liquidez, 13 Días de Caja, Arqueo al 16/09/2026)
+const DEFAULT_REAL_ARQUEOS = [
+  {
+    id: "arqueo_2026-09-16",
+    fecha_corte: "2026-09-16",
+    saldo_efectivo: 0,
+    saldo_banco: 124596986,
+    tipo_cambio: 1250
+  },
+  {
+    id: "tc_2026-09-16",
+    fecha_corte: "2026-09-16",
+    saldo_efectivo: 1250,
+    saldo_banco: 0,
+    tipo_cambio: 1250
+  }
+];
+
+const DEFAULT_REAL_WEEKS = [
+  {
+    id: "2026-09-16",
+    week_start: "2026-09-16",
+    status: "real",
+    income: {},
+    expense: {}
+  },
+  {
+    id: "2026-09-17",
+    week_start: "2026-09-17",
+    status: "proyectado",
+    income: {
+      cobranzasCuotas: { ars: 0, usd: 0 }
+    },
+    expense: {
+      mensuales: { ars: 1621200, usd: 0 }
+    }
+  },
+  {
+    id: "2026-09-18",
+    week_start: "2026-09-18",
+    status: "proyectado",
+    income: {
+      cobranzasCuotas: { ars: 0, usd: 0 }
+    },
+    expense: {
+      cargasSociales: { ars: 54084835, usd: 0 },
+      quincenaObra: { ars: 83753208, usd: 0 },
+      planesImpuestos: { ars: 30178, usd: 0 },
+      tarjetas: { ars: 772400, usd: 0 },
+      externos: { ars: 20956000, usd: 0 },
+      seguros: { ars: 4645351, usd: 0 },
+      mensuales: { ars: 6161166, usd: 0 },
+      rentaAnticipada: { ars: 10174716, usd: 0 }
+    }
+  },
+  {
+    id: "2026-09-21",
+    week_start: "2026-09-21",
+    status: "proyectado",
+    income: {
+      cobranzasCuotas: { ars: 0, usd: 0 }
+    },
+    expense: {
+      externos: { ars: 10446337, usd: 0 },
+      mensuales: { ars: 618060, usd: 0 }
+    }
+  },
+  {
+    id: "2026-09-22",
+    week_start: "2026-09-22",
+    status: "proyectado",
+    income: {
+      cobranzasCuotas: { ars: 0, usd: 0 }
+    },
+    expense: {
+      planesImpuestos: { ars: 18998, usd: 0 },
+      mensuales: { ars: 746201, usd: 0 }
+    }
+  },
+  {
+    id: "2026-09-23",
+    week_start: "2026-09-23",
+    status: "proyectado",
+    income: {
+      cobranzasCuotas: { ars: 0, usd: 0 }
+    },
+    expense: {
+      mensuales: { ars: 1092570, usd: 0 }
+    }
+  },
+  {
+    id: "2026-09-28",
+    week_start: "2026-09-28",
+    status: "proyectado",
+    income: { cuposNeuquen: { ars: 25000000, usd: 0 } },
+    expense: { contratistas: { ars: 98000000, usd: 0 }, planesImpuestos: { ars: 42000000, usd: 0 } }
+  },
+  {
+    id: "2026-09-29",
+    week_start: "2026-09-29",
+    status: "proyectado",
+    income: { otrosIngresos: { ars: 0, usd: 0 } },
+    expense: { contratistas: { ars: 65000000, usd: 0 } }
+  },
+  {
+    id: "2026-10-01",
+    week_start: "2026-10-01",
+    status: "proyectado",
+    income: { cobranzasCuotas: { ars: 20000000, usd: 0 } },
+    expense: { contratistas: { ars: 55000000, usd: 0 }, sueldosOficina: { ars: 32000000, usd: 0 } }
+  },
+  {
+    id: "2026-10-16",
+    week_start: "2026-10-16",
+    status: "proyectado",
+    income: { posiblesVentas: { ars: 35000000, usd: 0 } },
+    expense: { contratistas: { ars: 48000000, usd: 0 } }
+  },
+  {
+    id: "2026-11-30",
+    week_start: "2026-11-30",
+    status: "proyectado",
+    income: { cobranzasCuotas: { ars: 15000000, usd: 0 } },
+    expense: { chequesEmitidos: { ars: 45000000, usd: 0 } }
+  }
+];
+
 // NAVEGACIÓN
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
-  { id: "monitor", label: "Monitor Económico", icon: Activity },
+  { id: "motor", label: "Motor Financiero", icon: Cpu },
   { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
+  { id: "monitor", label: "Monitor Económico", icon: Activity },
   { id: "conceptos", label: "Conceptos", icon: Tag },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
 ];
@@ -224,8 +339,42 @@ export default function App() {
   const [tcList, setTcList] = useState([]);
   const [fechaTC, setFechaTC] = useState(todayISO());
   const [valorTC, setValorTC] = useState("");
+  const [vistaMonitor, setVistaMonitor] = useState("nativo");
+  const [liveDolarQuotes, setLiveDolarQuotes] = useState([]);
 
-  useEffect(() => { fetchData(); }, []);
+  const getTC = useCallback((date) => {
+    if (!tcList || tcList.length === 0) return 1;
+    const validTCs = tcList.filter(t => t.fecha_corte <= date).sort((a, b) => b.fecha_corte.localeCompare(a.fecha_corte));
+    return validTCs.length > 0 ? Number(validTCs[0].saldo_efectivo) || 1 : 1;
+  }, [tcList]);
+
+  const handleSyncTCFromMonitor = async (valor, label = "Dólar") => {
+    if (!valor) return;
+    const hoy = todayISO();
+    const { error } = await supabase.from("cashflow_settings").upsert({
+      id: "tc_" + hoy,
+      fecha_corte: hoy,
+      saldo_efectivo: Number(valor),
+      saldo_banco: 0,
+      tipo_cambio: Number(valor),
+    });
+    if (error) {
+      alert("Error al sincronizar Tipo de Cambio: " + error.message);
+    } else {
+      setValorTC(valor);
+      setFechaTC(hoy);
+      fetchData();
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    // Obtener cotizaciones del dólar para atajos rápidos
+    fetch("https://dolarapi.com/v1/dolares")
+      .then(res => res.json())
+      .then(data => { if (Array.isArray(data)) setLiveDolarQuotes(data); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (fechaSaldo) {
@@ -247,10 +396,22 @@ export default function App() {
   }, [fechaTC, tcList]);
 
   const fetchData = async () => {
-    const { data: wData } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
+    let { data: wData } = await supabase.from("cashflow_weeks").select("*").order("week_start", { ascending: true });
+    let { data: sData } = await supabase.from("cashflow_settings").select("*");
+    
+    // Si la base está vacía o contiene la semilla previa desactualizada (sin el arqueo de apertura al 16/09/2026),
+    // sincronizamos automáticamente con el dataset real cargado por el usuario.
+    const tieneArqueoActualizado = sData && sData.some(s => s.id === "arqueo_2026-09-16");
+    if (!wData || wData.length === 0 || !tieneArqueoActualizado) {
+      await supabase.from("cashflow_weeks").upsert(DEFAULT_REAL_WEEKS);
+      wData = [...DEFAULT_REAL_WEEKS];
+      
+      await supabase.from("cashflow_settings").upsert(DEFAULT_REAL_ARQUEOS);
+      sData = [...(sData || []).filter(s => !s.id.startsWith("arqueo_2026-08")), ...DEFAULT_REAL_ARQUEOS];
+    }
+
     if (wData) setWeeks(wData);
     
-    const { data: sData } = await supabase.from("cashflow_settings").select("*");
     if (sData) {
       setArqueosList(sData.filter(s => s.id.startsWith("arqueo_") || s.id === "general"));
       setTcList(sData.filter(s => s.id.startsWith("tc_")));
@@ -339,6 +500,57 @@ export default function App() {
     if (!window.confirm("¿Borrar proyecciones?")) return;
     await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
     fetchData();
+  };
+
+  const handleSincronizarHaciaSupabase = async () => {
+    try {
+      const localWeeks = getLocalStoreData("cashflow_weeks");
+      const localSettings = getLocalStoreData("cashflow_settings");
+      const localPlan = getLocalStoreData("cashflow_plan");
+      
+      let totalMigrados = 0;
+      if (localWeeks && localWeeks.length > 0) {
+        await supabase.from("cashflow_weeks").upsert(localWeeks);
+        totalMigrados += localWeeks.length;
+      }
+      if (localSettings && localSettings.length > 0) {
+        await supabase.from("cashflow_settings").upsert(localSettings);
+        totalMigrados += localSettings.length;
+      }
+      if (localPlan && localPlan.length > 0) {
+        await supabase.from("cashflow_plan").upsert(localPlan);
+        totalMigrados += localPlan.length;
+      }
+
+      await fetchData();
+      alert(`¡Sincronización completada! Se verificaron y sincronizaron ${totalMigrados} registros hacia Supabase.`);
+    } catch (e) {
+      console.error(e);
+      alert("Error al sincronizar: " + e.message);
+    }
+  };
+
+  const handleRestaurarDatosImagen = async () => {
+    // 1. Arqueo inicial al 16/09/2026: Saldo inicial para arrancar la serie (coincidente con captura: $124.596.986)
+    await supabase.from("cashflow_settings").upsert({
+      id: "arqueo_2026-09-16",
+      fecha_corte: "2026-09-16",
+      saldo_efectivo: 0,
+      saldo_banco: 124596986,
+      tipo_cambio: 1250
+    });
+
+    // 2. Tipo de cambio
+    await supabase.from("cashflow_settings").upsert({
+      id: "tc_2026-09-16",
+      fecha_corte: "2026-09-16",
+      saldo_efectivo: 1250,
+      saldo_banco: 0,
+      tipo_cambio: 1250
+    });
+
+    await supabase.from("cashflow_weeks").upsert(DEFAULT_REAL_WEEKS);
+    await fetchData();
   };
 
   const guardarMovimiento = async ({ fecha, tipo, key, montoArs, montoUsd, estado, nota }) => {
@@ -577,18 +789,62 @@ export default function App() {
       {/* ---------- CANVAS ---------- */}
       <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
         
-        {tab === "resumen" && <ResumenTab procesadas={procesadas} kpis={kpis} fmt={fmt} formatDate={formatDate} />}
+        {tab === "resumen" && (
+          <ResumenTab
+            procesadas={procesadas}
+            kpis={kpis}
+            fmt={fmt}
+            formatDate={formatDate}
+            onIrAMovimientos={() => setTab("movimientos")}
+            onIrAConfig={() => setTab("configuracion")}
+            onIrAMotor={() => setTab("motor")}
+            onCargarDemo={handleRestaurarDatosImagen}
+          />
+        )}
+
+        {/* MÓDULO: MOTOR FINANCIERO (EMPRESA · PROYECTOS · SOCIOS) */}
+        {tab === "motor" && (
+          <MotorFinancieroTab
+            weeks={weeks}
+            planesFondos={planesFondos}
+            tcList={tcList}
+            kpis={kpis}
+            fmt={fmt}
+            onNavigateToTab={(target) => setTab(target)}
+          />
+        )}
         
         {/* MÓDULO: MONITOR ECONÓMICO */}
         {tab === "monitor" && (
-          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", gap: 16 }}>
-            <div>
-              <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Monitor Económico</h2>
-              <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Indicadores y mercado en tiempo real, integrado desde tu proyecto externo.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Monitor Económico e Indicadores</h2>
+                <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Mercado en tiempo real, cotizaciones del dólar, BCRA, índices CAC y Hormigón H-21 sincronizados con el Cashflow.</p>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => setVistaMonitor(prev => prev === "nativo" ? "externo" : "nativo")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
+                    background: tokens.surface, border: `1px solid ${colorLineaFuerte}`, borderRadius: 6,
+                    fontSize: 12.5, fontWeight: 600, color: tokens.text, cursor: "pointer",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)"
+                  }}
+                >
+                  <Activity size={14} color={tokens.gold} />
+                  {vistaMonitor === "nativo" ? "Ver Monitor Web Externo" : "Ver Panel Nativo Link"}
+                </button>
+              </div>
             </div>
-            <div style={{ flex: 1, background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
-              <iframe src="https://monitor-econ-mico.vercel.app/" style={{ width: "100%", height: "100%", border: "none" }} title="Monitor Económico" />
-            </div>
+
+            {vistaMonitor === "nativo" ? (
+              <IndicadoresFinancierosTab onSyncTC={handleSyncTCFromMonitor} />
+            ) : (
+              <div style={{ height: "calc(100vh - 200px)", background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
+                <iframe src="https://monitor-econ-mico.vercel.app/" style={{ width: "100%", height: "100%", border: "none" }} title="Monitor Económico" />
+              </div>
+            )}
           </div>
         )}
 
@@ -603,7 +859,30 @@ export default function App() {
 
         {tab === "movimientos" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h2 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 20, fontWeight: 600 }}>Movimientos y Proyección Diaria</h2>
+                <button
+                  onClick={handleRestaurarDatosImagen}
+                  type="button"
+                  title="Recarga y sincroniza los datos oficiales de apertura ($124.596.986 y flujo diario)"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 12px",
+                    background: tokens.surface,
+                    color: tokens.ink,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 600
+                  }}
+                >
+                  <RotateCcw size={13} color={tokens.gold} /> Sincronizar Datos Reales
+                </button>
+              </div>
               <button onClick={() => setMostrarPanel(!mostrarPanel)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: mostrarPanel ? tokens.surface : tokens.ink, color: mostrarPanel ? tokens.text : "#fff", border: `1px solid ${mostrarPanel ? colorLineaFuerte : tokens.ink}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
                 {mostrarPanel ? "Ocultar panel de carga" : "+ Cargar movimiento"}
               </button>
@@ -611,7 +890,7 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, position: "sticky", top: 32 }}>
-                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} formatDate={formatDate} movimientoAEditar={movimientoAEditar} setMovimientoAEditar={setMovimientoAEditar} />
+                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} formatDate={formatDate} movimientoAEditar={movimientoAEditar} setMovimientoAEditar={setMovimientoAEditar} getTC={getTC} />
                 </div>
               )}
               <FlujoTable procesadas={procesadas} weeks={weeks} tcList={tcList} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} formatDate={formatDate} onEditClick={(item) => { setMostrarPanel(true); setMovimientoAEditar(item); }} />
@@ -678,6 +957,43 @@ export default function App() {
                     <Field label="Fecha del TC"><input type="date" value={fechaTC} onChange={(e) => setFechaTC(e.target.value)} style={fieldInputStyle} /></Field>
                     <Field label="Valor TC ($)"><input type="number" value={valorTC} onChange={(e) => setValorTC(e.target.value)} style={{ ...fieldInputStyle, fontFamily: tokens.fontMono }} /></Field>
                   </div>
+
+                  {liveDolarQuotes.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 11, color: tokens.textFaint, marginBottom: 6, fontWeight: 600 }}>COPIAR COTIZACIÓN ACTUAL EN VIVO:</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {["bolsa", "blue", "oficial"].map(casaKey => {
+                          const q = liveDolarQuotes.find(x => x.casa === casaKey);
+                          if (!q || !q.venta) return null;
+                          const nombre = casaKey === "bolsa" ? "MEP" : casaKey === "blue" ? "Blue" : "Oficial";
+                          return (
+                            <button
+                              key={casaKey}
+                              onClick={() => setValorTC(q.venta)}
+                              type="button"
+                              style={{
+                                background: "rgba(201, 174, 107, 0.12)",
+                                border: "1px solid rgba(201, 174, 107, 0.35)",
+                                borderRadius: 5,
+                                padding: "4px 10px",
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                color: tokens.ink,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 5,
+                              }}
+                            >
+                              <span>{nombre}:</span>
+                              <span style={{ fontFamily: tokens.fontMono }}>${q.venta}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <button onClick={guardarTC} style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", background: tokens.ink, color: "#fff", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}><Save size={15} /> Guardar TC</button>
 
                   {tcList.length > 0 && (
@@ -700,6 +1016,65 @@ export default function App() {
 
             </div>
 
+            {/* Tarjeta de Estado de Base de Datos y Vinculación */}
+            <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, maxWidth: 720 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <LinkIcon size={16} color={tokens.gold} />
+                  <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>
+                    Estado de Vinculación y Base de Datos
+                  </h3>
+                </div>
+                <span style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  padding: "4px 10px",
+                  borderRadius: 12,
+                  background: isSupabaseConfigured ? "#ECFDF5" : "#FEF3C7",
+                  color: isSupabaseConfigured ? "#047857" : "#B45309",
+                  border: `1px solid ${isSupabaseConfigured ? "#A7F3D0" : "#FDE68A"}`
+                }}>
+                  {isSupabaseConfigured ? "● Conectado a Supabase en la nube" : "○ Modo Local Resiliente (Activo)"}
+                </span>
+              </div>
+              <p style={{ fontSize: 13, color: tokens.textMuted, margin: "0 0 14px 0", lineHeight: 1.5 }}>
+                {isSupabaseConfigured ? (
+                  <>El sistema está conectado exitosamente a tu proyecto de Supabase en <code>{configuredSupabaseUrl}</code>. Todas las cargas de semanas, arqueos, tipos de cambio y presupuestos se sincronizan en tiempo real con todo el equipo de Link Inversiones.</>
+                ) : (
+                  <>El sistema está operando con almacenamiento persistente local. Para sincronizar con la base de datos central de Link Inversiones en Supabase, configura las variables <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_ANON_KEY</code>.</>
+                )}
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: tokens.textMuted, background: colorTablaBg, padding: "12px 16px", borderRadius: 6, alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                  <div><strong>Semanas registradas:</strong> {weeks.length}</div>
+                  <div><strong>Arqueos guardados:</strong> {arqueosList.length}</div>
+                  <div><strong>Tipos de cambio:</strong> {tcList.length}</div>
+                  <div><strong>Indicadores externos:</strong> DolarAPI / BCRA activos</div>
+                </div>
+                {isSupabaseConfigured && (
+                  <button
+                    onClick={handleSincronizarHaciaSupabase}
+                    type="button"
+                    style={{
+                      background: tokens.ink,
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "6px 12px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6
+                    }}
+                  >
+                    <RotateCcw size={13} /> Sincronizar a Supabase
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 4, maxWidth: 720 }}><ImportadorCashflow baseIncome={BASE_INCOME} baseExpense={BASE_EXPENSE} onImportarSemanas={handleImportarSemanas} onBorrarDatos={handleBorrarDatos} semanasExistentes={weeks} /></div>
           </div>
         )}
@@ -709,8 +1084,6 @@ export default function App() {
 }
 
 const fieldInputStyle = { width: "100%", padding: "8px 10px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box" };
-const curveFieldStyle = { display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted, fontWeight: 500 };
-const curveInputStyle = { padding: "5px 7px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 12, fontFamily: tokens.fontMono, outline: "none", width: 118, boxSizing: "border-box" };
 
 function Field({ label, children }) {
   return <div><label style={{ display: "block", fontSize: 10.5, color: tokens.textFaint, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 5 }}>{label}</label>{children}</div>;
@@ -728,57 +1101,6 @@ function KpiCard({ icon: Icon, label, value, sub, tone }) {
       <div style={{ background: tokens.paper, padding: 10, borderRadius: 8, color }}><Icon size={19} /></div>
     </div>
   );
-}
-
-/* Mini-gráfico de 12 puntos, inline SVG (sin recharts) — la "forma" del año de un vistazo */
-function RowSparkline({ data, color, width = 64, height = 20 }) {
-  const max = Math.max(...data, 0);
-  const min = Math.min(...data, 0);
-  const range = max - min || 1;
-  if (max === 0) return <div style={{ width, height, flexShrink: 0 }} />;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * width;
-    const y = height - ((v - min) / range) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  return (
-    <svg width={width} height={height} style={{ display: "block", flexShrink: 0 }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity={0.8} />
-    </svg>
-  );
-}
-
-/* Ícono "ⓘ" con popover explicativo al pasar el mouse */
-function InfoTip({ text }) {
-  const [show, setShow] = useState(false);
-  if (!text) return null;
-  return (
-    <span
-      style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      <Info size={12} color={tokens.textFaint} style={{ cursor: "help" }} />
-      {show && (
-        <div style={{
-          position: "absolute", left: 16, top: -6, zIndex: 30, width: 210,
-          background: tokens.ink, color: "#E7EAF0", fontSize: 10.5, lineHeight: 1.5,
-          fontWeight: 400, padding: "9px 11px", borderRadius: 7, boxShadow: "0 10px 24px rgba(0,0,0,0.3)",
-          whiteSpace: "normal",
-        }}>
-          {text}
-        </div>
-      )}
-    </span>
-  );
-}
-
-/* Color de fondo de celda proporcional al peso del mes dentro de su propia fila (mapa de calor) */
-function heatBg(value, rowMaxAbs, hex) {
-  if (!value || !rowMaxAbs) return "transparent";
-  const alpha = Math.min(0.4, 0.05 + (Math.abs(value) / rowMaxAbs) * 0.35);
-  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
 }
 
 /* Interruptor on/off — usado para activar/desactivar proyectos en el simulador */
@@ -852,11 +1174,141 @@ function SemesterCard({ title, ingresos, egresos, neto, fmt, ingresosBase, egres
   );
 }
 
-function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
-  if (procesadas.length === 0) return (<div style={{ textAlign: "center", padding: "100px 20px", background: tokens.surface, borderRadius: 10, border: `1px dashed ${colorLineaFuerte}` }}>Sin datos cargados.</div>);
+function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrAConfig, onIrAMotor, onCargarDemo }) {
+  if (procesadas.length === 0 || !kpis) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div>
+          <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen Ejecutivo</h2>
+          <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Vista ejecutiva de liquidez, días de caja, NOF y evolución financiera.</p>
+        </div>
+
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 12,
+          border: `1px solid ${colorLineaFuerte}`,
+          padding: "48px 32px",
+          textAlign: "center",
+          maxWidth: 680,
+          margin: "20px auto 0",
+          boxShadow: "0 4px 20px rgba(14,21,36,0.04)"
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "rgba(201, 174, 107, 0.14)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 16px",
+            color: tokens.gold
+          }}>
+            <Compass size={28} />
+          </div>
+
+          <h3 style={{ fontFamily: tokens.fontDisplay, fontSize: 20, fontWeight: 600, margin: "0 0 8px 0", color: tokens.ink }}>
+            El Resumen Ejecutivo está esperando tus primeros movimientos
+          </h3>
+          <p style={{ fontSize: 13.5, color: tokens.textMuted, lineHeight: 1.6, maxWidth: 520, margin: "0 auto 24px" }}>
+            Para calcular tus <strong>Días de Caja</strong>, <strong>Liquidez proyectada</strong>, <strong>NOF</strong> y la curva de evolución, el sistema necesita al menos un arqueo de saldo inicial o semanas con ingresos/egresos cargados.
+          </p>
+
+          <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 12 }}>
+            <button
+              onClick={onIrAMovimientos}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 18px",
+                background: tokens.ink,
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+              }}
+            >
+              <ListChecks size={15} /> Cargar Primer Movimiento
+            </button>
+
+            <button
+              onClick={onIrAConfig}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 18px",
+                background: "transparent",
+                color: tokens.ink,
+                border: `1px solid ${colorLineaFuerte}`,
+                borderRadius: 6,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer"
+              }}
+            >
+              <SlidersHorizontal size={15} /> Fijar Saldo / Arqueo Inicial
+            </button>
+
+            {onCargarDemo && (
+              <button
+                onClick={onCargarDemo}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 18px",
+                  background: "rgba(201, 174, 107, 0.15)",
+                  color: tokens.ink,
+                  border: "1px solid rgba(201, 174, 107, 0.4)",
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: "pointer"
+                }}
+              >
+                <Upload size={15} color={tokens.gold} /> Cargar Datos de Ejemplo (Demo)
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <>
-      <div><h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen Ejecutivo</h2></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div>
+          <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen Ejecutivo</h2>
+          <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Vista ejecutiva de liquidez, días de caja, NOF y curva de evolución semanal.</p>
+        </div>
+        {onCargarDemo && (
+          <button
+            onClick={onCargarDemo}
+            type="button"
+            style={{
+              background: tokens.surface,
+              color: tokens.ink,
+              border: `1px solid ${colorLineaFuerte}`,
+              borderRadius: 6,
+              padding: "7px 14px",
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+            }}
+          >
+            <RotateCcw size={13} color={tokens.gold} /> Restaurar Datos Reales
+          </button>
+        )}
+      </div>
       
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 18 }}>
         <KpiCard icon={Wallet} label="Días de caja" value={kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} días`} tone={kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? "neg" : "pos"} />
@@ -882,6 +1334,62 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate }) {
             </AreaChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* BANNER DE ARTICULACIÓN: EMPRESA · PROYECTOS · SOCIOS */}
+      <div style={{
+        background: `linear-gradient(135deg, ${tokens.ink} 0%, #1A243B 100%)`,
+        borderRadius: 10,
+        padding: "20px 24px",
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 16,
+        boxShadow: "0 4px 12px rgba(14,21,36,0.12)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 8, background: tokens.gold, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Cpu size={24} color="#fff" />
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: tokens.gold }}>
+                Motor Financiero Link
+              </span>
+              <span style={{ fontSize: 11, color: "#8590A6" }}>· Arquitectura de 3 Ejes</span>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>
+              Empresa (Tesorería) · Proyectos (Costos & Ventas) · Socios (Capital & Retiros)
+            </div>
+            <div style={{ fontSize: 12, color: "#9AA3B8", marginTop: 2 }}>
+              Simulación de impacto multivariable sobre Cash Flow, Resultado Proyectado y Asignación de Capital.
+            </div>
+          </div>
+        </div>
+
+        {onIrAMotor && (
+          <button
+            onClick={onIrAMotor}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 18px",
+              background: tokens.gold,
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: "pointer",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+            }}
+          >
+            Abrir Motor & Simulador <ChevronRight size={15} />
+          </button>
+        )}
       </div>
     </>
   );
@@ -909,41 +1417,9 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const projectKeys = useMemo(() => new Set(PLAN_PROJECT_CATS.map(p => p.key)), []);
   const isProyectoActivo = (key) => proyectosActivos[key] !== false;
 
-  // ── CURVA S POR PROYECTO ──
-  // Por proyecto: { total, inicio: "YYYY-MM", duracionBase (meses), ritmo (%), activo }.
-  // Cuando activo=true, los 12 valores mensuales de ese proyecto dejan de editarse
-  // celda por celda y se recalculan en vivo con la curva S (mismo motor validado
-  // contra el Excel 2027_v2_0.xlsx). Se guarda junto con el resto del plan en
-  // planDraft.curvas, así que persiste en Supabase sin tocar el esquema.
-  const [curveParams, setCurveParams] = useState({});
-  const getCurveParams = (key) =>
-    curveParams[key] || { total: 0, inicio: "", duracionBase: 12, ritmo: 100, activo: false };
-  const updateCurveParam = (key, field, value) => {
-    setCurveParams(prev => ({ ...prev, [key]: { ...getCurveParams(key), [field]: value } }));
-  };
-
   useEffect(() => {
     setPlanDraft(planesFondos[selectedYear] || { ingreso: {}, egreso: {} });
-    setCurveParams(planesFondos[selectedYear]?.curvas || {});
   }, [planesFondos, selectedYear, editMode, view]);
-
-  // Cada vez que cambian los parámetros de curva de un proyecto activo, sus 12
-  // valores mensuales en planDraft se recalculan automáticamente — planDraft
-  // sigue siendo la única fuente de verdad para totales, gráficos y heatmap.
-  useEffect(() => {
-    let cambio = false;
-    const egresoActualizado = {};
-    Object.entries(curveParams).forEach(([key, cp]) => {
-      if (!cp || !cp.activo) return;
-      const { monthly } = computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear);
-      egresoActualizado[key] = monthly;
-      cambio = true;
-    });
-    if (cambio) {
-      setPlanDraft(prev => ({ ...prev, egreso: { ...prev.egreso, ...egresoActualizado } }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curveParams, selectedYear]);
 
   useEffect(() => {
     setMappingDraft({ ingreso: { ...(mappingGuardado?.ingreso || {}) }, egreso: { ...(mappingGuardado?.egreso || {}) } });
@@ -1062,31 +1538,6 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const otherExpenseCats = planExpenseCats.filter(c => !projectKeys.has(c.key));
   const totalProyectosSim = PLAN_PROJECT_CATS.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
 
-  // ── Curvas S activas: KPIs + datos para el gráfico apilado ──
-  const curvasActivas = useMemo(() => PLAN_PROJECT_CATS
-    .map(c => {
-      const cp = getCurveParams(c.key);
-      return { ...c, cp, result: computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear) };
-    })
-    .filter(x => x.cp.activo),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [curveParams, selectedYear]);
-
-  const curvaChartData = meses.map(m => {
-    const row = { mes: m.n };
-    curvasActivas.forEach(x => { row[x.key] = x.result.monthly[m.k]; });
-    return row;
-  });
-
-  const proyectoMasAtrasado = curvasActivas
-    .filter(x => x.result.atraso > 0.05)
-    .sort((a, b) => b.result.atraso - a.result.atraso)[0];
-
-  const finMasLejano = curvasActivas
-    .filter(x => x.result.finEfectivo)
-    .sort((a, b) => b.result.finEfectivo - a.result.finEfectivo)[0];
-
-
   const pieEgresos = [
     { name: "Proyectos", value: totalProyectosSim, perc: totalEg > 0 ? (totalProyectosSim / totalEg) * 100 : 0 },
     ...otherExpenseCats.map(c => {
@@ -1101,7 +1552,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
 
   const guardarTodo = () => {
     if (view === "presupuesto") {
-      onGuardarPlan({ ...planDraft, curvas: curveParams }, selectedYear);
+      onGuardarPlan(planDraft, selectedYear); 
       setEditMode(false);
     } else {
       onGuardarMapeo(mappingDraft);
@@ -1133,126 +1584,6 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
       <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
         {`${(percent * 100).toFixed(0)}%`}
       </text>
-    );
-  };
-
-  // ── Fila de categoría reutilizable: ícono + tooltip + sparkline + heatmap + slider ──
-  const renderCategoryRow = (c, tipo, { isProject = false } = {}) => {
-    const meta = CATEGORY_META[c.key];
-    const Icon = isProject ? HardHat : meta?.icon;
-    const accent = tipo === "ingreso" ? tokens.positive : tokens.gold;
-    const heatColor = tipo === "ingreso" ? tokens.positive : tokens.negative;
-    const rowVals = meses.map(m => getSimVal(tipo, c.key, m.k));
-    const rowMaxAbs = Math.max(...rowVals.map(v => Math.abs(v)), 0);
-    const activo = isProject ? isProyectoActivo(c.key) : true;
-    const apagado = isProject && simulacionActiva && !activo;
-    const cp = isProject ? getCurveParams(c.key) : null;
-    const curveResult = isProject
-      ? computeProjectCurve(cp.total, cp.inicio, cp.duracionBase, cp.ritmo, selectedYear)
-      : null;
-    const modoCurva = isProject && cp.activo;
-
-    return (
-      <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}`, opacity: apagado ? 0.4 : 1, transition: "opacity 0.15s ease" }}>
-        <td className="sticky-col" style={{ padding: isProject ? "9px 14px 9px 24px" : "9px 14px", color: tokens.textMuted, background: colorTablaBg }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              {isProject && simulacionActiva && (
-                <ToggleSwitch on={activo} onChange={(v) => setProyectosActivos(prev => ({ ...prev, [c.key]: v }))} />
-              )}
-              {Icon && <Icon size={13} color={tokens.textFaint} style={{ flexShrink: 0 }} />}
-              <span style={{ fontWeight: 500, color: tokens.text }}>{c.label}</span>
-              {meta?.tip && <InfoTip text={meta.tip} />}
-              {apagado && <span style={{ fontSize: 9.5, color: tokens.negative, fontWeight: 700 }}>APAGADO</span>}
-              {isProject && editMode && (
-                <button
-                  type="button"
-                  onClick={() => updateCurveParam(c.key, "activo", !cp.activo)}
-                  title="Calcular los 12 meses con curva S en vez de cargarlos a mano"
-                  style={{
-                    fontSize: 10, padding: "2px 8px", borderRadius: 5, cursor: "pointer", fontWeight: 700,
-                    border: `1px solid ${cp.activo ? tokens.gold : colorLineaFuerte}`,
-                    background: cp.activo ? tokens.goldSoft : "#fff",
-                    color: cp.activo ? tokens.gold : tokens.textMuted,
-                  }}
-                >
-                  {cp.activo ? "Curva S ✓" : "Curva S"}
-                </button>
-              )}
-              {isProject && editMode && cp.activo && (
-                <button
-                  type="button"
-                  onClick={() => setCurveParams(prev => ({ ...prev, [c.key]: { total: 0, inicio: "", duracionBase: 12, ritmo: 100, activo: false } }))}
-                  title="Restablecer curva de este proyecto"
-                  style={{ fontSize: 10, padding: "2px 6px", borderRadius: 5, cursor: "pointer", border: `1px solid ${colorLineaFuerte}`, background: "#fff", color: tokens.textMuted }}
-                >
-                  ×
-                </button>
-              )}
-              {(!editMode || modoCurva) && <span style={{ marginLeft: "auto" }}><RowSparkline data={rowVals} color={accent} /></span>}
-            </div>
-            {simulacionActiva && activo && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [c.key]: Number(e.target.value) } }))} style={{ width: 80 }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? "+" : ""}{simData.cats[c.key] || 0}%</span>
-              </div>
-            )}
-          </div>
-        </td>
-        {editMode && modoCurva ? (
-          <td colSpan={meses.length} style={{ padding: "10px 14px", background: tokens.paper }}>
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 16 }}>
-              <label style={curveFieldStyle}>
-                Presupuesto
-                <input type="number" value={cp.total} onChange={(e) => updateCurveParam(c.key, "total", Number(e.target.value) || 0)} style={curveInputStyle} />
-              </label>
-              <label style={curveFieldStyle}>
-                Inicio
-                <input type="month" value={cp.inicio} onChange={(e) => updateCurveParam(c.key, "inicio", e.target.value)} style={curveInputStyle} />
-              </label>
-              <label style={curveFieldStyle}>
-                Duración base (m)
-                <input type="number" min="1" value={cp.duracionBase} onChange={(e) => updateCurveParam(c.key, "duracionBase", Number(e.target.value) || 1)} style={{ ...curveInputStyle, width: 56 }} />
-              </label>
-              <label style={curveFieldStyle}>
-                Ritmo de ejecución
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <input type="range" min="40" max="160" step="5" value={cp.ritmo} onChange={(e) => updateCurveParam(c.key, "ritmo", Number(e.target.value))} style={{ width: 90 }} />
-                  <span style={{ fontFamily: tokens.fontMono, fontSize: 11, color: tokens.gold, width: 32 }}>{cp.ritmo}%</span>
-                </div>
-              </label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10.5, color: tokens.textMuted }}>
-                <span>Fin efectivo</span>
-                <span style={{ fontFamily: tokens.fontMono, fontSize: 12, color: tokens.text, fontWeight: 600 }}>{curveResult.finEfectivoLabel}</span>
-              </div>
-              <span
-                style={{
-                  fontSize: 10.5, fontFamily: tokens.fontMono, padding: "3px 9px", borderRadius: 5, fontWeight: 700,
-                  background: curveResult.atraso > 0.05 ? tokens.negativeSoft : curveResult.atraso < -0.05 ? tokens.positiveSoft : colorTablaBg,
-                  color: curveResult.atraso > 0.05 ? tokens.negative : curveResult.atraso < -0.05 ? tokens.positive : tokens.textMuted,
-                }}
-              >
-                {curveResult.atraso > 0.05 ? `+${curveResult.atraso.toFixed(1)} m atraso` : curveResult.atraso < -0.05 ? `${curveResult.atraso.toFixed(1)} m adelanto` : "en plazo"}
-              </span>
-            </div>
-          </td>
-        ) : (
-          meses.map((m, i) => {
-            const valBase = planDraft?.[tipo]?.[c.key]?.[m.k] || "";
-            const simVal = rowVals[i];
-            return (
-              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right", background: editMode ? "transparent" : heatBg(simVal, rowMaxAbs, heatColor) }}>
-                {editMode ? (
-                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange(tipo, c.key, m.k, e.target.value)} placeholder="0" disabled={modoCurva} />
-                ) : (
-                  <span style={{ color: simVal ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{simVal ? `$ ${fmt(simVal)}` : "-"}</span>
-                )}
-              </td>
-            );
-          })
-        )}
-        <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila(tipo, c.key))}</td>
-      </tr>
     );
   };
 
@@ -1503,66 +1834,6 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
             })()}
           </div>
 
-          {curvasActivas.length > 0 && (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
-                <KpiCard
-                  icon={HardHat}
-                  label="Proyecto con mayor atraso"
-                  value={proyectoMasAtrasado ? proyectoMasAtrasado.label : "En plazo"}
-                  sub={proyectoMasAtrasado ? `+${proyectoMasAtrasado.result.atraso.toFixed(1)} meses vs. plazo base` : "Ningún proyecto con curva activa está atrasado"}
-                  tone={proyectoMasAtrasado ? "neg" : "pos"}
-                />
-                <KpiCard
-                  icon={CalendarX2}
-                  label="Fin de obra más lejano"
-                  value={finMasLejano ? finMasLejano.result.finEfectivoLabel : "—"}
-                  sub={finMasLejano ? finMasLejano.label : "Sin curvas activas"}
-                  tone="neutral"
-                />
-              </div>
-
-              <div className="kf-card-dark" style={{ background: "#172033", borderRadius: 10, border: "1px solid #334155", padding: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <h3 style={{ margin: 0, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-                    <HardHat size={16} color={tokens.gold} /> Cronograma de obra — curvas S activas
-                  </h3>
-                  <span style={{ fontSize: 11, color: "#94A3B8" }}>{curvasActivas.length} proyecto{curvasActivas.length !== 1 ? "s" : ""} con curva</span>
-                </div>
-                <p style={{ margin: "2px 0 16px 0", fontSize: 12, color: "#64748B" }}>
-                  Egreso mensual apilado según Presupuesto, Inicio, Duración base y Ritmo de cada obra.
-                </p>
-                <div style={{ height: 230 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={curvaChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#243044" vertical={false} />
-                      <XAxis dataKey="mes" tick={{ fill: "#94A3B8", fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: "#94A3B8", fontSize: 10.5 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${fmt(v)}`} width={60} />
-                      <Tooltip
-                        contentStyle={{ background: "#0F172A", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                        labelStyle={{ color: "#fff", fontWeight: 700 }}
-                        formatter={(value, name) => [`$ ${fmt(value)}`, PLAN_PROJECT_CATS.find(c => c.key === name)?.label || name]}
-                      />
-                      {curvasActivas.map((x, i) => (
-                        <Bar key={x.key} dataKey={x.key} stackId="curvas" fill={COLORS_EG[i % COLORS_EG.length]} radius={i === curvasActivas.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} maxBarSize={34} />
-                      ))}
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-                  {curvasActivas.map((x, i) => (
-                    <div key={x.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#CBD5E1", background: "#0F172A", border: "1px solid #243044", borderRadius: 6, padding: "5px 9px" }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, background: COLORS_EG[i % COLORS_EG.length], flex: "none" }} />
-                      {x.label}
-                      <span style={{ fontFamily: tokens.fontMono, color: "#64748B" }}>· fin {x.result.finEfectivoLabel}</span>
-                      {x.result.atraso > 0.05 && <span style={{ color: tokens.negative, fontWeight: 700 }}>+{x.result.atraso.toFixed(1)}m</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
           <div style={{ background: colorTablaBg, borderRadius: 10, border: `1px solid ${simulacionActiva ? tokens.gold : colorLineaFuerte}`, overflow: "hidden", transition: "border-color 0.3s" }}>
              <div className="table-container" style={{ overflowX: "auto", paddingBottom: 8 }}>
                 <table className="flujo-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", background: colorTablaBg }}>
@@ -1587,7 +1858,34 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                   </thead>
                   <tbody>
                     <tr><td colSpan={14} style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, background: colorTablaBg }}>INGRESOS</td></tr>
-                    {planIncomeCats.map(c => renderCategoryRow(c, "ingreso"))}
+                    {planIncomeCats.map(c => (
+                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <span style={{fontWeight: 500}}>{c.label}</span>
+                              {simulacionActiva && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 80}} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          {meses.map(m => {
+                            const valBase = planDraft?.ingreso?.[c.key]?.[m.k] || "";
+                            return (
+                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                ) : (
+                                  <span style={{ color: getSimVal("ingreso", c.key, m.k) ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{getSimVal("ingreso", c.key, m.k) ? `$ ${fmt(getSimVal("ingreso", c.key, m.k))}` : "-"}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("ingreso", c.key))}</td>
+                       </tr>
+                    ))}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
                       <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Ingresos</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.positive, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("ingreso", m.k))}</td>)}
@@ -1636,10 +1934,74 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
                       </td>
                     </tr>
 
-                    {proyectosExpanded && PLAN_PROJECT_CATS.map(c => renderCategoryRow(c, "egreso", { isProject: true }))}
+                    {proyectosExpanded && PLAN_PROJECT_CATS.map(c => {
+                      const activo = isProyectoActivo(c.key);
+                      const apagado = simulacionActiva && !activo;
+                      return (
+                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}`, opacity: apagado ? 0.4 : 1, transition: "opacity 0.15s ease" }}>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                {simulacionActiva && (
+                                  <ToggleSwitch on={activo} onChange={(v) => setProyectosActivos(prev => ({ ...prev, [c.key]: v }))} />
+                                )}
+                                <span style={{ fontWeight: 500 }}>{c.label}</span>
+                                {apagado && <span style={{ fontSize: 9.5, color: tokens.negative, fontWeight: 700 }}>APAGADO</span>}
+                              </div>
+                              {simulacionActiva && activo && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 80}} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          {meses.map(m => {
+                            const valBase = planDraft?.egreso?.[c.key]?.[m.k] || "";
+                            return (
+                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                ) : (
+                                  <span style={{ color: getSimVal("egreso", c.key, m.k) ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{getSimVal("egreso", c.key, m.k) ? `$ ${fmt(getSimVal("egreso", c.key, m.k))}` : "-"}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
+                       </tr>
+                      );
+                    })}
 
                     {/* ── Resto de categorías de egresos (sin desglose de proyecto) ── */}
-                    {otherExpenseCats.map(c => renderCategoryRow(c, "egreso"))}
+                    {otherExpenseCats.map(c => (
+                       <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                          <td className="sticky-col" style={{ padding: "9px 14px 9px 24px", color: tokens.textMuted, background: colorTablaBg }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <span style={{fontWeight: 500}}>{c.label}</span>
+                              {simulacionActiva && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input type="range" className="sim-slider" min="-100" max="100" value={simData.cats[c.key] || 0} onChange={(e) => setSimData(prev => ({...prev, cats: {...prev.cats, [c.key]: Number(e.target.value)}}))} style={{width: 80}} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted, width: 26 }}>{simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          {meses.map(m => {
+                            const valBase = planDraft?.egreso?.[c.key]?.[m.k] || "";
+                            return (
+                              <td key={m.k} style={{ padding: "6px 10px", textAlign: "right" }}>
+                                {editMode ? (
+                                  <input type="number" className="plan-input" value={valBase} onChange={(e) => handleInputChange("egreso", c.key, m.k, e.target.value)} placeholder="0" />
+                                ) : (
+                                  <span style={{ color: getSimVal("egreso", c.key, m.k) ? tokens.text : tokens.textFaint, fontFamily: tokens.fontMono }}>{getSimVal("egreso", c.key, m.k) ? `$ ${fmt(getSimVal("egreso", c.key, m.k))}` : "-"}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.text }}>$ {fmt(calcularTotalFila("egreso", c.key))}</td>
+                       </tr>
+                    ))}
                     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
                       <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Total Egresos</td>
                       {meses.map(m => <td key={m.k} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: tokens.negative, background: colorTotalBg, fontFamily: tokens.fontMono }}>$ {fmt(calcularTotalColumna("egreso", m.k))}</td>)}
