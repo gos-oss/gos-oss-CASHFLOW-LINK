@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { tokens } from "./tokens";
-import { Plus, Trash2, CalendarCheck2 } from "lucide-react";
+import { Plus, Trash2, CalendarCheck2, FileSpreadsheet, Edit3 } from "lucide-react";
 
 const fieldInputStyle = {
   width: "100%", padding: "8px 10px", border: `1px solid ${tokens.rule || '#C2CAD4'}`, 
@@ -18,7 +18,7 @@ function Field({ label, children }) {
   );
 }
 
-export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _weeks, onGuardar, onEliminar, formatDate, movimientoAEditar, setMovimientoAEditar, getTC }) {
+export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _weeks, onGuardar, onEliminar, formatDate, movimientoAEditar, setMovimientoAEditar, getTC, onAbrirImportadorExcel }) {
   const [fecha, setFecha] = useState("");
   const [tipo, setTipo] = useState("ingreso");
   const [estado, setEstado] = useState("proyectado");
@@ -91,9 +91,52 @@ export default function CargarMovimiento({ incomeCats, expenseCats, weeks: _week
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>
-          {movimientoAEditar ? `Editar ${tipo === "ingreso" ? "Ingreso" : "Egreso"}: ${conceptoLabel}` : "+ Cargar movimiento"}
+      {/* BOTÓN DIRECTO DE IMPORTAR EXCEL DENTRO DEL PANEL LATERAL DE MOVIMIENTOS */}
+      {onAbrirImportadorExcel && (
+        <div style={{
+          background: "rgba(201, 174, 107, 0.12)",
+          border: "1px dashed rgba(201, 174, 107, 0.6)",
+          borderRadius: 8,
+          padding: "12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          alignItems: "stretch"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700, color: tokens.ink }}>
+            <FileSpreadsheet size={15} color={tokens.gold} />
+            <span>¿Tienes la planilla Excel del día?</span>
+          </div>
+          <p style={{ margin: 0, fontSize: 11.5, color: tokens.textMuted, lineHeight: 1.4 }}>
+            Carga el archivo .xlsx para sincronizar todos los conceptos y fechas en un solo paso.
+          </p>
+          <button
+            type="button"
+            onClick={onAbrirImportadorExcel}
+            style={{
+              marginTop: 4,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              background: tokens.ink,
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              padding: "7px 12px",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+          >
+            <FileSpreadsheet size={14} color={tokens.gold} /> Abrir Importador Excel
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+        <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 600 }}>
+          {movimientoAEditar ? `Editar ${tipo === "ingreso" ? "Ingreso" : "Egreso"}: ${conceptoLabel}` : "+ Carga Manual Individual"}
         </h3>
         {movimientoAEditar && (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

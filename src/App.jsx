@@ -5,6 +5,7 @@ import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
 import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab";
 import MotorFinancieroTab from "./MotorFinancieroTab";
+import ImportadorMatrizExcel from "./ImportadorMatrizExcel";
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
@@ -16,7 +17,7 @@ import {
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
   CalendarDays, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
-  Cpu, Building2, Users, HardHat
+  Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2
 } from "lucide-react";
 
 // =========================================================================
@@ -329,6 +330,7 @@ export default function App() {
   const [tab, setTab] = useState("resumen");
   
   const [mostrarPanel, setMostrarPanel] = useState(true);
+  const [mostrarImportadorMatriz, setMostrarImportadorMatriz] = useState(false);
   const [movimientoAEditar, setMovimientoAEditar] = useState(null); 
 
   const [arqueosList, setArqueosList] = useState([]);
@@ -341,6 +343,8 @@ export default function App() {
   const [valorTC, setValorTC] = useState("");
   const [vistaMonitor, setVistaMonitor] = useState("nativo");
   const [liveDolarQuotes, setLiveDolarQuotes] = useState([]);
+  const [testSupabaseStatus, setTestSupabaseStatus] = useState(null);
+  const [probandoSupabase, setProbandoSupabase] = useState(false);
 
   const getTC = useCallback((date) => {
     if (!tcList || tcList.length === 0) return 1;
@@ -496,6 +500,22 @@ export default function App() {
     fetchData();
   };
 
+  const handleImportarMatrizExcel = async ({ semanas, saldoInicial, fechaSaldoInicial }) => {
+    if (saldoInicial !== null && saldoInicial !== undefined && fechaSaldoInicial) {
+      await supabase.from("cashflow_settings").upsert({
+        id: "arqueo_" + fechaSaldoInicial,
+        fecha_corte: fechaSaldoInicial,
+        saldo_efectivo: 0,
+        saldo_banco: Number(saldoInicial) || 0,
+        tipo_cambio: 1250
+      });
+    }
+    if (semanas && semanas.length > 0) {
+      await supabase.from("cashflow_weeks").upsert(semanas);
+    }
+    await fetchData();
+  };
+
   const handleBorrarDatos = async () => {
     if (!window.confirm("¿Borrar proyecciones?")) return;
     await supabase.from("cashflow_weeks").delete().not("week_start", "is", null);
@@ -527,6 +547,61 @@ export default function App() {
     } catch (e) {
       console.error(e);
       alert("Error al sincronizar: " + e.message);
+    }
+  };
+
+  const ejecutarTestSupabase = async () => {
+    setProbandoSupabase(true);
+    setTestSupabaseStatus({ loading: true, msg: "Verificando conexión, lectura y guardado en Supabase..." });
+    const inicio = performance.now();
+    try {
+      // 1. Probar lectura
+      const { data: wData, error: wErr } = await supabase.from("cashflow_weeks").select("id").limit(1);
+      if (wErr) throw new Error(`Lectura cashflow_weeks: ${wErr.message}`);
+
+      const { data: sData, error: sErr } = await supabase.from("cashflow_settings").select("id").limit(1);
+      if (sErr) throw new Error(`Lectura cashflow_settings: ${sErr.message}`);
+
+      const { data: pData, error: pErr } = await supabase.from("cashflow_plan").select("id").limit(1);
+      if (pErr) throw new Error(`Lectura cashflow_plan: ${pErr.message}`);
+
+      // 2. Probar inserción / guardado (upsert) en tiempo real
+      const testId = "test_ping_" + Date.now();
+      const { error: upsertErr } = await supabase.from("cashflow_settings").upsert({
+        id: testId,
+        fecha_corte: new Date().toISOString().slice(0, 10),
+        saldo_efectivo: 1,
+        saldo_banco: 1,
+        tipo_cambio: 1250
+      });
+      if (upsertErr) throw new Error(`Escritura en Supabase: ${upsertErr.message}`);
+
+      // 3. Probar borrado del registro de prueba
+      await supabase.from("cashflow_settings").delete().eq("id", testId);
+
+      const duracionMs = Math.round(performance.now() - inicio);
+
+      setTestSupabaseStatus({
+        loading: false,
+        success: true,
+        duracionMs,
+        msg: `¡Guardado confirmado! Se escribió, leyó y validó exitosamente un registro en Supabase en ${duracionMs} ms.`,
+        timestamp: new Date().toLocaleTimeString(),
+        stats: {
+          weeks: weeks.length,
+          settings: arqueosList.length + tcList.length,
+          planes: Object.keys(planesFondos).length
+        }
+      });
+    } catch (err) {
+      setTestSupabaseStatus({
+        loading: false,
+        success: false,
+        msg: `Error en la prueba de Supabase: ${err.message}`,
+        timestamp: new Date().toLocaleTimeString()
+      });
+    } finally {
+      setProbandoSupabase(false);
     }
   };
 
@@ -795,7 +870,10 @@ export default function App() {
             kpis={kpis}
             fmt={fmt}
             formatDate={formatDate}
-            onIrAMovimientos={() => setTab("movimientos")}
+            onIrAMovimientos={() => {
+              setTab("movimientos");
+              setMostrarImportadorMatriz(true);
+            }}
             onIrAConfig={() => setTab("configuracion")}
             onIrAMotor={() => setTab("motor")}
             onCargarDemo={handleRestaurarDatosImagen}
@@ -883,14 +961,77 @@ export default function App() {
                   <RotateCcw size={13} color={tokens.gold} /> Sincronizar Datos Reales
                 </button>
               </div>
-              <button onClick={() => setMostrarPanel(!mostrarPanel)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: mostrarPanel ? tokens.surface : tokens.ink, color: mostrarPanel ? tokens.text : "#fff", border: `1px solid ${mostrarPanel ? colorLineaFuerte : tokens.ink}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "all 0.2s" }}>
-                {mostrarPanel ? "Ocultar panel de carga" : "+ Cargar movimiento"}
-              </button>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => setMostrarImportadorMatriz(!mostrarImportadorMatriz)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 14px",
+                    background: mostrarImportadorMatriz ? tokens.goldSoft : tokens.surface,
+                    color: mostrarImportadorMatriz ? tokens.gold : tokens.ink,
+                    border: `1px solid ${mostrarImportadorMatriz ? tokens.gold : colorLineaFuerte}`,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <Upload size={15} color={tokens.gold} />
+                  {mostrarImportadorMatriz ? "Cerrar importador" : "Subir Excel de Movimientos"}
+                </button>
+
+                <button
+                  onClick={() => setMostrarPanel(!mostrarPanel)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 16px",
+                    background: mostrarPanel ? tokens.surface : tokens.ink,
+                    color: mostrarPanel ? tokens.text : "#fff",
+                    border: `1px solid ${mostrarPanel ? colorLineaFuerte : tokens.ink}`,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    transition: "all 0.2s"
+                  }}
+                >
+                  {mostrarPanel ? "Ocultar panel de carga" : "+ Cargar movimiento"}
+                </button>
+              </div>
             </div>
+
+            {/* MÓDULO IMPORTADOR DE EXCEL DIARIO MATRIZ */}
+            {mostrarImportadorMatriz && (
+              <ImportadorMatrizExcel
+                incomeCats={incomeCats}
+                expenseCats={expenseCats}
+                weeks={weeks}
+                onImportarMatriz={handleImportarMatrizExcel}
+                onClose={() => setMostrarImportadorMatriz(false)}
+              />
+            )}
+
             <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
                 <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, position: "sticky", top: 32 }}>
-                  <CargarMovimiento incomeCats={incomeCats} expenseCats={expenseCats} weeks={weeks} onGuardar={guardarMovimiento} onEliminar={eliminarMovimiento} formatDate={formatDate} movimientoAEditar={movimientoAEditar} setMovimientoAEditar={setMovimientoAEditar} getTC={getTC} />
+                  <CargarMovimiento
+                    incomeCats={incomeCats}
+                    expenseCats={expenseCats}
+                    weeks={weeks}
+                    onGuardar={guardarMovimiento}
+                    onEliminar={eliminarMovimiento}
+                    formatDate={formatDate}
+                    movimientoAEditar={movimientoAEditar}
+                    setMovimientoAEditar={setMovimientoAEditar}
+                    getTC={getTC}
+                    onAbrirImportadorExcel={() => setMostrarImportadorMatriz(true)}
+                  />
                 </div>
               )}
               <FlujoTable procesadas={procesadas} weeks={weeks} tcList={tcList} incomeCats={incomeCats} expenseCats={expenseCats} fmt={fmt} onMoverMovimiento={moverMovimiento} formatDate={formatDate} onEditClick={(item) => { setMostrarPanel(true); setMovimientoAEditar(item); }} />
@@ -1051,28 +1192,98 @@ export default function App() {
                   <div><strong>Tipos de cambio:</strong> {tcList.length}</div>
                   <div><strong>Indicadores externos:</strong> DolarAPI / BCRA activos</div>
                 </div>
-                {isSupabaseConfigured && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <button
-                    onClick={handleSincronizarHaciaSupabase}
+                    onClick={ejecutarTestSupabase}
+                    disabled={probandoSupabase}
                     type="button"
                     style={{
-                      background: tokens.ink,
-                      color: "#fff",
-                      border: "none",
+                      background: probandoSupabase ? tokens.textMuted : "rgba(201, 174, 107, 0.15)",
+                      color: tokens.ink,
+                      border: "1px solid rgba(201, 174, 107, 0.45)",
                       borderRadius: 6,
                       padding: "6px 12px",
                       fontSize: 12,
                       fontWeight: 600,
-                      cursor: "pointer",
+                      cursor: probandoSupabase ? "wait" : "pointer",
                       display: "flex",
                       alignItems: "center",
                       gap: 6
                     }}
                   >
-                    <RotateCcw size={13} /> Sincronizar a Supabase
+                    {probandoSupabase ? <Loader2 size={13} /> : <Activity size={13} color={tokens.gold} />}
+                    {probandoSupabase ? "Probando..." : "Probar Guardado en Supabase"}
                   </button>
-                )}
+                  {isSupabaseConfigured && (
+                    <button
+                      onClick={handleSincronizarHaciaSupabase}
+                      type="button"
+                      style={{
+                        background: tokens.ink,
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 6,
+                        padding: "6px 12px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6
+                      }}
+                    >
+                      <RotateCcw size={13} /> Sincronizar a Supabase
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {testSupabaseStatus && (
+                <div style={{
+                  marginTop: 12,
+                  padding: "10px 14px",
+                  borderRadius: 6,
+                  fontSize: 12.5,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  background: testSupabaseStatus.loading
+                    ? "#F3F4F6"
+                    : testSupabaseStatus.success
+                    ? "#ECFDF5"
+                    : "#FEF2F2",
+                  border: `1px solid ${
+                    testSupabaseStatus.loading
+                      ? "#E5E7EB"
+                      : testSupabaseStatus.success
+                      ? "#A7F3D0"
+                      : "#FECACA"
+                  }`,
+                  color: testSupabaseStatus.loading
+                    ? tokens.textMuted
+                    : testSupabaseStatus.success
+                    ? "#065F46"
+                    : "#991B1B"
+                }}>
+                  <div style={{ marginTop: 1 }}>
+                    {testSupabaseStatus.loading ? (
+                      <Loader2 size={16} />
+                    ) : testSupabaseStatus.success ? (
+                      <CheckCircle2 size={16} color="#059669" />
+                    ) : (
+                      <XCircle size={16} color="#DC2626" />
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600 }}>{testSupabaseStatus.msg}</div>
+                    {testSupabaseStatus.stats && (
+                      <div style={{ fontSize: 11.5, marginTop: 4, opacity: 0.85 }}>
+                        Tablas verificadas: <strong>cashflow_weeks</strong> ({testSupabaseStatus.stats.weeks} semanas), <strong>cashflow_settings</strong> ({testSupabaseStatus.stats.settings} arqueos/TC), <strong>cashflow_plan</strong> ({testSupabaseStatus.stats.planes} presupuestos) — Hora: {testSupabaseStatus.timestamp}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 4, maxWidth: 720 }}><ImportadorCashflow baseIncome={BASE_INCOME} baseExpense={BASE_EXPENSE} onImportarSemanas={handleImportarSemanas} onBorrarDatos={handleBorrarDatos} semanasExistentes={weeks} /></div>
@@ -1204,14 +1415,14 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
             margin: "0 auto 16px",
             color: tokens.gold
           }}>
-            <Compass size={28} />
+            <FileSpreadsheet size={28} />
           </div>
 
           <h3 style={{ fontFamily: tokens.fontDisplay, fontSize: 20, fontWeight: 600, margin: "0 0 8px 0", color: tokens.ink }}>
-            El Resumen Ejecutivo está esperando tus primeros movimientos
+            Cargar Matriz de Cash Flow desde Excel
           </h3>
           <p style={{ fontSize: 13.5, color: tokens.textMuted, lineHeight: 1.6, maxWidth: 520, margin: "0 auto 24px" }}>
-            Para calcular tus <strong>Días de Caja</strong>, <strong>Liquidez proyectada</strong>, <strong>NOF</strong> y la curva de evolución, el sistema necesita al menos un arqueo de saldo inicial o semanas con ingresos/egresos cargados.
+            En el módulo <strong>Movimientos</strong> puedes cargar tu planilla de cálculo diaria para poblar instantáneamente los saldos bancarios, vencimientos, cupos y egresos proyectados.
           </p>
 
           <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 12 }}>
@@ -1221,18 +1432,18 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 8,
-                padding: "10px 18px",
+                padding: "11px 22px",
                 background: tokens.ink,
                 color: "#fff",
                 border: "none",
                 borderRadius: 6,
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: 13.5,
                 cursor: "pointer",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                boxShadow: "0 2px 6px rgba(0,0,0,0.15)"
               }}
             >
-              <ListChecks size={15} /> Cargar Primer Movimiento
+              <FileSpreadsheet size={17} color={tokens.gold} /> Ir a Movimientos / Subir Excel
             </button>
 
             <button
@@ -1271,7 +1482,7 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
                   cursor: "pointer"
                 }}
               >
-                <Upload size={15} color={tokens.gold} /> Cargar Datos de Ejemplo (Demo)
+                <RotateCcw size={14} color={tokens.gold} /> Restaurar Datos Reales
               </button>
             )}
           </div>
@@ -1281,33 +1492,55 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
   }
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
         <div>
           <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen Ejecutivo</h2>
           <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Vista ejecutiva de liquidez, días de caja, NOF y curva de evolución semanal.</p>
         </div>
-        {onCargarDemo && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
-            onClick={onCargarDemo}
+            onClick={onIrAMovimientos}
             type="button"
             style={{
-              background: tokens.surface,
-              color: tokens.ink,
-              border: `1px solid ${colorLineaFuerte}`,
+              background: tokens.ink,
+              color: "#fff",
+              border: `1px solid ${tokens.gold}`,
               borderRadius: 6,
-              padding: "7px 14px",
-              fontSize: 12.5,
+              padding: "7px 16px",
+              fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: 6,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+              gap: 7,
+              boxShadow: "0 2px 5px rgba(0,0,0,0.12)"
             }}
           >
-            <RotateCcw size={13} color={tokens.gold} /> Restaurar Datos Reales
+            <FileSpreadsheet size={15} color={tokens.gold} /> Importar Excel en Movimientos
           </button>
-        )}
+          {onCargarDemo && (
+            <button
+              onClick={onCargarDemo}
+              type="button"
+              style={{
+                background: tokens.surface,
+                color: tokens.ink,
+                border: `1px solid ${colorLineaFuerte}`,
+                borderRadius: 6,
+                padding: "7px 14px",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+              }}
+            >
+              <RotateCcw size={13} color={tokens.gold} /> Restaurar Datos Reales
+            </button>
+          )}
+        </div>
       </div>
       
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 18 }}>
