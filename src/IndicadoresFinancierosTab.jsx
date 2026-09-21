@@ -279,6 +279,10 @@ function filtrarPorPeriodo(arrayDatos, periodo = "1A") {
   else if (periodo === "1A") diasAtras = 366;
   else if (periodo === "2026") {
     return normalizados.filter(d => d._sortDate && d._sortDate.startsWith("2026"));
+  } else if (periodo === "2025") {
+    return normalizados.filter(d => d._sortDate && d._sortDate.startsWith("2025"));
+  } else if (periodo === "2024") {
+    return normalizados.filter(d => d._sortDate && d._sortDate.startsWith("2024"));
   }
 
   const fechaCorte = new Date(hoy.getTime() - diasAtras * 24 * 60 * 60 * 1000);
@@ -290,9 +294,8 @@ function filtrarPorPeriodo(arrayDatos, periodo = "1A") {
 }
 
 export default function IndicadoresFinancierosTab({ onSyncTC }) {
-  // Estado de segmentación por períodos general
-  // '1M' (30 días), '3M' (Trimestre), '6M' (Semestre), '1A' (Último Año), '2026' (Año en curso), 'todo' (Histórico)
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState("1A");
+  // Estado de segmentación por períodos general: por defecto Año 2026 (Ejercicio presupuestario en curso)
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState("2026");
 
   // Filtro de categoría temática: 'todos', 'cambiario', 'macro', 'obra', 'matriz'
   const [seccionFiltro, setSeccionFiltro] = useState("todos");
