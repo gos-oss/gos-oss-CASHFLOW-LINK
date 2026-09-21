@@ -210,18 +210,26 @@ export default function PresupuestoAnualTab({
     }
   };
 
-  // Formato USD
-  const formatUSD = (valARS) => {
+  // Formato USD: SIEMPRE en miles de dólares (kUSD) para máxima claridad en el análisis financiero
+  const formatUSD = (valARS, forzarCompleto = false) => {
+    if (valARS === null || valARS === undefined || isNaN(valARS)) return "-";
     const usd = valARS / ultimoDolar;
-    if (Math.abs(usd) < 1) return "-";
-    if (enMillones) {
-      const enM = usd / 1_000_000;
-      if (Math.abs(enM) >= 0.1) {
-        return `${enM < 0 ? "-" : ""}USD ${Math.abs(enM).toFixed(2)} M`;
-      }
-      return `${usd < 0 ? "-" : ""}USD ${(Math.abs(usd) / 1000).toFixed(0)}k`;
+    if (Math.abs(usd) < 0.5) return "-";
+
+    if (forzarCompleto) {
+      return `${usd < 0 ? "-" : ""}USD ${Math.abs(Math.round(usd)).toLocaleString("es-AR")}`;
     }
-    return `${usd < 0 ? "-" : ""}USD ${Math.abs(Math.round(usd)).toLocaleString("es-AR")}`;
+
+    // SIEMPRE expresado en miles de dólares (kUSD)
+    const enMiles = usd / 1000;
+    const absMiles = Math.abs(enMiles);
+    const signo = enMiles < 0 ? "-" : "";
+
+    const strMiles = absMiles >= 10
+      ? Math.round(absMiles).toLocaleString("es-AR")
+      : absMiles.toFixed(1).replace(".", ",");
+
+    return `${signo}USD ${strMiles}k`;
   };
 
   // Alivio / Mejora de caja en simulación
@@ -1167,7 +1175,7 @@ export default function PresupuestoAnualTab({
                   Matriz Presupuestaria de Flujo de Fondos {selectedYear}
                 </h4>
                 <span style={{ fontSize: 12, color: tokens.textMuted }}>
-                  Valores expresados {enMillones ? "en Millones de pesos ($ M)" : "en Pesos ($)"}. Pasa el cursor por cada celda para ver el importe al centavo.
+                  Valores en pesos {enMillones ? "en Millones ($ M)" : "completos ($)"} • Flujo neto en dólares expresado en <strong>miles de dólares (kUSD)</strong>. Pasa el cursor para ver el importe exacto.
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1754,7 +1762,7 @@ export default function PresupuestoAnualTab({
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <Scale size={14} color={tokens.gold} />
-                        <span>RESULTADO NETO MENSUAL</span>
+                        <span>Flujo Neto Mensual (ARS)</span>
                       </div>
                     </td>
                     {meses.map(m => {
@@ -1765,7 +1773,7 @@ export default function PresupuestoAnualTab({
                       return (
                         <td
                           key={m.k}
-                          title={`Resultado Neto ${m.n}: $ ${Math.round(neto).toLocaleString("es-AR")} (${formatUSD(neto)})`}
+                          title={`Flujo Neto ${m.n}: $ ${Math.round(neto).toLocaleString("es-AR")} (${formatUSD(neto)})`}
                           style={{
                             padding: "13px 10px",
                             textAlign: "right",
@@ -1779,7 +1787,7 @@ export default function PresupuestoAnualTab({
                       );
                     })}
                     <td
-                      title={`Resultado Neto Anual: $ ${Math.round(totalNetoSim).toLocaleString("es-AR")}`}
+                      title={`Flujo Neto Anual: $ ${Math.round(totalNetoSim).toLocaleString("es-AR")} (${formatUSD(totalNetoSim)})`}
                       style={{
                         padding: "13px 16px",
                         textAlign: "right",
@@ -1794,7 +1802,7 @@ export default function PresupuestoAnualTab({
                     </td>
                   </tr>
 
-                  {/* 6. POSICIÓN NETA EN DÓLARES (USD) */}
+                  {/* 6. POSICIÓN NETA EN DÓLARES (USD) - SIEMPRE EN MILES DE DÓLARES (kUSD) */}
                   <tr style={{ background: "#1E293B", borderBottom: "1px solid #334155" }}>
                     <td style={{
                       position: "sticky",
@@ -1809,18 +1817,42 @@ export default function PresupuestoAnualTab({
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <DollarSign size={13} color={tokens.gold} />
-                        <span>Requerimiento en Dólares (USD)</span>
+                        <span>Flujo Neto en Dólares</span>
+                        <span style={{ background: "rgba(201, 174, 107, 0.2)", color: tokens.gold, padding: "1px 5px", borderRadius: 3, fontSize: 9.5, fontWeight: 800 }}>kUSD</span>
                       </div>
                     </td>
                     {meses.map(m => {
                       const neto = calcularTotalColumna("ingreso", m.k) - calcularTotalColumna("egreso", m.k);
+                      const netoUSD = Math.round(neto / ultimoDolar);
                       return (
-                        <td key={m.k} title={`USD ${m.n}: ${formatUSD(neto)}`} style={{ padding: "10px 10px", textAlign: "right", fontWeight: 600, color: neto >= 0 ? "#86EFAC" : "#FCA5A5", fontFamily: tokens.fontMono, fontSize: 11 }}>
+                        <td
+                          key={m.k}
+                          title={`Flujo Neto ${m.n}: ${formatUSD(neto)} (Exacto: ${netoUSD >= 0 ? '+' : ''}${netoUSD.toLocaleString("es-AR")} USD al TC $${fmt(ultimoDolar)} | $ ${Math.round(neto).toLocaleString("es-AR")} ARS)`}
+                          style={{
+                            padding: "10px 10px",
+                            textAlign: "right",
+                            fontWeight: 700,
+                            color: neto >= 0 ? "#86EFAC" : "#FCA5A5",
+                            fontFamily: tokens.fontMono,
+                            fontSize: 11.5
+                          }}
+                        >
                           {formatUSD(neto)}
                         </td>
                       );
                     })}
-                    <td title={`USD Anual: ${formatUSD(totalNetoSim)}`} style={{ padding: "10px 16px", textAlign: "right", fontWeight: 700, color: totalNetoSim >= 0 ? "#86EFAC" : "#FCA5A5", fontFamily: tokens.fontMono, background: "#0F172A", fontSize: 11.5 }}>
+                    <td
+                      title={`Flujo Neto Anual: ${formatUSD(totalNetoSim)} (Exacto: ${Math.round(totalNetoSim / ultimoDolar).toLocaleString("es-AR")} USD al TC $${fmt(ultimoDolar)})`}
+                      style={{
+                        padding: "10px 16px",
+                        textAlign: "right",
+                        fontWeight: 800,
+                        color: totalNetoSim >= 0 ? "#86EFAC" : "#FCA5A5",
+                        fontFamily: tokens.fontMono,
+                        background: "#0F172A",
+                        fontSize: 12
+                      }}
+                    >
                       {formatUSD(totalNetoSim)}
                     </td>
                   </tr>
