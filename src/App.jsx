@@ -6,6 +6,7 @@ import CategoryManager from "./CategoryManager";
 import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab";
 import MotorFinancieroTab from "./MotorFinancieroTab";
 import ImportadorMatrizExcel from "./ImportadorMatrizExcel";
+import ImportadorPresupuestoExcel from "./ImportadorPresupuestoExcel";
 import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
@@ -16,7 +17,7 @@ import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
-  CalendarDays, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
+  CalendarDays, Calendar, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
   Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2, Clock
 } from "lucide-react";
 
@@ -986,7 +987,6 @@ export default function App() {
             formatDate={formatDate}
             onIrAMovimientos={() => {
               setTab("movimientos");
-              setMostrarImportadorMatriz(true);
             }}
             onIrAConfig={() => setTab("configuracion")}
             onIrAMotor={() => setTab("motor")}
@@ -1574,14 +1574,14 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
             margin: "0 auto 16px",
             color: tokens.gold
           }}>
-            <FileSpreadsheet size={28} />
+            <Calendar size={28} />
           </div>
 
           <h3 style={{ fontFamily: tokens.fontDisplay, fontSize: 20, fontWeight: 600, margin: "0 0 8px 0", color: tokens.ink }}>
-            Cargar Matriz de Cash Flow desde Excel
+            Sin movimientos registrados
           </h3>
           <p style={{ fontSize: 13.5, color: tokens.textMuted, lineHeight: 1.6, maxWidth: 520, margin: "0 auto 24px" }}>
-            En el módulo <strong>Movimientos</strong> puedes cargar tu planilla de cálculo diaria para poblar instantáneamente los saldos bancarios, vencimientos, cupos y egresos proyectados.
+            Ingresa al módulo <strong>Movimientos</strong> para visualizar los ingresos, egresos y saldos diarios proyectados.
           </p>
 
           <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 12 }}>
@@ -1602,7 +1602,7 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
                 boxShadow: "0 2px 6px rgba(0,0,0,0.15)"
               }}
             >
-              <FileSpreadsheet size={17} color={tokens.gold} /> Ir a Movimientos / Subir Excel
+              <Calendar size={17} color={tokens.gold} /> Ir a Movimientos
             </button>
 
             <button
@@ -1657,26 +1657,6 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
           <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Vista ejecutiva de liquidez, días de caja, NOF y curva de evolución semanal.</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            onClick={onIrAMovimientos}
-            type="button"
-            style={{
-              background: tokens.ink,
-              color: "#fff",
-              border: `1px solid ${tokens.gold}`,
-              borderRadius: 6,
-              padding: "7px 16px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 7,
-              boxShadow: "0 2px 5px rgba(0,0,0,0.12)"
-            }}
-          >
-            <FileSpreadsheet size={15} color={tokens.gold} /> Importar Excel en Movimientos
-          </button>
           {onCargarDemo && (
             <button
               onClick={onCargarDemo}
@@ -1799,6 +1779,7 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
   const [editMode, setEditMode] = useState(false);
   const [planDraft, setPlanDraft] = useState({});
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
+  const [mostrarImportadorPresupuesto, setMostrarImportadorPresupuesto] = useState(false);
 
   // ESTADO DEL SIMULADOR CON BARRAS
   const [simulacionActiva, setSimulacionActiva] = useState(false);
@@ -2011,9 +1992,31 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
         
         <div style={{ display: "flex", gap: 10 }}>
           {view === "presupuesto" && !editMode && (
-             <button onClick={() => setView("mapeo")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.surface, color: tokens.text, border: `1px solid ${colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-                <LinkIcon size={16} /> Mapear Conceptos
-             </button>
+            <>
+              <button
+                onClick={() => setMostrarImportadorPresupuesto(true)}
+                type="button"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 16px",
+                  background: tokens.ink,
+                  color: "#fff",
+                  border: `1px solid ${tokens.gold}`,
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  boxShadow: "0 2px 5px rgba(0,0,0,0.15)"
+                }}
+              >
+                <Upload size={15} color={tokens.gold} /> 📥 Subir Excel / Pegar Presupuesto {selectedYear}
+              </button>
+              <button onClick={() => setView("mapeo")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: tokens.surface, color: tokens.text, border: `1px solid ${colorLineaFuerte}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+                 <LinkIcon size={16} /> Mapear Conceptos
+              </button>
+            </>
           )}
 
           {view === "presupuesto" ? (
@@ -2047,6 +2050,20 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
       
       {view === "presupuesto" && (
         <>
+          {mostrarImportadorPresupuesto && (
+            <ImportadorPresupuestoExcel
+              year={selectedYear}
+              planIncomeCats={planIncomeCats}
+              planExpenseCats={planExpenseCats}
+              onGuardarPlan={async (nuevoPlan, y) => {
+                await onGuardarPlan(nuevoPlan, y);
+                setPlanDraft(nuevoPlan);
+                setMostrarImportadorPresupuesto(false);
+              }}
+              onClose={() => setMostrarImportadorPresupuesto(false)}
+            />
+          )}
+
           {simulacionActiva && !editMode && (
             <div style={{ background: tokens.surface, borderRadius: 10, border: `2px solid ${tokens.gold}`, padding: "16px 20px", display: 'flex', flexDirection: 'column', gap: 16, boxShadow: "0 4px 12px rgba(212, 175, 55, 0.15)" }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2440,6 +2457,21 @@ function PresupuestoAnualTab({ planIncomeCats, planExpenseCats, dailyIncomeCats,
             ))}
           </div>
         </div>
+      )}
+
+      {mostrarImportadorPresupuesto && (
+        <ImportadorPresupuestoExcel
+          planIncomeCats={planIncomeCats}
+          planExpenseCats={planExpenseCats}
+          year={selectedYear}
+          onGuardarPlan={(nuevoPlan, anio) => {
+            onGuardarPlan(nuevoPlan, anio);
+            if (anio === selectedYear) {
+              setPlanDraft(nuevoPlan);
+            }
+          }}
+          onClose={() => setMostrarImportadorPresupuesto(false)}
+        />
       )}
     </div>
   );
