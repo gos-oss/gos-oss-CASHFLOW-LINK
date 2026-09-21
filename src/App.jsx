@@ -239,7 +239,7 @@ const NAV = [
   { id: "motor", label: "Motor Financiero", icon: Cpu },
   { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
-  { id: "monitor", label: "Monitor Económico", icon: Activity },
+  { id: "monitor", label: "Monitor Financiero", icon: Activity },
   { id: "conceptos", label: "Conceptos", icon: Tag },
   { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
 ];

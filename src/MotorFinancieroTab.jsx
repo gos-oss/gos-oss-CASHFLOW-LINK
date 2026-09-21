@@ -3,7 +3,7 @@ import { tokens } from "./tokens";
 import {
   Building2, HardHat, Users, Cpu, ArrowRight, TrendingUp, TrendingDown,
   Scale, DollarSign, Wallet, PieChart, ShieldAlert, Sparkles, CheckCircle2,
-  ChevronRight, BarChart3, Sliders, RefreshCw, Layers
+  ChevronRight, BarChart3, Sliders, RefreshCw, Layers, Calendar, HelpCircle
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -46,6 +46,10 @@ export default function MotorFinancieroTab({
     nuevosAportesCapitalARS: 0 // Inyección fresca
   });
 
+  // Segmentación por períodos: ANUAL, S1, S2, Q1, Q2, Q3, Q4
+  const [periodoFiltro, setPeriodoFiltro] = useState("ANUAL");
+  const [mostrarExplicativos, setMostrarExplicativos] = useState(true);
+
   const resetSimParams = () => {
     setSimParams({
       retrasoCobranzasDias: 0,
@@ -60,7 +64,25 @@ export default function MotorFinancieroTab({
     });
   };
 
-  // Cálculos base 2026 desde planesFondos
+  // Mapeo de meses según la segmentación seleccionada
+  const mesesFiltro = useMemo(() => {
+    switch (periodoFiltro) {
+      case "Q1": return ["01", "02", "03"];
+      case "Q2": return ["04", "05", "06"];
+      case "Q3": return ["07", "08", "09"];
+      case "Q4": return ["10", "11", "12"];
+      case "S1": return ["01", "02", "03", "04", "05", "06"];
+      case "S2": return ["07", "08", "09", "10", "11", "12"];
+      default: return ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+    }
+  }, [periodoFiltro]);
+
+  const sumCat = (catObj) => {
+    if (!catObj) return 0;
+    return mesesFiltro.reduce((acc, m) => acc + Number(catObj[m] || 0), 0);
+  };
+
+  // Cálculos base 2026 desde planesFondos filtrados por período
   const plan2026 = planesFondos["2026"] || {};
   const ingresos2026 = plan2026.ingreso || {};
   const egresos2026 = plan2026.egreso || {};
@@ -68,56 +90,56 @@ export default function MotorFinancieroTab({
   const totalIngresosBase2026 = useMemo(() => {
     let tot = 0;
     Object.values(ingresos2026).forEach(cat => {
-      Object.values(cat || {}).forEach(v => { tot += Number(v || 0); });
+      tot += sumCat(cat);
     });
-    return tot || 3200000000;
-  }, [ingresos2026]);
+    return tot || (periodoFiltro === "ANUAL" ? 3200000000 : periodoFiltro.startsWith("S") ? 1600000000 : 800000000);
+  }, [ingresos2026, mesesFiltro, periodoFiltro]);
 
   const totalEgresosBase2026 = useMemo(() => {
     let tot = 0;
     Object.values(egresos2026).forEach(cat => {
-      Object.values(cat || {}).forEach(v => { tot += Number(v || 0); });
+      tot += sumCat(cat);
     });
-    return tot || 2950000000;
-  }, [egresos2026]);
+    return tot || (periodoFiltro === "ANUAL" ? 2950000000 : periodoFiltro.startsWith("S") ? 1475000000 : 737500000);
+  }, [egresos2026, mesesFiltro, periodoFiltro]);
 
-  // Desglose por los 3 pilares en el presupuesto base
-  // 1. Empresa (RRHH, Estructura, Inversiones, Pasivos, Caja actual)
+  // Desglose por los 3 pilares en el presupuesto base filtrado por período
+  // 1. Empresa (RRHH, Estructura, Inversiones, Pasivos)
   const costoEmpresaBase = useMemo(() => {
     let tot = 0;
     ["custom_rrhh", "custom_administracion", "custom_inversiones", "custom_pasivos-financieros"].forEach(k => {
-      Object.values(egresos2026[k] || {}).forEach(v => { tot += Number(v || 0); });
+      tot += sumCat(egresos2026[k]);
     });
     return tot;
-  }, [egresos2026]);
+  }, [egresos2026, mesesFiltro]);
 
   // 2. Proyectos (Obras directas: Duo, Boulevard, #300, Torre Green, etc.)
   const costoProyectosBase = useMemo(() => {
     let tot = 0;
     Object.entries(egresos2026).forEach(([k, mesesObj]) => {
       if (k.startsWith("proy_")) {
-        Object.values(mesesObj || {}).forEach(v => { tot += Number(v || 0); });
+        tot += sumCat(mesesObj);
       }
     });
     return tot;
-  }, [egresos2026]);
+  }, [egresos2026, mesesFiltro]);
 
   const ingresosVentasProyectosBase = useMemo(() => {
     let tot = 0;
     ["custom_cuotas-mensuales", "custom_ventas-cdo", "custom_pesa"].forEach(k => {
-      Object.values(ingresos2026[k] || {}).forEach(v => { tot += Number(v || 0); });
+      tot += sumCat(ingresos2026[k]);
     });
     return tot;
-  }, [ingresos2026]);
+  }, [ingresos2026, mesesFiltro]);
 
   // 3. Socios (Cupos socios, Aportes, etc.)
   const ingresosSociosBase = useMemo(() => {
     let tot = 0;
     ["custom_cupos-socios", "custom_aportes"].forEach(k => {
-      Object.values(ingresos2026[k] || {}).forEach(v => { tot += Number(v || 0); });
+      tot += sumCat(ingresos2026[k]);
     });
     return tot;
-  }, [ingresos2026]);
+  }, [ingresos2026, mesesFiltro]);
 
   // SIMULACIÓN DEL MOTOR FINANCIERO CON PARÁMETROS ACTIVOS
   const simEngine = useMemo(() => {
@@ -138,10 +160,10 @@ export default function MotorFinancieroTab({
     const costoProyectosSim = costoProyectosBase * factorCostoObra;
 
     // Empresa: ajuste estructura y renegociación de pasivos
-    const pasivosBase = Object.values(egresos2026["custom_pasivos-financieros"] || {}).reduce((a, b) => a + Number(b || 0), 0);
-    const estructuraBase = Object.values(egresos2026["custom_administracion"] || {}).reduce((a, b) => a + Number(b || 0), 0);
-    const rrhhBase = Object.values(egresos2026["custom_rrhh"] || {}).reduce((a, b) => a + Number(b || 0), 0);
-    const inversionesBase = Object.values(egresos2026["custom_inversiones"] || {}).reduce((a, b) => a + Number(b || 0), 0);
+    const pasivosBase = sumCat(egresos2026["custom_pasivos-financieros"]);
+    const estructuraBase = sumCat(egresos2026["custom_administracion"]);
+    const rrhhBase = sumCat(egresos2026["custom_rrhh"]);
+    const inversionesBase = sumCat(egresos2026["custom_inversiones"]);
 
     const pasivosSim = pasivosBase * (1 - simParams.renegociarPasivosPct / 100);
     const estructuraSim = estructuraBase * (1 + simParams.ajusteGastoEstructura / 100);
@@ -300,6 +322,105 @@ export default function MotorFinancieroTab({
           </button>
         </div>
       </div>
+
+      {/* BARRA DE CONTROL DE SEGMENTACIÓN POR PERÍODOS */}
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 12,
+        background: tokens.surface,
+        border: `1px solid ${colorBorder}`,
+        borderRadius: 10,
+        padding: "10px 16px"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            <Calendar size={14} color={tokens.gold} />
+            <span>Segmentar por Período:</span>
+          </div>
+          <div style={{ display: "flex", background: "#F8FAFC", padding: 3, borderRadius: 8, border: `1px solid ${colorBorder}` }}>
+            {[
+              { id: "ANUAL", label: "Año Completo (12M)" },
+              { id: "S1", label: "1° Semestre (Ene-Jun)" },
+              { id: "S2", label: "2° Semestre (Jul-Dic)" },
+              { id: "Q1", label: "Q1 (Ene-Mar)" },
+              { id: "Q2", label: "Q2 (Abr-Jun)" },
+              { id: "Q3", label: "Q3 (Jul-Sep)" },
+              { id: "Q4", label: "Q4 (Oct-Dic)" },
+            ].map(p => {
+              const activo = periodoFiltro === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setPeriodoFiltro(p.id)}
+                  style={{
+                    padding: "5px 11px",
+                    border: "none",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: activo ? 700 : 500,
+                    cursor: "pointer",
+                    background: activo ? tokens.ink : "transparent",
+                    color: activo ? "#fff" : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <button
+          onClick={() => setMostrarExplicativos(!mostrarExplicativos)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 12px",
+            background: mostrarExplicativos ? tokens.goldSoft : "transparent",
+            border: `1px solid ${mostrarExplicativos ? tokens.gold : colorBorder}`,
+            color: mostrarExplicativos ? tokens.gold : tokens.textMuted,
+            borderRadius: 6,
+            fontSize: 11.5,
+            fontWeight: 600,
+            cursor: "pointer"
+          }}
+        >
+          <HelpCircle size={13} />
+          {mostrarExplicativos ? "Ocultar Guía de Métricas" : "¿Qué representa cada indicador?"}
+        </button>
+      </div>
+
+      {mostrarExplicativos && (
+        <div style={{
+          background: "#FFFFFF",
+          border: `1px solid ${tokens.gold}44`,
+          borderRadius: 10,
+          padding: "12px 18px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 14,
+          fontSize: 12,
+          color: tokens.textMuted
+        }}>
+          <div>
+            <strong style={{ color: tokens.ink, display: "block", marginBottom: 2 }}>🏢 Pilar Empresa (Estructura y Tesorería Central):</strong>
+            Comprende gastos de administración, sueldos corporativos (RRHH), alquileres de oficinas e inversiones financieras y cancelación de pasivos bancarios.
+          </div>
+          <div>
+            <strong style={{ color: tokens.ink, display: "block", marginBottom: 2 }}>🏗️ Pilar Proyectos (Obras en Ejecución y Cobranzas):</strong>
+            Costos directos de edificación (Duo, Boulevard, Torre Green) contrapesados con la recaudación por ventas al contado y cobranzas de cuotas a clientes.
+          </div>
+          <div>
+            <strong style={{ color: tokens.ink, display: "block", marginBottom: 2 }}>🤝 Pilar Socios (Capital y Retiros):</strong>
+            Aportes de capital societario acordados por cupos, inyecciones extraordinarias de liquidez y política controlada de retiros de dividendos.
+          </div>
+        </div>
+      )}
 
       {/* =========================================================================
           VISTA 1: ARQUITECTURA INTEGRADA (EL DIAGRAMA DEL USUARIO HECHO UI)
