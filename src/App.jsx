@@ -11,14 +11,16 @@ import { tokens, fontImport } from "./tokens";
 import { BASE_INCOME, BASE_EXPENSE, slugify, discoverCategories } from "./categories";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, ComposedChart, Line, BarChart, Bar, LabelList
+  PieChart, Pie, Cell, Legend, ComposedChart, Line, BarChart, Bar, LabelList,
+  ReferenceLine
 } from "recharts";
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
   CalendarDays, Calendar, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
-  Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2, Clock
+  Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2, Clock,
+  ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Sparkles, Plus
 } from "lucide-react";
 
 import PresupuestoAnualTab from "./PresupuestoAnualTab";
@@ -898,11 +900,24 @@ export default function App() {
             kpis={kpis}
             fmt={fmt}
             formatDate={formatDate}
+            weeks={weeks}
+            tcList={tcList}
+            expenseCats={expenseCats}
+            incomeCats={incomeCats}
             onIrAMovimientos={() => {
               setTab("movimientos");
             }}
+            onNuevoMovimiento={() => {
+              setTab("movimientos");
+              setMostrarPanel(true);
+            }}
+            onAbrirImportadorMatriz={() => {
+              setTab("movimientos");
+              setMostrarImportadorMatriz(true);
+            }}
             onIrAConfig={() => setTab("configuracion")}
             onIrAMotor={() => setTab("motor")}
+            onIrAPresupuesto={() => setTab("presupuesto")}
             onCargarDemo={handleRestaurarDatosImagen}
           />
         )}
@@ -1089,9 +1104,17 @@ export default function App() {
               />
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "340px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
+            <div style={{ display: "grid", gridTemplateColumns: mostrarPanel ? "360px 1fr" : "1fr", gap: 20, alignItems: "start", transition: "all 0.3s" }}>
               {mostrarPanel && (
-                <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 22, position: "sticky", top: 32 }}>
+                <div style={{
+                  background: tokens.surface,
+                  borderRadius: 12,
+                  border: `1px solid ${colorLineaFuerte}`,
+                  padding: "20px",
+                  position: "sticky",
+                  top: 24,
+                  boxShadow: "0 4px 20px rgba(14,21,36,0.06)"
+                }}>
                   <CargarMovimiento
                     incomeCats={incomeCats}
                     expenseCats={expenseCats}
@@ -1457,12 +1480,172 @@ function SemesterCard({ title, ingresos, egresos, neto, fmt, ingresosBase, egres
   );
 }
 
-function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrAConfig, onIrAMotor, onCargarDemo }) {
+function ResumenTab({
+  procesadas,
+  kpis,
+  fmt,
+  formatDate,
+  weeks = [],
+  tcList = [],
+  expenseCats = [],
+  incomeCats = [],
+  onIrAMovimientos,
+  onNuevoMovimiento,
+  onAbrirImportadorMatriz,
+  onIrAConfig,
+  onIrAMotor,
+  onIrAPresupuesto,
+  onCargarDemo
+}) {
+  const [rangoFiltro, setRangoFiltro] = useState("13_semanas"); // "13_semanas" | "anio_2026" | "proyecciones"
+
+  const hoy = useMemo(() => todayISO(), []);
+
+  // Tipo de cambio de referencia
+  const ultimoDolar = useMemo(() => {
+    if (!tcList || tcList.length === 0) return 1540;
+    const sorted = [...tcList].sort((a, b) => (b.fecha_corte || "").localeCompare(a.fecha_corte || ""));
+    const val = Number(sorted[0]?.saldo_efectivo);
+    return val > 0 ? val : 1540;
+  }, [tcList]);
+
+  // Formato USD consistente en kUSD
+  const formatUSD = useCallback((valARS) => {
+    if (valARS === null || valARS === undefined || isNaN(valARS)) return "-";
+    const usd = valARS / ultimoDolar;
+    if (Math.abs(usd) < 0.5) return "-";
+    const enMiles = usd / 1000;
+    const absMiles = Math.abs(enMiles);
+    const signo = enMiles < 0 ? "-" : "";
+    const strMiles = absMiles >= 10
+      ? Math.round(absMiles).toLocaleString("es-AR")
+      : absMiles.toFixed(1).replace(".", ",");
+    return `${signo}USD ${strMiles}k`;
+  }, [ultimoDolar]);
+
+  // Semanas filtradas para la curva según el rango seleccionado
+  const datosCurva = useMemo(() => {
+    if (!procesadas || procesadas.length === 0) return [];
+    if (rangoFiltro === "proyecciones") {
+      const posteriores = procesadas.filter(w => w.week_start >= hoy);
+      return posteriores.length > 0 ? posteriores : procesadas;
+    }
+    if (rangoFiltro === "anio_2026") {
+      return procesadas.filter(w => w.week_start.startsWith("2026"));
+    }
+    // 13 semanas centradas en el presente o las primeras 13
+    const idxHoy = procesadas.findIndex(w => w.week_start >= hoy);
+    if (idxHoy !== -1) {
+      const inicio = Math.max(0, idxHoy - 2);
+      return procesadas.slice(inicio, inicio + 13);
+    }
+    return procesadas.slice(0, 13);
+  }, [procesadas, rangoFiltro, hoy]);
+
+  // Estadísticas del gráfico
+  const statsCurva = useMemo(() => {
+    if (datosCurva.length === 0) return { max: 0, min: 0, avg: 0, maxFecha: "", minFecha: "" };
+    let max = -Infinity;
+    let min = Infinity;
+    let sum = 0;
+    let maxFecha = "";
+    let minFecha = "";
+
+    datosCurva.forEach(w => {
+      const s = w.saldoAcumulado || 0;
+      sum += s;
+      if (s > max) {
+        max = s;
+        maxFecha = w.week_start;
+      }
+      if (s < min) {
+        min = s;
+        minFecha = w.week_start;
+      }
+    });
+
+    return {
+      max: max === -Infinity ? 0 : max,
+      min: min === Infinity ? 0 : min,
+      avg: datosCurva.length > 0 ? Math.round(sum / datosCurva.length) : 0,
+      maxFecha,
+      minFecha
+    };
+  }, [datosCurva]);
+
+  // Top 5 categorías de egreso proyectadas (desde hoy en adelante)
+  const topEgresos = useMemo(() => {
+    if (!weeks || weeks.length === 0) return [];
+    const getTC = (d) => {
+      if (!tcList || tcList.length === 0) return 1;
+      const vTC = tcList.filter(t => t.fecha_corte <= d).sort((a, b) => b.fecha_corte.localeCompare(a.fecha_corte));
+      return vTC.length > 0 ? Number(vTC[0].saldo_efectivo) || 1 : 1;
+    };
+
+    const semanasFuturas = weeks.filter(w => w.week_start >= hoy);
+    const fuenteSemanas = semanasFuturas.length > 0 ? semanasFuturas : weeks;
+
+    const sumas = {};
+    let totalGeneral = 0;
+
+    fuenteSemanas.forEach(w => {
+      const tc = getTC(w.week_start);
+      Object.entries(w.expense || {}).forEach(([k, v]) => {
+        let pVal = 0;
+        if (typeof v === 'object' && v !== null) {
+          pVal = Number(v.ars || 0) + Number(v.usd || 0) * tc;
+        } else {
+          pVal = Number(v || 0);
+        }
+        if (pVal > 0) {
+          sumas[k] = (sumas[k] || 0) + pVal;
+          totalGeneral += pVal;
+        }
+      });
+    });
+
+    return Object.entries(sumas)
+      .map(([key, val]) => {
+        const catObj = expenseCats.find(c => c.key === key);
+        return {
+          key,
+          label: catObj ? catObj.label : key.replace('custom_', ''),
+          val,
+          pct: totalGeneral > 0 ? Math.round((val / totalGeneral) * 100) : 0
+        };
+      })
+      .sort((a, b) => b.val - a.val)
+      .slice(0, 5);
+  }, [weeks, expenseCats, tcList, hoy]);
+
+  // Próximas 4 semanas críticas con saldo remanente
+  const proximasSemanas = useMemo(() => {
+    if (!procesadas || procesadas.length === 0) return [];
+    const futuras = procesadas.filter(w => w.week_start >= hoy);
+    const lista = futuras.length > 0 ? futuras.slice(0, 4) : procesadas.slice(0, 4);
+
+    return lista.map(w => {
+      const raw = weeks.find(r => r.week_start === w.week_start) || {};
+      const ing = w.totalIngresos || 0;
+      const egr = w.totalEgresos || 0;
+      const neto = ing - egr;
+      const saldo = w.saldoAcumulado || 0;
+      return {
+        week_start: w.week_start,
+        ing,
+        egr,
+        neto,
+        saldo,
+        status: w.status
+      };
+    });
+  }, [procesadas, weeks, hoy]);
+
   if (procesadas.length === 0 || !kpis) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <div>
-          <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen Ejecutivo</h2>
+          <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 24, fontWeight: 600 }}>Dashboard Ejecutivo</h2>
           <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Vista ejecutiva de liquidez, días de caja, NOF y evolución financiera.</p>
         </div>
 
@@ -1494,7 +1677,7 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
             Sin movimientos registrados
           </h3>
           <p style={{ fontSize: 13.5, color: tokens.textMuted, lineHeight: 1.6, maxWidth: 520, margin: "0 auto 24px" }}>
-            Ingresa al módulo <strong>Movimientos</strong> para visualizar los ingresos, egresos y saldos diarios proyectados.
+            Ingresa al módulo <strong>Movimientos</strong> para cargar los ingresos, egresos y saldos proyectados o importa la planilla Excel.
           </p>
 
           <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 12 }}>
@@ -1562,94 +1745,707 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
       </div>
     );
   }
+
+  // Runway progress calculation (cap at 60 days for bar visualization)
+  const diasRunway = kpis.diasDeCaja != null ? Number(kpis.diasDeCaja) : (kpis.sinQuemaNeta ? 60 : 0);
+  const pctRunway = Math.min(100, Math.max(5, (diasRunway / 60) * 100));
+
   return (
-    <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
-        <div>
-          <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Resumen Ejecutivo</h2>
-          <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Vista ejecutiva de liquidez, días de caja, NOF y curva de evolución semanal.</p>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      
+      {/* 1. ENCABEZADO EJECUTIVO CON ESTADO EN TIEMPO REAL Y ACCIONES RÁPIDAS */}
+      <div style={{
+        background: tokens.surface,
+        borderRadius: 12,
+        border: `1px solid ${colorLineaFuerte}`,
+        padding: "20px 24px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 16,
+        boxShadow: "0 2px 8px rgba(14,21,36,0.03)"
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{
+              background: tokens.ink,
+              color: "#fff",
+              padding: "2px 8px",
+              borderRadius: 4,
+              fontSize: 10.5,
+              fontWeight: 700,
+              letterSpacing: "0.6px",
+              textTransform: "uppercase"
+            }}>
+              Link Inversiones
+            </span>
+            <h1 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 24, fontWeight: 700, color: tokens.ink, letterSpacing: "-0.3px" }}>
+              Panel Ejecutivo & Dashboard Financiero
+            </h1>
+          </div>
+          <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>
+            Control integral de tesorería, posición de caja en pesos y dólares, runway operativo y curva de fondos.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: tokens.positive, fontWeight: 600 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: tokens.positive, boxShadow: "0 0 0 3px rgba(14, 124, 102, 0.2)" }} />
+              Sincronizado en tiempo real
+            </span>
+            <span style={{ color: colorLineaFuerte }}>•</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: tokens.ink, fontWeight: 600 }}>
+              <DollarSign size={13} color={tokens.gold} />
+              Dólar ref: <strong>${fmt(ultimoDolar)}</strong>
+            </span>
+            <span style={{ color: colorLineaFuerte }}>•</span>
+            <span style={{ fontSize: 11.5, color: tokens.textMuted }}>
+              Fecha de corte: <strong>{formatDate(hoy)}</strong>
+            </span>
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {onCargarDemo && (
+
+        {/* BOTONES DE ACCIÓN RÁPIDA */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {onAbrirImportadorMatriz && (
             <button
-              onClick={onCargarDemo}
+              onClick={onAbrirImportadorMatriz}
               type="button"
               style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "9px 15px",
+                background: tokens.ink,
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                fontWeight: 600,
+                fontSize: 12.5,
+                cursor: "pointer",
+                boxShadow: "0 2px 6px rgba(14,21,36,0.15)",
+                transition: "all 0.15s"
+              }}
+            >
+              <Upload size={14} color={tokens.gold} /> Importar Planilla Excel
+            </button>
+          )}
+
+          {onNuevoMovimiento && (
+            <button
+              onClick={onNuevoMovimiento}
+              type="button"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
                 background: tokens.surface,
                 color: tokens.ink,
                 border: `1px solid ${colorLineaFuerte}`,
                 borderRadius: 6,
-                padding: "7px 14px",
-                fontSize: 12.5,
                 fontWeight: 600,
+                fontSize: 12.5,
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+                transition: "all 0.15s"
               }}
             >
-              <RotateCcw size={13} color={tokens.gold} /> Restaurar Datos Reales
+              <Plus size={14} color={tokens.positive} /> + Cargar Movimiento
+            </button>
+          )}
+
+          {onCargarDemo && (
+            <button
+              onClick={onCargarDemo}
+              type="button"
+              title="Restaura la estructura y datos de partida reales"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 13px",
+                background: "rgba(201, 174, 107, 0.12)",
+                color: tokens.ink,
+                border: "1px solid rgba(201, 174, 107, 0.35)",
+                borderRadius: 6,
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: "pointer"
+              }}
+            >
+              <RotateCcw size={13} color={tokens.gold} /> Restaurar Reales
             </button>
           )}
         </div>
       </div>
-      
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 18 }}>
-        <KpiCard icon={Wallet} label="Días de caja" value={kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} días`} tone={kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? "neg" : "pos"} />
-        <KpiCard icon={CalendarX2} label="Día de déficit" value={kpis.diaDeficit !== "Sin déficit" ? formatDate(kpis.diaDeficit) : "Sin déficit"} tone={kpis.diaDeficit !== "Sin déficit" ? "neg" : "pos"} />
-        <KpiCard icon={AlertTriangle} label="NOF mensual" value={`$ ${fmt(kpis.nofMensual)}`} tone={kpis.nofMensual > 0 ? "neg" : "pos"} />
+
+      {/* 2. BENTO GRID DE KPIS EJECUTIVOS */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        
+        {/* KPI 1: HERO - LIQUIDEZ Y TESORERÍA ACTUAL */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 10,
+          border: `1px solid ${colorLineaFuerte}`,
+          padding: "20px 22px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            background: kpis.liquidez >= 0 ? tokens.positive : tokens.negative
+          }} />
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
+                Liquidez & Tesorería Actual
+              </span>
+              <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(14, 124, 102, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.positive }}>
+                <Wallet size={17} />
+              </div>
+            </div>
+            <div style={{ fontFamily: tokens.fontMono, fontSize: 26, fontWeight: 700, color: kpis.liquidez >= 0 ? tokens.ink : tokens.negative, letterSpacing: "-0.5px" }}>
+              $ {fmt(kpis.liquidez)}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+              <span style={{ fontSize: 12, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                ≈ {formatUSD(kpis.liquidez)}
+              </span>
+              <span style={{ fontSize: 10.5, color: tokens.textFaint }}>
+                (al TC ${fmt(ultimoDolar)})
+              </span>
+            </div>
+          </div>
+          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 4,
+              background: kpis.liquidez >= 0 ? tokens.positiveSoft : tokens.negativeSoft,
+              color: kpis.liquidez >= 0 ? tokens.positive : tokens.negative
+            }}>
+              {kpis.liquidez >= 0 ? "Superávit Operativo" : "Alerta de Déficit"}
+            </span>
+            <span style={{ fontSize: 11, color: tokens.textFaint }}>Corte al {formatDate(hoy)}</span>
+          </div>
+        </div>
+
+        {/* KPI 2: AUTONOMÍA DE CAJA (RUNWAY) */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 10,
+          border: `1px solid ${colorLineaFuerte}`,
+          padding: "20px 22px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            background: kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? tokens.negative : tokens.gold
+          }} />
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
+                Autonomía Financiera (Runway)
+              </span>
+              <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(184, 134, 42, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.gold }}>
+                <Clock size={17} />
+              </div>
+            </div>
+            <div style={{ fontFamily: tokens.fontMono, fontSize: 26, fontWeight: 700, color: kpis.deficitActual ? tokens.negative : tokens.ink, letterSpacing: "-0.5px" }}>
+              {kpis.deficitActual ? "Déficit Actual" : kpis.sinQuemaNeta ? "Sin quema neta" : `${kpis.diasDeCaja} días`}
+            </div>
+            {/* Barra de progreso visual de runway */}
+            <div style={{ marginTop: 8, height: 6, background: colorLineaSuave, borderRadius: 3, overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${pctRunway}%`,
+                background: diasRunway > 30 ? tokens.positive : diasRunway > 15 ? tokens.gold : tokens.negative,
+                borderRadius: 3,
+                transition: "width 0.3s ease"
+              }} />
+            </div>
+          </div>
+          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}` }}>
+            <span style={{ fontSize: 11, color: kpis.diaDeficit !== "Sin déficit" ? tokens.negative : tokens.textMuted, fontWeight: 600 }}>
+              {kpis.diaDeficit !== "Sin déficit"
+                ? `⚠️ Primer déficit: ${formatDate(kpis.diaDeficit)}`
+                : "✓ Horizonte despejado sin déficit visible"}
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 3: FLUJO NETO DEL MES Y COBERTURA */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 10,
+          border: `1px solid ${colorLineaFuerte}`,
+          padding: "20px 22px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            background: kpis.flujoNetoMes >= 0 ? tokens.positive : tokens.negative
+          }} />
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
+                Flujo Neto Mensual en Curso
+              </span>
+              <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(14, 21, 36, 0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.ink }}>
+                <Scale size={17} />
+              </div>
+            </div>
+            <div style={{ fontFamily: tokens.fontMono, fontSize: 26, fontWeight: 700, color: kpis.flujoNetoMes >= 0 ? tokens.positive : tokens.negative, letterSpacing: "-0.5px" }}>
+              $ {fmt(kpis.flujoNetoMes)}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+              <span style={{ fontSize: 12, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                ≈ {formatUSD(kpis.flujoNetoMes)}
+              </span>
+              <span style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: "1px 6px",
+                borderRadius: 3,
+                background: kpis.cobertura >= 100 ? tokens.positiveSoft : tokens.negativeSoft,
+                color: kpis.cobertura >= 100 ? tokens.positive : tokens.negative
+              }}>
+                {kpis.cobertura}% Cobertura
+              </span>
+            </div>
+          </div>
+          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}` }}>
+            <span style={{ fontSize: 11, color: tokens.textMuted }}>
+              {kpis.cobertura >= 100
+                ? "Cobranzas superan los pagos presupuestados"
+                : "Faltan ingresos para cubrir los egresos del mes"}
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 4: NECESIDADES OPERATIVAS DE FONDOS (NOF) & FUGA */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 10,
+          border: `1px solid ${colorLineaFuerte}`,
+          padding: "20px 22px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            background: "#64748B"
+          }} />
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
+                NOF Mensual & Mayor Egreso
+              </span>
+              <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(100, 116, 139, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569" }}>
+                <AlertTriangle size={17} />
+              </div>
+            </div>
+            <div style={{ fontFamily: tokens.fontMono, fontSize: 26, fontWeight: 700, color: tokens.ink, letterSpacing: "-0.5px" }}>
+              $ {fmt(kpis.nofMensual)}
+            </div>
+            <div style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 4 }}>
+              Capital de trabajo operativo / mes
+            </div>
+          </div>
+          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: tokens.textMuted }}>Mayor salida 30d:</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${kpis.maxEgresoCat} ($ ${fmt(kpis.maxEgresoVal)})`}>
+              {kpis.maxEgresoCat}
+            </span>
+          </div>
+        </div>
+
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 18 }}>
-        <KpiCard icon={Scale} label="Flujo Neto (Mes en curso)" value={`$ ${fmt(kpis.flujoNetoMes)}`} tone={kpis.flujoNetoMes >= 0 ? "pos" : "neg"} />
-        <KpiCard icon={Percent} label="Índice de Cobertura" value={`${kpis.cobertura}%`} tone={kpis.cobertura >= 100 ? "pos" : "neg"} sub={kpis.cobertura >= 100 ? "Ingresos superan egresos" : "Faltan ingresos para cubrir gastos"} />
-        <KpiCard icon={TrendingDown} label="Fuga Proyectada (Próx. 30 d.)" value={kpis.maxEgresoCat} sub={`$ ${fmt(kpis.maxEgresoVal)}`} tone="neg" />
-      </div>
+      {/* 3. CURVA DE EVOLUCIÓN FINANCIERA INTERACTIVA */}
+      <div style={{
+        background: tokens.surface,
+        borderRadius: 12,
+        border: `1px solid ${colorLineaFuerte}`,
+        padding: "24px",
+        boxShadow: "0 2px 8px rgba(14,21,36,0.03)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <BarChart3 size={18} color={tokens.ink} />
+              <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 18, fontWeight: 700, color: tokens.ink }}>
+                Curva de Evolución Financiera y Liquidez Proyectada
+              </h3>
+            </div>
+            <p style={{ margin: "3px 0 0", fontSize: 12.5, color: tokens.textMuted }}>
+              Trayectoria de saldo acumulado semana a semana con umbral de solvencia en $0. Pasa el cursor para ver el importe en ARS y kUSD.
+            </p>
+          </div>
 
-      <div style={{ background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, padding: 24 }}>
-        <div style={{ height: 320 }}>
+          {/* SELECTOR DE RANGO TEMPORAL */}
+          <div style={{
+            display: "inline-flex",
+            background: tokens.paper,
+            borderRadius: 8,
+            padding: 3,
+            border: `1px solid ${colorLineaSuave}`
+          }}>
+            {[
+              { id: "13_semanas", label: "13 Semanas" },
+              { id: "anio_2026", label: "Todo 2026" },
+              { id: "proyecciones", label: "Solo Futuro" }
+            ].map((btn) => (
+              <button
+                key={btn.id}
+                type="button"
+                onClick={() => setRangoFiltro(btn.id)}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 12,
+                  fontWeight: rangoFiltro === btn.id ? 700 : 500,
+                  color: rangoFiltro === btn.id ? "#fff" : tokens.textMuted,
+                  background: rangoFiltro === btn.id ? tokens.ink : "transparent",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* CONTENEDOR DEL GRÁFICO RECHARTS */}
+        <div style={{ height: 320, width: "100%" }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={procesadas.map((w) => ({ name: w.week_start, saldo: w.saldoAcumulado }))}>
+            <AreaChart data={datosCurva.map((w) => ({ name: w.week_start, saldo: w.saldoAcumulado }))} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorSaldoPos" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={tokens.positive} stopOpacity={0.35}/>
+                  <stop offset="95%" stopColor={tokens.positive} stopOpacity={0.0}/>
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={colorLineaSuave} />
-              <XAxis dataKey="name" tickFormatter={formatDate} tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} dy={10} />
-              <YAxis tick={{ fill: tokens.textFaint, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => "$" + fmt(v)} dx={-6} width={72} />
-              <Tooltip labelFormatter={(label) => formatDate(label)} formatter={(v) => ["$ " + fmt(v), "Saldo"]} />
-              <Area type="monotone" dataKey="saldo" stroke={tokens.positive} strokeWidth={2.5} fill={tokens.positive} fillOpacity={0.1} />
+              <XAxis
+                dataKey="name"
+                tickFormatter={formatDate}
+                tick={{ fill: tokens.textFaint, fontSize: 11, fontFamily: tokens.fontBody }}
+                axisLine={false}
+                tickLine={false}
+                dy={10}
+              />
+              <YAxis
+                tick={{ fill: tokens.textFaint, fontSize: 11, fontFamily: tokens.fontMono }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => Math.abs(v) >= 1_000_000 ? `$${(v/1_000_000).toFixed(0)}M` : `$${fmt(v)}`}
+                dx={-6}
+                width={78}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const val = payload[0].value;
+                    return (
+                      <div style={{
+                        background: "#0F172A",
+                        color: "#fff",
+                        padding: "10px 14px",
+                        borderRadius: 8,
+                        border: "1px solid #334155",
+                        boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+                        fontFamily: tokens.fontBody
+                      }}>
+                        <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 4, fontWeight: 600 }}>
+                          {formatDate(label)} ({label})
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 700, fontFamily: tokens.fontMono, color: val >= 0 ? "#86EFAC" : "#FCA5A5" }}>
+                          $ {fmt(val)} ARS
+                        </div>
+                        <div style={{ fontSize: 12, fontFamily: tokens.fontMono, color: tokens.gold, marginTop: 2 }}>
+                          {formatUSD(val)}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <ReferenceLine y={0} stroke="#E0897A" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: "Línea $0", fill: "#E0897A", fontSize: 11, position: "right" }} />
+              <Area
+                type="monotone"
+                dataKey="saldo"
+                stroke={tokens.positive}
+                strokeWidth={2.5}
+                fill="url(#colorSaldoPos)"
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
+
+        {/* PIE DEL GRÁFICO: MÉTRICAS DE PICO, PISO Y PROMEDIO */}
+        <div style={{
+          marginTop: 18,
+          paddingTop: 16,
+          borderTop: `1px solid ${colorLineaSuave}`,
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 16
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 6, background: tokens.positiveSoft, display: "flex", alignItems: "center", justifyContent: "center", color: tokens.positive }}>
+              <TrendingUp size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 600 }}>Pico de Liquidez</div>
+              <div style={{ fontFamily: tokens.fontMono, fontSize: 14, fontWeight: 700, color: tokens.positive }}>
+                $ {fmt(statsCurva.max)} <span style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 500 }}>({formatDate(statsCurva.maxFecha)})</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 6, background: statsCurva.min < 0 ? tokens.negativeSoft : tokens.paper, display: "flex", alignItems: "center", justifyContent: "center", color: statsCurva.min < 0 ? tokens.negative : tokens.ink }}>
+              <TrendingDown size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 600 }}>Piso / Valle Proyectado</div>
+              <div style={{ fontFamily: tokens.fontMono, fontSize: 14, fontWeight: 700, color: statsCurva.min < 0 ? tokens.negative : tokens.ink }}>
+                $ {fmt(statsCurva.min)} <span style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 500 }}>({formatDate(statsCurva.minFecha)})</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 6, background: "rgba(184, 134, 42, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.gold }}>
+              <Scale size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 600 }}>Saldo Promedio Semanal</div>
+              <div style={{ fontFamily: tokens.fontMono, fontSize: 14, fontWeight: 700, color: tokens.ink }}>
+                $ {fmt(statsCurva.avg)} <span style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 500 }}>({formatUSD(statsCurva.avg)})</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      {/* BANNER DE ARTICULACIÓN: EMPRESA · PROYECTOS · SOCIOS */}
+      {/* 4. DOS MÓDULOS ANALÍTICOS: ESTRUCTURA DE EGRESOS & PRÓXIMAS SEMANAS CLAVE */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 20 }}>
+        
+        {/* MÓDULO A: TOP 5 EGRESOS PROYECTADOS */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 12,
+          border: `1px solid ${colorLineaFuerte}`,
+          padding: "22px 24px",
+          boxShadow: "0 2px 8px rgba(14,21,36,0.03)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 700, color: tokens.ink }}>
+                Top 5 Egresos Comprometidos
+              </h3>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: tokens.textMuted }}>
+                Principales conceptos de salida en el horizonte proyectado
+              </p>
+            </div>
+            <button
+              onClick={onIrAMovimientos}
+              style={{ background: "none", border: "none", color: tokens.gold, fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+            >
+              Ver tabla <ChevronRight size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {topEgresos.length === 0 ? (
+              <div style={{ padding: "20px 0", textAlign: "center", fontSize: 13, color: tokens.textMuted }}>
+                Sin egresos proyectados en el período.
+              </div>
+            ) : (
+              topEgresos.map((cat, idx) => (
+                <div key={cat.key} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5 }}>
+                    <span style={{ fontWeight: 600, color: tokens.text }}>
+                      {idx + 1}. {cat.label}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.ink }}>
+                        $ {fmt(cat.val)}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, background: tokens.negativeSoft, padding: "1px 6px", borderRadius: 3 }}>
+                        {cat.pct}%
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ height: 6, background: colorLineaSuave, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%",
+                      width: `${cat.pct}%`,
+                      background: idx === 0 ? tokens.negative : idx === 1 ? "#C2410C" : tokens.gold,
+                      borderRadius: 3
+                    }} />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* MÓDULO B: PRÓXIMAS SEMANAS CLAVE (SEMÁFORO DE VENCIMIENTOS) */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 12,
+          border: `1px solid ${colorLineaFuerte}`,
+          padding: "22px 24px",
+          boxShadow: "0 2px 8px rgba(14,21,36,0.03)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 700, color: tokens.ink }}>
+                Próximas Semanas Clave
+              </h3>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: tokens.textMuted }}>
+                Compromisos inmediatos, resultado neto y saldo proyectado
+              </p>
+            </div>
+            {onIrAPresupuesto && (
+              <button
+                onClick={onIrAPresupuesto}
+                style={{ background: "none", border: "none", color: tokens.gold, fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+              >
+                Plan Anual <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {proximasSemanas.map((s) => {
+              const esHolgado = s.saldo >= 20_000_000;
+              const esCritico = s.saldo < 0;
+              return (
+                <div
+                  key={s.week_start}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 14px",
+                    background: tokens.paper,
+                    borderRadius: 8,
+                    border: `1px solid ${colorLineaSuave}`
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>Semana {formatDate(s.week_start)}</span>
+                      {s.status === "proyectado" && (
+                        <span style={{ fontSize: 10, padding: "1px 5px", background: "rgba(184, 134, 42, 0.15)", color: tokens.gold, borderRadius: 3, fontWeight: 700 }}>
+                          PROY.
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: tokens.textMuted, marginTop: 2 }}>
+                      Ing: <strong style={{ color: tokens.positive }}>${fmt(s.ing)}</strong> • Egr: <strong style={{ color: tokens.negative }}>${fmt(s.egr)}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontFamily: tokens.fontMono, fontSize: 13.5, fontWeight: 700, color: s.saldo >= 0 ? tokens.ink : tokens.negative }}>
+                      $ {fmt(s.saldo)}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4, marginTop: 2 }}>
+                      <span style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        padding: "1px 6px",
+                        borderRadius: 3,
+                        background: esCritico ? tokens.negativeSoft : esHolgado ? tokens.positiveSoft : "rgba(184, 134, 42, 0.15)",
+                        color: esCritico ? tokens.negative : esHolgado ? tokens.positive : tokens.gold
+                      }}>
+                        {esCritico ? "Déficit" : esHolgado ? "Holgado" : "Ajustado"}
+                      </span>
+                      <span style={{ fontSize: 11, fontFamily: tokens.fontMono, color: s.neto >= 0 ? tokens.positive : tokens.negative }}>
+                        ({s.neto >= 0 ? "+" : ""}{fmt(s.neto)})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+      </div>
+
+      {/* 5. BANNER DE ARTICULACIÓN: EMPRESA · PROYECTOS · SOCIOS */}
       <div style={{
         background: `linear-gradient(135deg, ${tokens.ink} 0%, #1A243B 100%)`,
-        borderRadius: 10,
-        padding: "20px 24px",
+        borderRadius: 12,
+        padding: "22px 26px",
         color: "#fff",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         flexWrap: "wrap",
         gap: 16,
-        boxShadow: "0 4px 12px rgba(14,21,36,0.12)"
+        boxShadow: "0 4px 14px rgba(14,21,36,0.12)"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 8, background: tokens.gold, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Cpu size={24} color="#fff" />
+          <div style={{ width: 46, height: 46, borderRadius: 10, background: tokens.gold, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 8px rgba(184, 134, 42, 0.4)" }}>
+            <Cpu size={26} color="#fff" />
           </div>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: tokens.gold }}>
                 Motor Financiero Link
               </span>
-              <span style={{ fontSize: 11, color: "#8590A6" }}>· Arquitectura de 3 Ejes</span>
+              <span style={{ fontSize: 11, color: "#94A3B8" }}>· Arquitectura Multivariable</span>
             </div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>
               Empresa (Tesorería) · Proyectos (Costos & Ventas) · Socios (Capital & Retiros)
             </div>
-            <div style={{ fontSize: 12, color: "#9AA3B8", marginTop: 2 }}>
-              Simulación de impacto multivariable sobre Cash Flow, Resultado Proyectado y Asignación de Capital.
+            <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 3 }}>
+              Simula escenarios dinámicos modificando cobranzas, velocidad de obra y asignación de dividendos.
             </div>
           </div>
         </div>
@@ -1658,25 +2454,27 @@ function ResumenTab({ procesadas, kpis, fmt, formatDate, onIrAMovimientos, onIrA
           <button
             onClick={onIrAMotor}
             style={{
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
               gap: 8,
-              padding: "10px 18px",
+              padding: "11px 20px",
               background: tokens.gold,
               color: "#fff",
               border: "none",
               borderRadius: 6,
-              fontWeight: 600,
+              fontWeight: 700,
               fontSize: 13,
               cursor: "pointer",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+              boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+              transition: "transform 0.1s ease"
             }}
           >
             Abrir Motor & Simulador <ChevronRight size={15} />
           </button>
         )}
       </div>
-    </>
+
+    </div>
   );
 }
 
