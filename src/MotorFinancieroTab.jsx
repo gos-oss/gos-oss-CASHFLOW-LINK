@@ -4,11 +4,12 @@ import {
   Building2, HardHat, Users, Cpu, ArrowRight, TrendingUp, TrendingDown,
   Scale, DollarSign, Wallet, PieChart, ShieldAlert, Sparkles, CheckCircle2,
   ChevronRight, BarChart3, Sliders, RefreshCw, Layers, Calendar, HelpCircle,
-  Zap, AlertTriangle, Activity
+  Zap, AlertTriangle, Activity, ShieldCheck, Flame, Clock, Target, Play
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  Legend, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+  Legend, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  AreaChart, Area, LineChart, Line, ComposedChart, ReferenceLine
 } from "recharts";
 
 // Estilo de bordes y contrastes
@@ -59,6 +60,8 @@ export default function MotorFinancieroTab({
     inflacionCACCostoObra: 0, // 0% a 40% adicional
     ritmoVentasPct: 0, // -40% a +40%
     desvioPlazoMeses: 0, // 0 a 6 meses de extensión
+    ritmoObrasPct: 0, // -30% a +30% aceleración / ralentización de obra
+    proyectoAuriaActivo: true, // true / false (clave para 2027: ahorro $763M si se posterga)
 
     // Socios:
     cuposCumplimientoPct: 100, // 50% a 120%
@@ -76,6 +79,8 @@ export default function MotorFinancieroTab({
         inflacionCACCostoObra: 0,
         ritmoVentasPct: 0,
         desvioPlazoMeses: 0,
+        ritmoObrasPct: 0,
+        proyectoAuriaActivo: true,
         cuposCumplimientoPct: 100,
         politicaRetirosPct: 0,
         nuevosAportesCapitalARS: 0
@@ -88,6 +93,8 @@ export default function MotorFinancieroTab({
         inflacionCACCostoObra: 15,
         ritmoVentasPct: -15,
         desvioPlazoMeses: 2,
+        ritmoObrasPct: 0,
+        proyectoAuriaActivo: true,
         cuposCumplimientoPct: 80,
         politicaRetirosPct: 0,
         nuevosAportesCapitalARS: 0
@@ -100,9 +107,25 @@ export default function MotorFinancieroTab({
         inflacionCACCostoObra: 5,
         ritmoVentasPct: 25,
         desvioPlazoMeses: 0,
+        ritmoObrasPct: 10,
+        proyectoAuriaActivo: true,
         cuposCumplimientoPct: 110,
         politicaRetirosPct: 10,
         nuevosAportesCapitalARS: 50000000
+      });
+    } else if (presetKey === "auria_diferida") {
+      setSimParams({
+        retrasoCobranzasDias: 0,
+        ajusteGastoEstructura: 0,
+        renegociarPasivosPct: 0,
+        inflacionCACCostoObra: 0,
+        ritmoVentasPct: 0,
+        desvioPlazoMeses: 0,
+        ritmoObrasPct: 0,
+        proyectoAuriaActivo: false,
+        cuposCumplimientoPct: 100,
+        politicaRetirosPct: 0,
+        nuevosAportesCapitalARS: 0
       });
     } else if (presetKey === "austeridad") {
       setSimParams({
@@ -112,9 +135,25 @@ export default function MotorFinancieroTab({
         inflacionCACCostoObra: 0,
         ritmoVentasPct: 0,
         desvioPlazoMeses: 0,
+        ritmoObrasPct: -10,
+        proyectoAuriaActivo: true,
         cuposCumplimientoPct: 100,
         politicaRetirosPct: 0,
         nuevosAportesCapitalARS: 0
+      });
+    } else if (presetKey === "blindaje") {
+      setSimParams({
+        retrasoCobranzasDias: 0,
+        ajusteGastoEstructura: -10,
+        renegociarPasivosPct: 25,
+        inflacionCACCostoObra: 0,
+        ritmoVentasPct: 10,
+        desvioPlazoMeses: 0,
+        ritmoObrasPct: 0,
+        proyectoAuriaActivo: true,
+        cuposCumplimientoPct: 100,
+        politicaRetirosPct: 0,
+        nuevosAportesCapitalARS: 150000000
       });
     } else if (presetKey === "equilibrado") {
       setSimParams({
@@ -124,6 +163,8 @@ export default function MotorFinancieroTab({
         inflacionCACCostoObra: 5,
         ritmoVentasPct: 10,
         desvioPlazoMeses: 0,
+        ritmoObrasPct: 0,
+        proyectoAuriaActivo: true,
         cuposCumplimientoPct: 100,
         politicaRetirosPct: 5,
         nuevosAportesCapitalARS: 25000000
@@ -145,13 +186,13 @@ export default function MotorFinancieroTab({
     });
   };
 
-  // Segmentación por períodos: ANUAL, S1, S2, Q1, Q2, Q3, Q4
-  const [periodoFiltro, setPeriodoFiltro] = useState("ANUAL");
-  const [mostrarExplicativos, setMostrarExplicativos] = useState(true);
-
   const resetSimParams = () => {
     aplicarPresetSim("base");
   };
+
+  // Segmentación por períodos: ANUAL, S1, S2, Q1, Q2, Q3, Q4
+  const [periodoFiltro, setPeriodoFiltro] = useState("ANUAL");
+  const [mostrarExplicativos, setMostrarExplicativos] = useState(true);
 
   // Mapeo de meses según la segmentación seleccionada
   const mesesFiltro = useMemo(() => {
@@ -237,9 +278,28 @@ export default function MotorFinancieroTab({
     { k: "09", n: "Sep" }, { k: "10", n: "Oct" }, { k: "11", n: "Nov" }, { k: "12", n: "Dic" }
   ];
 
+  // Cálculo de caja inicial proyectada según el ejercicio analizado (con arrastre dinámico 2026 -> 2027)
+  const cajaInicialPeriodo = useMemo(() => {
+    const liqHoy = kpis ? kpis.liquidez : 124596986;
+    if (selectedYear === "2027") {
+      const plan2026 = planesFondos["2026"] || {};
+      let ing2026 = 0;
+      let eg2026 = 0;
+      Object.values(plan2026.ingreso || {}).forEach(mObj => {
+        Object.values(mObj || {}).forEach(v => { ing2026 += Number(v || 0); });
+      });
+      Object.values(plan2026.egreso || {}).forEach(mObj => {
+        Object.values(mObj || {}).forEach(v => { eg2026 += Number(v || 0); });
+      });
+      const arrastrado = liqHoy + (ing2026 - eg2026);
+      return arrastrado > 0 ? arrastrado : liqHoy;
+    }
+    return liqHoy;
+  }, [kpis, selectedYear, planesFondos]);
+
   // Cálculo mensual del flujo por pilar para el ejercicio analizado (con acumulador de caja)
   const cronogramaMensual = useMemo(() => {
-    let saldoAcumulado = kpis ? kpis.liquidez : 124596986;
+    let saldoAcumulado = cajaInicialPeriodo;
 
     return mesesDetalle.map(m => {
       // Ingresos ventas / cuotas de proyectos
@@ -286,7 +346,7 @@ export default function MotorFinancieroTab({
         saldoAcumulado
       };
     });
-  }, [ingresosActivos, egresosActivos, kpis]);
+  }, [ingresosActivos, egresosActivos, cajaInicialPeriodo]);
 
   // SIMULACIÓN DEL MOTOR FINANCIERO CON PARÁMETROS ACTIVOS
   const simEngine = useMemo(() => {
@@ -302,9 +362,16 @@ export default function MotorFinancieroTab({
     const totalIngresosSim = ingresosVentasSim + ingresosSociosSim;
 
     // 2. Impacto en Egresos:
-    // Proyectos: costo de obra afectado por inflación CAC y desvío de plazos
-    const factorCostoObra = (1 + simParams.inflacionCACCostoObra / 100) * (1 + (simParams.desvioPlazoMeses * 0.03));
-    const costoProyectosSim = costoProyectosBase * factorCostoObra;
+    // Proyectos: costo de obra afectado por inflación CAC, desvío de plazos y ritmo general de obra
+    const factorCostoObra = (1 + simParams.inflacionCACCostoObra / 100) * (1 + (simParams.desvioPlazoMeses * 0.03)) * (1 + (simParams.ritmoObrasPct || 0) / 100);
+
+    // Descuento específico de Auria si se decide postergar (clave estratégica para 2027: $763M)
+    let descuentoAuria = 0;
+    if (simParams.proyectoAuriaActivo === false && egresosActivos["proy_auria"]) {
+      descuentoAuria = sumCat(egresosActivos["proy_auria"]);
+    }
+
+    const costoProyectosSim = Math.max(0, (costoProyectosBase - descuentoAuria) * factorCostoObra);
 
     // Empresa: ajuste estructura y renegociación de pasivos
     const pasivosBase = sumCat(egresosActivos["custom_pasivos-financieros"]);
@@ -322,8 +389,8 @@ export default function MotorFinancieroTab({
     const totalEgresosSim = costoProyectosSim + costoEmpresaSim + retirosSociosSim;
 
     // 3. Los 3 Pilares del Motor Financiero Resultante:
-    // A. Cash Flow (Posición neta de caja anual + liquidez actual)
-    const liquidezActual = kpis ? kpis.liquidez : 124596986;
+    // A. Cash Flow (Posición neta de caja anual + liquidez inicial del período)
+    const liquidezActual = cajaInicialPeriodo;
     const flujoNetoBase = totalIngresosBase - totalEgresosBase;
     const flujoNetoSim = totalIngresosSim - totalEgresosSim;
     const cajaFinalSim = liquidezActual + flujoNetoSim;
@@ -366,7 +433,12 @@ export default function MotorFinancieroTab({
       const ingSociosM = (m.ingSocios * factorCupos) + (Number(simParams.nuevosAportesCapitalARS || 0) / 12);
       const totIngM = ingVentasM + ingSociosM;
 
-      const egObraM = m.egObra * factorCostoObra;
+      let egObraMBase = m.egObra;
+      if (simParams.proyectoAuriaActivo === false && egresosActivos["proy_auria"]) {
+        egObraMBase -= Number(egresosActivos["proy_auria"]?.[m.k] || 0);
+      }
+      const egObraM = Math.max(0, egObraMBase * factorCostoObra);
+
       const factorEmpresa = costoEmpresaBase > 0 ? (costoEmpresaSim / costoEmpresaBase) : 1;
       const egEmpresaM = m.egEmpresa * factorEmpresa;
       const retirosM = totIngM * (simParams.politicaRetirosPct / 100);
@@ -387,6 +459,35 @@ export default function MotorFinancieroTab({
     });
 
     const mesMenorCaja = [...cronogramaSimulado].sort((a, b) => a.saldoSimAcum - b.saldoSimAcum)[0] || cronogramaSimulado[0];
+    const tieneQuiebre = cronogramaSimulado.some(m => m.saldoSimAcum < 0);
+    const deficitMaximo = Math.abs(Math.min(0, ...cronogramaSimulado.map(m => m.saldoSimAcum)));
+
+    // Diagnóstico y Semáforo de Riesgo Ejecutivo
+    let saludFinanciera = {
+      estado: "optimo",
+      label: "Solvencia y Posición Holgada",
+      color: "#15803D",
+      bg: "#DCFCE7",
+      border: "#86EFAC"
+    };
+
+    if (tieneQuiebre || cajaFinalSim < 0 || diasCajaSim < 10) {
+      saludFinanciera = {
+        estado: "critico",
+        label: "Riesgo de Quiebre de Liquidez",
+        color: "#B91C1C",
+        bg: "#FEE2E2",
+        border: "#FCA5A5"
+      };
+    } else if (diasCajaSim < 25) {
+      saludFinanciera = {
+        estado: "precaucion",
+        label: "Vigilancia Estricta de Tesorería",
+        color: "#B45309",
+        bg: "#FEF3C7",
+        border: "#FDE68A"
+      };
+    }
 
     return {
       liquidezActual,
@@ -431,9 +532,52 @@ export default function MotorFinancieroTab({
           { name: "Proyectos (Obra)", pct: Math.round(allocProyectosSim), monto: costoProyectosSim, color: tokens.gold },
           { name: "Socios (Retiros)", pct: Math.round(allocSociosSim), monto: retirosSociosSim, color: tokens.positive }
         ]
-      }
+      },
+      tieneQuiebre,
+      deficitMaximo,
+      saludFinanciera,
+      descuentoAuria,
+      cajaInicialPeriodo
     };
-  }, [simParams, totalIngresosBase, totalEgresosBase, ingresosVentasProyectosBase, costoProyectosBase, ingresosSociosBase, costoEmpresaBase, egresosActivos, kpis, cronogramaMensual]);
+  }, [simParams, totalIngresosBase, totalEgresosBase, ingresosVentasProyectosBase, costoProyectosBase, ingresosSociosBase, costoEmpresaBase, egresosActivos, kpis, cronogramaMensual, cajaInicialPeriodo]);
+
+  // ACCIONES DINÁMICAS INTELIGENTES DEL SIMULADOR:
+  // 1. Equilibrar caja automáticamente inyectando el capital necesario para superar el valle deficitario
+  const equilibrarCajaAuto = () => {
+    if (!simEngine.tieneQuiebre) return;
+    const aporteRequerido = Math.ceil((simEngine.deficitMaximo + 20000000) / 10000000) * 10000000;
+    setActivePreset("personalizado");
+    setSimParams(prev => ({
+      ...prev,
+      nuevosAportesCapitalARS: Number(prev.nuevosAportesCapitalARS || 0) + aporteRequerido
+    }));
+  };
+
+  // 2. Optimización rápida de liquidez (ajuste comercial + contención de gasto + 30% pasivos)
+  const optimizarLiquidez = () => {
+    setActivePreset("personalizado");
+    setSimParams(prev => ({
+      ...prev,
+      ritmoVentasPct: Math.max(prev.ritmoVentasPct, 15),
+      ajusteGastoEstructura: Math.min(prev.ajusteGastoEstructura, -10),
+      renegociarPasivosPct: Math.max(prev.renegociarPasivosPct, 30),
+      cuposCumplimientoPct: Math.max(prev.cuposCumplimientoPct, 100)
+    }));
+  };
+
+  // Datos para gráfico interactivo de trayectoria mensual de liquidez (Base vs. Simulado)
+  const trajectoryChartData = useMemo(() => {
+    return cronogramaMensual.map((mBase, idx) => {
+      const mSim = simEngine.cronogramaSimulado[idx] || {};
+      return {
+        mes: mBase.n,
+        saldoBaseM: Math.round(mBase.saldoAcumulado / 1000000),
+        saldoSimM: Math.round(mSim.saldoSimAcum / 1000000),
+        flujoNetoBaseM: Math.round(mBase.flujoNeto / 1000000),
+        flujoNetoSimM: Math.round(mSim.flujoNetoSim / 1000000),
+      };
+    });
+  }, [cronogramaMensual, simEngine.cronogramaSimulado]);
 
   // Datos para gráfico comparativo de Pilares Base vs Simulado
   const pilaresChartData = useMemo(() => [
@@ -463,50 +607,67 @@ export default function MotorFinancieroTab({
     }
   ], [simEngine, costoProyectosBase, costoEmpresaBase]);
 
-  const waterfallSensibilidad = useMemo(() => [
-    {
-      palanca: "Ritmo Comercial & Ventas",
-      impacto: simEngine.deltaVentas,
-      tipo: simEngine.deltaVentas >= 0 ? "positivo" : "negativo",
-      detalle: `${simParams.ritmoVentasPct >= 0 ? "+" : ""}${simParams.ritmoVentasPct}% ritmo | Demora ${simParams.retrasoCobranzasDias}d`,
-      pilar: "Comercial"
-    },
-    {
-      palanca: "Cupos & Aportes Socios",
-      impacto: simEngine.deltaSocios,
-      tipo: simEngine.deltaSocios >= 0 ? "positivo" : "negativo",
-      detalle: `${simParams.cuposCumplimientoPct}% cupos | +$ ${fmt(simParams.nuevosAportesCapitalARS)} capital`,
-      pilar: "Socios"
-    },
-    {
-      palanca: "Costo Directo Obras (CAC & Plazo)",
-      impacto: simEngine.deltaObras,
-      tipo: simEngine.deltaObras >= 0 ? "positivo" : "negativo",
-      detalle: `+${simParams.inflacionCACCostoObra}% CAC | +${simParams.desvioPlazoMeses}m plazo`,
-      pilar: "Proyectos"
-    },
-    {
-      palanca: "Gasto de Estructura / Admin",
-      impacto: simEngine.deltaEstructura,
-      tipo: simEngine.deltaEstructura >= 0 ? "positivo" : "negativo",
-      detalle: `${simParams.ajusteGastoEstructura > 0 ? "+" : ""}${simParams.ajusteGastoEstructura}% ajuste gasto`,
-      pilar: "Empresa"
-    },
-    {
-      palanca: "Refinanciación de Pasivos",
-      impacto: simEngine.deltaPasivos,
-      tipo: simEngine.deltaPasivos >= 0 ? "positivo" : "negativo",
-      detalle: `${simParams.renegociarPasivosPct}% postergado/refinanciado`,
-      pilar: "Financiero"
-    },
-    {
-      palanca: "Política Retiros de Socios",
-      impacto: simEngine.deltaRetiros,
-      tipo: simEngine.deltaRetiros >= 0 ? "positivo" : "negativo",
-      detalle: `${simParams.politicaRetirosPct}% s/ Ingresos`,
-      pilar: "Socios"
+  const waterfallSensibilidad = useMemo(() => {
+    const list = [
+      {
+        palanca: "Ritmo Comercial & Ventas",
+        impacto: simEngine.deltaVentas,
+        tipo: simEngine.deltaVentas >= 0 ? "positivo" : "negativo",
+        detalle: `${simParams.ritmoVentasPct >= 0 ? "+" : ""}${simParams.ritmoVentasPct}% ritmo | Demora ${simParams.retrasoCobranzasDias}d`,
+        pilar: "Comercial"
+      },
+      {
+        palanca: "Cupos & Aportes Socios",
+        impacto: simEngine.deltaSocios,
+        tipo: simEngine.deltaSocios >= 0 ? "positivo" : "negativo",
+        detalle: `${simParams.cuposCumplimientoPct}% cupos | +$ ${fmt(simParams.nuevosAportesCapitalARS)} capital`,
+        pilar: "Socios"
+      },
+      {
+        palanca: "Costo Directo Obras (CAC & Plazo)",
+        impacto: simEngine.deltaObras,
+        tipo: simEngine.deltaObras >= 0 ? "positivo" : "negativo",
+        detalle: `+${simParams.inflacionCACCostoObra}% CAC | +${simParams.desvioPlazoMeses}m plazo | ${simParams.ritmoObrasPct >= 0 ? "+" : ""}${simParams.ritmoObrasPct}% ritmo`,
+        pilar: "Proyectos"
+      }
+    ];
+
+    if (simParams.proyectoAuriaActivo === false && simEngine.descuentoAuria > 0) {
+      list.push({
+        palanca: "Postergación Obra Auria",
+        impacto: simEngine.descuentoAuria,
+        tipo: "positivo",
+        detalle: `Desembolsos postergados a 2028 (Ahorro $ ${fmt(simEngine.descuentoAuria)})`,
+        pilar: "Proyectos"
+      });
     }
-  ], [simEngine, simParams, fmt]);
+
+    list.push(
+      {
+        palanca: "Gasto de Estructura / Admin",
+        impacto: simEngine.deltaEstructura,
+        tipo: simEngine.deltaEstructura >= 0 ? "positivo" : "negativo",
+        detalle: `${simParams.ajusteGastoEstructura > 0 ? "+" : ""}${simParams.ajusteGastoEstructura}% ajuste gasto`,
+        pilar: "Empresa"
+      },
+      {
+        palanca: "Refinanciación de Pasivos",
+        impacto: simEngine.deltaPasivos,
+        tipo: simEngine.deltaPasivos >= 0 ? "positivo" : "negativo",
+        detalle: `${simParams.renegociarPasivosPct}% postergado/refinanciado`,
+        pilar: "Financiero"
+      },
+      {
+        palanca: "Política Retiros de Socios",
+        impacto: simEngine.deltaRetiros,
+        tipo: simEngine.deltaRetiros >= 0 ? "positivo" : "negativo",
+        detalle: `${simParams.politicaRetirosPct}% s/ Ingresos`,
+        pilar: "Socios"
+      }
+    );
+
+    return list;
+  }, [simEngine, simParams, fmt]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -1302,6 +1463,100 @@ export default function MotorFinancieroTab({
       {subTab === "simulador" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           
+          {/* SEMÁFORO DE SALUD FINANCIERA & ACCIONES INTELIGENTES DE EQUILIBRIO */}
+          <div style={{
+            background: simEngine.saludFinanciera.bg,
+            border: `1.5px solid ${simEngine.saludFinanciera.border}`,
+            borderRadius: 12,
+            padding: "16px 20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 16
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                background: simEngine.saludFinanciera.color,
+                color: "#FFFFFF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0
+              }}>
+                {simEngine.tieneQuiebre ? <AlertTriangle size={24} /> : <ShieldCheck size={24} />}
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px", color: simEngine.saludFinanciera.color }}>
+                    {simEngine.saludFinanciera.label}
+                  </span>
+                  <span style={{ fontSize: 11, background: "#FFFFFF", padding: "1px 8px", borderRadius: 12, fontWeight: 700, color: simEngine.saludFinanciera.color, border: `1px solid ${simEngine.saludFinanciera.border}` }}>
+                    {simEngine.diasCajaSim} días de cobertura
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: tokens.ink, fontWeight: 500 }}>
+                  {simEngine.tieneQuiebre ? (
+                    <span>
+                      Se proyecta un <strong>déficit de caja de -$ {fmt(simEngine.deficitMaximo)}</strong> en <strong>{simEngine.mesMenorCaja?.n}</strong>. El negocio requiere calibrar ingresos, gastos o capital para no entrar en zona roja.
+                    </span>
+                  ) : (
+                    <span>
+                      La posición de tesorería es estable con saldo de cierre proyectado de <strong>$ {fmt(simEngine.cajaFinalSim)}</strong> (mínimo de <strong>$ {fmt(simEngine.mesMenorCaja?.saldoSimAcum)}</strong> en {simEngine.mesMenorCaja?.n}).
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              {simEngine.tieneQuiebre && (
+                <button
+                  onClick={equilibrarCajaAuto}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "#B91C1C",
+                    color: "#FFFFFF",
+                    border: "none",
+                    padding: "9px 16px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 6px rgba(185,28,28,0.3)"
+                  }}
+                  title="Calcula e inyecta el capital exacto para cubrir el valle negativo con margen de seguridad"
+                >
+                  <Zap size={14} /> Equilibrar Caja Automáticamente
+                </button>
+              )}
+              <button
+                onClick={optimizarLiquidez}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "#FFFFFF",
+                  color: tokens.ink,
+                  border: `1.5px solid ${colorBorderStrong}`,
+                  padding: "9px 15px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+                title="Acelera cobranzas (+15%), renegocia 30% de pasivos y contrae gasto un 10%"
+              >
+                <Target size={14} color={tokens.gold} /> Optimizar Liquidez (3 Palancas)
+              </button>
+            </div>
+          </div>
+
           {/* TOOLBAR DE ESCENARIOS ESTRATÉGICOS (PRESETS CON 1 CLIC) */}
           <div style={{ background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 12, padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
@@ -1311,10 +1566,12 @@ export default function MotorFinancieroTab({
                 </span>
                 {[
                   { key: "base", label: `Base ${selectedYear}`, icon: RefreshCw, desc: "Valores nominales del presupuesto" },
-                  { key: "estres", label: "Estrés Severo (CAC + Mora)", icon: AlertTriangle, desc: "-15% ventas, +30d retraso, +15% CAC" },
+                  { key: "estres", label: "Estrés Severo", icon: AlertTriangle, desc: "-15% ventas, +30d retraso, +15% CAC" },
                   { key: "expansion", label: "Aceleración Comercial", icon: TrendingUp, desc: "+25% ventas, al día, +$50M aporte capital" },
-                  { key: "austeridad", label: "Austeridad y Refinanciación", icon: ShieldAlert, desc: "-15% estructura, 40% pasivos" },
-                  { key: "equilibrado", label: "Plan Integral Equilibrado", icon: Scale, desc: "+10% ventas, -5% estructura, 20% pasivos" },
+                  { key: "auria_diferida", label: "Postergar Auria", icon: Clock, desc: "Posponer obra Auria a 2028 (Ahorro $763M)" },
+                  { key: "blindaje", label: "Blindaje de Liquidez", icon: ShieldCheck, desc: "+10% ventas, -10% estructura, +$150M capital" },
+                  { key: "austeridad", label: "Austeridad y Pasivos", icon: ShieldAlert, desc: "-15% estructura, 40% pasivos" },
+                  { key: "equilibrado", label: "Plan Equilibrado", icon: Scale, desc: "+10% ventas, -5% estructura, 20% pasivos" },
                 ].map(p => {
                   const isSel = activePreset === p.key;
                   const IconComp = p.icon;
@@ -1537,6 +1794,58 @@ export default function MotorFinancieroTab({
                     <span>0%</span>
                     <span>+40% (Boom)</span>
                   </div>
+                </div>
+
+                {/* Ritmo Físico de Obra */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
+                    <span style={{ color: tokens.textMuted }}>Ritmo Físico de Obra:</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono, color: simParams.ritmoObrasPct > 0 ? tokens.gold : simParams.ritmoObrasPct < 0 ? tokens.positive : tokens.ink }}>
+                        {simParams.ritmoObrasPct > 0 ? `+${simParams.ritmoObrasPct}%` : `${simParams.ritmoObrasPct}%`}
+                      </strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("ritmoObrasPct", -5, -30, 30)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-5%</button>
+                        <button onClick={() => adjustParam("ritmoObrasPct", 5, -30, 30)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+5%</button>
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="range" min="-30" max="30" step="5"
+                    value={simParams.ritmoObrasPct}
+                    onChange={(e) => handleSimParamChange("ritmoObrasPct", Number(e.target.value))}
+                    className="sim-slider"
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
+                    <span>-30% (Ralentizar)</span>
+                    <span>0% (Plan)</span>
+                    <span>+30% (Acelerar)</span>
+                  </div>
+                </div>
+
+                {/* Decisión Estratégica Auria (Especial 2027) */}
+                <div style={{ background: "#FFFFFF", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${simParams.proyectoAuriaActivo ? "#F0E6D2" : tokens.gold}`, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: tokens.ink }}>Decisión Auria 2027:</span>
+                    <button
+                      onClick={() => handleSimParamChange("proyectoAuriaActivo", !simParams.proyectoAuriaActivo)}
+                      style={{
+                        padding: "3px 10px",
+                        borderRadius: 20,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        border: "none",
+                        background: simParams.proyectoAuriaActivo ? "#15803D" : "#B45309",
+                        color: "#FFFFFF"
+                      }}
+                    >
+                      {simParams.proyectoAuriaActivo ? "✓ Ejecutar según Plan" : "⏸ Postergar a 2028"}
+                    </button>
+                  </div>
+                  <span style={{ fontSize: 10.5, color: simParams.proyectoAuriaActivo ? tokens.textMuted : "#B45309", fontWeight: simParams.proyectoAuriaActivo ? 400 : 600 }}>
+                    {simParams.proyectoAuriaActivo ? "Presupuesto asignado: $ 763.8 M en H2 2027" : "⚡ Desembolsos congelados: Ahorro de $ 763.8 M en caja"}
+                  </span>
                 </div>
 
                 {/* Desvío en Plazos de Obra */}
@@ -1844,24 +2153,68 @@ export default function MotorFinancieroTab({
 
           </div>
 
-          {/* CRONOGRAMA MENSUAL SIMULADO & ALERTA DEL VALLE DE CAJA */}
+          {/* CRONOGRAMA MENSUAL SIMULADO & TRAYECTORIA DINÁMICA DE CAJA */}
           <div style={{ background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 12, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Calendar size={18} color={tokens.gold} />
-                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: tokens.ink }}>
-                  Trayectoria Mensual Simulada · Ejercicio {selectedYear}
-                </h4>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Calendar size={18} color={tokens.gold} />
+                  <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: tokens.ink }}>
+                    Curva Dinámica de Liquidez y Valle de Caja · Ejercicio {selectedYear}
+                  </h4>
+                </div>
+                <span style={{ fontSize: 12, color: tokens.textMuted }}>
+                  Comparación interactiva del saldo acumulado mes a mes: Presupuesto Base vs. Escenario Simulado ($ M)
+                </span>
               </div>
 
               {simEngine.mesMenorCaja && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, background: simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#FEE2E2" : "#FEF3C7", border: `1px solid ${simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#FCA5A5" : "#FDE68A"}`, padding: "4px 12px", borderRadius: 6, fontSize: 12 }}>
-                  <AlertTriangle size={14} color={simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#B91C1C" : "#B45309"} />
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#FEE2E2" : "#FEF3C7",
+                  border: `1.5px solid ${simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#FCA5A5" : "#FDE68A"}`,
+                  padding: "6px 14px",
+                  borderRadius: 8,
+                  fontSize: 12.5
+                }}>
+                  <AlertTriangle size={15} color={simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#B91C1C" : "#B45309"} />
                   <span>
-                    <strong>Mes con Menor Liquidez:</strong> {simEngine.mesMenorCaja.n} con caja de <strong>$ {fmt(simEngine.mesMenorCaja.saldoSimAcum)}</strong>
+                    <strong>Punto Crítico:</strong> Mes de <strong>{simEngine.mesMenorCaja.n}</strong> con saldo proyectado de <strong style={{ color: simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#B91C1C" : tokens.ink }}>$ {fmt(simEngine.mesMenorCaja.saldoSimAcum)}</strong>
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* GRÁFICO INTERACTIVO COMPOSED CHART DE TRAYECTORIA DE CAJA */}
+            <div style={{ width: "100%", height: 260, marginBottom: 18 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={trajectoryChartData} margin={{ top: 10, right: 15, left: -5, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradienteSim" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={simEngine.tieneQuiebre ? "#EF4444" : tokens.gold} stopOpacity={0.35} />
+                      <stop offset="95%" stopColor={simEngine.tieneQuiebre ? "#EF4444" : tokens.gold} stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                  <XAxis dataKey="mes" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#94A3B8" fontSize={11} tickFormatter={(v) => `$${v}M`} tickLine={false} />
+                  <Tooltip
+                    formatter={(val, name) => [`$ ${Number(val).toLocaleString("es-AR")} M`, name === "saldoSimM" ? "Saldo Simulado" : "Saldo Base"]}
+                    labelFormatter={(label) => `Mes: ${label} (${selectedYear})`}
+                    contentStyle={{ background: "#1E293B", border: "none", borderRadius: 8, color: "#fff", fontSize: 12 }}
+                    itemStyle={{ color: "#fff" }}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: 12, paddingTop: 6 }}
+                    formatter={(value) => value === "saldoSimM" ? "Saldo Acumulado Simulado" : "Saldo Acumulado Base"}
+                  />
+                  <ReferenceLine y={0} stroke="#EF4444" strokeWidth={1.5} strokeDasharray="4 4" label={{ value: "Quiebre de Caja ($0)", fill: "#EF4444", fontSize: 10, position: "insideBottomRight" }} />
+                  <Line type="monotone" dataKey="saldoBaseM" stroke="#94A3B8" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: "#94A3B8" }} />
+                  <Area type="monotone" dataKey="saldoSimM" stroke={simEngine.tieneQuiebre ? "#EF4444" : tokens.gold} strokeWidth={2.5} fillOpacity={1} fill="url(#gradienteSim)" dot={{ r: 4, fill: simEngine.tieneQuiebre ? "#EF4444" : tokens.gold }} />
+                </ComposedChart>
+              </ResponsiveContainer>
             </div>
 
             {/* TIRA DE LOS 12 MESES SIMULADOS */}
@@ -1869,12 +2222,13 @@ export default function MotorFinancieroTab({
               {simEngine.cronogramaSimulado.map((m) => {
                 const esMenor = simEngine.mesMenorCaja?.k === m.k;
                 const netoSimPos = m.flujoNetoSim >= 0;
+                const saldoNegativo = m.saldoSimAcum < 0;
                 return (
                   <div
                     key={m.k}
                     style={{
-                      background: esMenor ? "#FEF9C3" : "#F8FAFC",
-                      border: esMenor ? `1.5px solid ${tokens.gold}` : `1px solid ${colorBorder}`,
+                      background: saldoNegativo ? "#FEF2F2" : esMenor ? "#FEF9C3" : "#F8FAFC",
+                      border: saldoNegativo ? "1.5px solid #FCA5A5" : esMenor ? `1.5px solid ${tokens.gold}` : `1px solid ${colorBorder}`,
                       borderRadius: 6,
                       padding: "8px 6px",
                       textAlign: "center",
@@ -1894,7 +2248,7 @@ export default function MotorFinancieroTab({
                     </span>
                     <div style={{ marginTop: 2, paddingTop: 4, borderTop: `1px solid ${colorBorder}` }}>
                       <span style={{ fontSize: 9, color: tokens.textMuted, display: "block" }}>Caja fin:</span>
-                      <span style={{ fontFamily: tokens.fontMono, fontSize: 10, fontWeight: 600, color: m.saldoSimAcum < 0 ? "#B91C1C" : tokens.ink }}>
+                      <span style={{ fontFamily: tokens.fontMono, fontSize: 10, fontWeight: 700, color: saldoNegativo ? "#B91C1C" : tokens.ink }}>
                         ${Math.round(m.saldoSimAcum / 1000000)}M
                       </span>
                     </div>
@@ -1908,11 +2262,11 @@ export default function MotorFinancieroTab({
               <CheckCircle2 size={20} color={tokens.gold} style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ fontSize: 13, lineHeight: 1.5, color: "#E2E8F0" }}>
                 <strong>Diagnóstico Estratégico del Escenario:</strong> {
-                  simEngine.cajaFinalSim < 0
-                    ? "Alerta de iliquidez futura. El desvío de costos o caída de ventas genera un quiebre de caja antes de finalizar el período. Se recomienda activar renegociación de pasivos o posponer retiros de socios."
+                  simEngine.cajaFinalSim < 0 || simEngine.tieneQuiebre
+                    ? `Alerta de iliquidez en ${selectedYear}. Se proyecta un déficit máximo de -$ ${fmt(simEngine.deficitMaximo)} en ${simEngine.mesMenorCaja?.n}. Recomendación: Inyectar capital mediante el botón "Equilibrar Caja Automáticamente", postergar desembolsos de obra o renegociar pasivos financieros.`
                     : simEngine.diasCajaSim > 20
-                    ? "Excelente colchón financiero. El flujo neto permite sostener la velocidad de obra proyectada e incluso acelerar compras de materiales acopiados para ganarle a la inflación CAC."
-                    : "Escenario balanceado pero ajustado. Se sugiere mantener vigilancia estricta sobre la cobranza de cuotas mensuales y el cumplimiento estricto de los cupos de socios."
+                    ? `Excelente solvencia y cobertura de liquidez (${simEngine.diasCajaSim} días). El flujo proyectado permite sostener el ritmo físico de obra de ${selectedYear} e incluso evaluar compras anticipadas de materiales acopiados para fijar costos frente al CAC.`
+                    : `Escenario operativo equilibrado pero vigilante (${simEngine.diasCajaSim} días de caja). Se sugiere mantener control férreo sobre el ritmo de cobranza de cuotas y asegurar el cumplimiento íntegro de los cupos de socios.`
                 }
               </div>
             </div>

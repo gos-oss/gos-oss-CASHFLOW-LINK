@@ -9,7 +9,8 @@ import {
   RefreshCw, AlertTriangle, Pencil, Save, TrendingUp, TrendingDown,
   Info, Calendar, Filter, HelpCircle, CheckCircle2, ArrowUpRight,
   DollarSign, Building2, HardHat, FileText, Activity,
-  Plus, Trash2, X, Sparkles, ChevronDown, ChevronUp, Award, Layers
+  Plus, Trash2, X, Sparkles, ChevronDown, ChevronUp, Award, Layers,
+  RotateCcw, BarChart3
 } from "lucide-react";
 
 const colorLineaSuave = "#E2E8F0";
@@ -198,6 +199,21 @@ const HIST_CAC = [
   { mes: "Jul-26", fecha: "2026-07-20", valor: 21960.7, variacion: 1.5 },
   { mes: "Ago-26", fecha: "2026-08-20", valor: 22480.2, variacion: 2.4 },
   { mes: "Sep-26", fecha: "2026-09-20", valor: 22950.0, variacion: 2.1 },
+  { mes: "Oct-26", fecha: "2026-10-20", valor: 23450.0, variacion: 2.2 },
+  { mes: "Nov-26", fecha: "2026-11-20", valor: 23980.0, variacion: 2.3 },
+  { mes: "Dic-26", fecha: "2026-12-20", valor: 24510.0, variacion: 2.2 },
+  { mes: "Ene-27", fecha: "2027-01-20", valor: 25050.0, variacion: 2.2 },
+  { mes: "Feb-27", fecha: "2027-02-20", valor: 25580.0, variacion: 2.1 },
+  { mes: "Mar-27", fecha: "2027-03-20", valor: 26190.0, variacion: 2.4 },
+  { mes: "Abr-27", fecha: "2027-04-20", valor: 26800.0, variacion: 2.3 },
+  { mes: "May-27", fecha: "2027-05-20", valor: 27410.0, variacion: 2.3 },
+  { mes: "Jun-27", fecha: "2027-06-20", valor: 28040.0, variacion: 2.3 },
+  { mes: "Jul-27", fecha: "2027-07-20", valor: 28660.0, variacion: 2.2 },
+  { mes: "Ago-27", fecha: "2027-08-20", valor: 29290.0, variacion: 2.2 },
+  { mes: "Sep-27", fecha: "2027-09-20", valor: 29930.0, variacion: 2.2 },
+  { mes: "Oct-27", fecha: "2027-10-20", valor: 30590.0, variacion: 2.2 },
+  { mes: "Nov-27", fecha: "2027-11-20", valor: 31260.0, variacion: 2.2 },
+  { mes: "Dic-27", fecha: "2027-12-20", valor: 31950.0, variacion: 2.2 },
 ];
 
 const HIST_MAT = [
@@ -216,6 +232,21 @@ const HIST_MAT = [
   { mes: "Jul-26", fecha: "2026-07-20", valor: 24149.4, variacion: 1.0 },
   { mes: "Ago-26", fecha: "2026-08-20", valor: 24690.0, variacion: 2.2 },
   { mes: "Sep-26", fecha: "2026-09-20", valor: 25150.0, variacion: 1.9 },
+  { mes: "Oct-26", fecha: "2026-10-20", valor: 25680.0, variacion: 2.1 },
+  { mes: "Nov-26", fecha: "2026-11-20", valor: 26220.0, variacion: 2.1 },
+  { mes: "Dic-26", fecha: "2026-12-20", valor: 26770.0, variacion: 2.1 },
+  { mes: "Ene-27", fecha: "2027-01-20", valor: 27330.0, variacion: 2.1 },
+  { mes: "Feb-27", fecha: "2027-02-20", valor: 27880.0, variacion: 2.0 },
+  { mes: "Mar-27", fecha: "2027-03-20", valor: 28520.0, variacion: 2.3 },
+  { mes: "Abr-27", fecha: "2027-04-20", valor: 29150.0, variacion: 2.2 },
+  { mes: "May-27", fecha: "2027-05-20", valor: 29790.0, variacion: 2.2 },
+  { mes: "Jun-27", fecha: "2027-06-20", valor: 30440.0, variacion: 2.2 },
+  { mes: "Jul-27", fecha: "2027-07-20", valor: 31080.0, variacion: 2.1 },
+  { mes: "Ago-27", fecha: "2027-08-20", valor: 31730.0, variacion: 2.1 },
+  { mes: "Sep-27", fecha: "2027-09-20", valor: 32390.0, variacion: 2.1 },
+  { mes: "Oct-27", fecha: "2027-10-20", valor: 33070.0, variacion: 2.1 },
+  { mes: "Nov-27", fecha: "2027-11-20", valor: 33760.0, variacion: 2.1 },
+  { mes: "Dic-27", fecha: "2027-12-20", valor: 34470.0, variacion: 2.1 },
 ];
 
 const HIST_MO = [
@@ -234,6 +265,21 @@ const HIST_MO = [
   { mes: "Jul-26", fecha: "2026-07-20", valor: 18752.8, variacion: 2.3 },
   { mes: "Ago-26", fecha: "2026-08-20", valor: 19280.0, variacion: 2.8 },
   { mes: "Sep-26", fecha: "2026-09-20", valor: 19800.0, variacion: 2.7 },
+  { mes: "Oct-26", fecha: "2026-10-20", valor: 20280.0, variacion: 2.4 },
+  { mes: "Nov-26", fecha: "2026-11-20", valor: 20790.0, variacion: 2.5 },
+  { mes: "Dic-26", fecha: "2026-12-20", valor: 21310.0, variacion: 2.5 },
+  { mes: "Ene-27", fecha: "2027-01-20", valor: 21820.0, variacion: 2.4 },
+  { mes: "Feb-27", fecha: "2027-02-20", valor: 22320.0, variacion: 2.3 },
+  { mes: "Mar-27", fecha: "2027-03-20", valor: 22900.0, variacion: 2.6 },
+  { mes: "Abr-27", fecha: "2027-04-20", valor: 23470.0, variacion: 2.5 },
+  { mes: "May-27", fecha: "2027-05-20", valor: 24060.0, variacion: 2.5 },
+  { mes: "Jun-27", fecha: "2027-06-20", valor: 24710.0, variacion: 2.7 },
+  { mes: "Jul-27", fecha: "2027-07-20", valor: 25280.0, variacion: 2.3 },
+  { mes: "Ago-27", fecha: "2027-08-20", valor: 25860.0, variacion: 2.3 },
+  { mes: "Sep-27", fecha: "2027-09-20", valor: 26460.0, variacion: 2.3 },
+  { mes: "Oct-27", fecha: "2027-10-20", valor: 27070.0, variacion: 2.3 },
+  { mes: "Nov-27", fecha: "2027-11-20", valor: 27720.0, variacion: 2.4 },
+  { mes: "Dic-27", fecha: "2027-12-20", valor: 28390.0, variacion: 2.4 },
 ];
 
 /* ═══════ Histórico Base de Hormigón H-21 ═══════ */
@@ -253,26 +299,25 @@ const DEFAULT_HIST_H21 = [
   { id_mes: "2026-07", etiqueta: "Jul-26", fecha: "2026-07-15", valor: 174500 },
   { id_mes: "2026-08", etiqueta: "Ago-26", fecha: "2026-08-15", valor: 179200 },
   { id_mes: "2026-09", etiqueta: "Sep-26", fecha: "2026-09-15", valor: 184500 },
+  { id_mes: "2026-10", etiqueta: "Oct-26", fecha: "2026-10-15", valor: 189100 },
+  { id_mes: "2026-11", etiqueta: "Nov-26", fecha: "2026-11-15", valor: 193800 },
+  { id_mes: "2026-12", etiqueta: "Dic-26", fecha: "2026-12-15", valor: 198600 },
+  { id_mes: "2027-01", etiqueta: "Ene-27", fecha: "2027-01-15", valor: 203500 },
+  { id_mes: "2027-02", etiqueta: "Feb-27", fecha: "2027-02-15", valor: 208200 },
+  { id_mes: "2027-03", etiqueta: "Mar-27", fecha: "2027-03-15", valor: 213400 },
+  { id_mes: "2027-04", etiqueta: "Abr-27", fecha: "2027-04-15", valor: 218500 },
+  { id_mes: "2027-05", etiqueta: "May-27", fecha: "2027-05-15", valor: 223800 },
+  { id_mes: "2027-06", etiqueta: "Jun-27", fecha: "2027-06-15", valor: 229200 },
+  { id_mes: "2027-07", etiqueta: "Jul-27", fecha: "2027-07-15", valor: 234500 },
+  { id_mes: "2027-08", etiqueta: "Ago-27", fecha: "2027-08-15", valor: 239800 },
+  { id_mes: "2027-09", etiqueta: "Sep-27", fecha: "2027-09-15", valor: 245300 },
+  { id_mes: "2027-10", etiqueta: "Oct-27", fecha: "2027-10-15", valor: 250900 },
+  { id_mes: "2027-11", etiqueta: "Nov-27", fecha: "2027-11-15", valor: 256700 },
+  { id_mes: "2027-12", etiqueta: "Dic-27", fecha: "2027-12-15", valor: 262600 },
 ];
 
-/* ═══════ Histórico Base del Índice Link (Puntos base y Valor Absoluto) ═══════ */
-const DEFAULT_HIST_INDICE_LINK = [
-  { id_mes: "2025-07", etiqueta: "Jul 2025", fecha: "2025-07-15", indice: 100.0, valor_absoluto: 1120000, observaciones: "Base inicial Q3 2025" },
-  { id_mes: "2025-08", etiqueta: "Ago 2025", fecha: "2025-08-15", indice: 104.2, valor_absoluto: 1180000, observaciones: "Ajuste cartera" },
-  { id_mes: "2025-09", etiqueta: "Sep 2025", fecha: "2025-09-15", indice: 109.1, valor_absoluto: 1250000, observaciones: "Cierre Q3" },
-  { id_mes: "2025-10", etiqueta: "Oct 2025", fecha: "2025-10-15", indice: 114.6, valor_absoluto: 1330000, observaciones: "Lanzamiento +DUO" },
-  { id_mes: "2025-11", etiqueta: "Nov 2025", fecha: "2025-11-15", indice: 120.3, valor_absoluto: 1410000, observaciones: "Avance obra hormigón" },
-  { id_mes: "2025-12", etiqueta: "Dic 2025", fecha: "2025-12-15", indice: 126.8, valor_absoluto: 1500000, observaciones: "Cierre anual 2025" },
-  { id_mes: "2026-01", etiqueta: "Ene 2026", fecha: "2026-01-15", indice: 133.5, valor_absoluto: 1590000, observaciones: "Inicio presupuesto 2026" },
-  { id_mes: "2026-02", etiqueta: "Feb 2026", fecha: "2026-02-15", indice: 139.8, valor_absoluto: 1680000, observaciones: "Reajuste cuotas preventa" },
-  { id_mes: "2026-03", etiqueta: "Mar 2026", fecha: "2026-03-15", indice: 146.4, valor_absoluto: 1770000, observaciones: "Lanzamiento Torre Green" },
-  { id_mes: "2026-04", etiqueta: "Abr 2026", fecha: "2026-04-15", indice: 152.8, valor_absoluto: 1860000, observaciones: "Certificados de obra Q1" },
-  { id_mes: "2026-05", etiqueta: "May 2026", fecha: "2026-05-15", indice: 159.2, valor_absoluto: 1950000, observaciones: "Actualización cartera socios" },
-  { id_mes: "2026-06", etiqueta: "Jun 2026", fecha: "2026-06-15", indice: 165.5, valor_absoluto: 2040000, observaciones: "Cierre semestral S1" },
-  { id_mes: "2026-07", etiqueta: "Jul 2026", fecha: "2026-07-15", indice: 171.8, valor_absoluto: 2130000, observaciones: "Hito estructural Marcos Paz" },
-  { id_mes: "2026-08", etiqueta: "Ago 2026", fecha: "2026-08-15", indice: 178.0, valor_absoluto: 2220000, observaciones: "Cobranzas cupos socios" },
-  { id_mes: "2026-09", etiqueta: "Sep 2026", fecha: "2026-09-15", indice: 184.2, valor_absoluto: 2310000, observaciones: "Valuación corriente al día" },
-];
+/* ═══════ Histórico Base del Índice Link (Inicia en 0 para carga manual) ═══════ */
+const DEFAULT_HIST_INDICE_LINK = [];
 
 function normalizarRegistrosIndice(records) {
   const sorted = [...(records || [])].sort((a, b) => (a.id_mes || "").localeCompare(b.id_mes || ""));
@@ -326,7 +371,9 @@ function filtrarPorPeriodo(arrayDatos, periodo = "1A") {
   else if (periodo === "3M") diasAtras = 95;
   else if (periodo === "6M") diasAtras = 185;
   else if (periodo === "1A") diasAtras = 366;
-  else if (periodo === "2026") {
+  else if (periodo === "2027") {
+    return normalizados.filter(d => d._sortDate && d._sortDate.startsWith("2027"));
+  } else if (periodo === "2026") {
     return normalizados.filter(d => d._sortDate && d._sortDate.startsWith("2026"));
   } else if (periodo === "2025") {
     return normalizados.filter(d => d._sortDate && d._sortDate.startsWith("2025"));
@@ -366,24 +413,32 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
   const [toast, setToast] = useState("");
 
   // ESTADO ÍNDICE LINK (PROPIETARIO LINK INVERSIONES)
+  // Iniciamos estrictamente en 0 (vacío) para comenzar la carga manual
   const [indiceLink, setIndiceLink] = useState(() => {
     try {
+      const resetFlag = localStorage.getItem("cf_indice_link_zero_v1");
+      if (!resetFlag) {
+        localStorage.removeItem("cf_indice_link_data");
+        localStorage.setItem("cf_indice_link_zero_v1", "true");
+        localStorage.setItem("cf_indice_link_data", JSON.stringify([]));
+        return [];
+      }
       const local = localStorage.getItem("cf_indice_link_data");
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
-    return DEFAULT_HIST_INDICE_LINK;
+    return [];
   });
 
   const [modalIndiceOpen, setModalIndiceOpen] = useState(false);
   const [editandoIndiceId, setEditandoIndiceId] = useState(null);
   const [indiceDraft, setIndiceDraft] = useState({
-    id_mes: "2026-10",
+    id_mes: "2026-09",
     anio: 2026,
-    mesIdx: 10,
-    etiqueta: "Oct 2026",
+    mesIdx: 9,
+    etiqueta: "Sep 2026",
     indice: "",
     valor_absoluto: "",
     observaciones: ""
@@ -453,6 +508,14 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
 
   const loadIndiceLink = useCallback(async () => {
     try {
+      const resetFlag = localStorage.getItem("cf_indice_link_zero_v1");
+      if (!resetFlag) {
+        localStorage.removeItem("cf_indice_link_data");
+        localStorage.setItem("cf_indice_link_zero_v1", "true");
+        localStorage.setItem("cf_indice_link_data", JSON.stringify([]));
+        setIndiceLink([]);
+        return;
+      }
       const { data, error } = await supabase.from("cf_indice_link").select("*").order("id_mes", { ascending: true });
       if (!error && data && data.length > 0) {
         setIndiceLink(data);
@@ -466,13 +529,13 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
       const local = localStorage.getItem("cf_indice_link_data");
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setIndiceLink(parsed);
           return;
         }
       }
-      localStorage.setItem("cf_indice_link_data", JSON.stringify(DEFAULT_HIST_INDICE_LINK));
     } catch {}
+    setIndiceLink([]);
   }, []);
 
   const fetchAll = useCallback(async () => {
@@ -491,7 +554,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
     const sorted = [...indiceLink].sort((a, b) => (a.id_mes || "").localeCompare(b.id_mes || ""));
     const ult = sorted[sorted.length - 1];
     let nextY = 2026;
-    let nextM = 10;
+    let nextM = 9;
     if (ult && ult.id_mes) {
       const parts = ult.id_mes.split("-").map(Number);
       if (parts[1] === 12) {
@@ -512,11 +575,24 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
       anio: nextY,
       mesIdx: nextM,
       etiqueta,
-      indice: ult ? String(Math.round(ult.indice * 1.03 * 10) / 10) : "100.0",
-      valor_absoluto: ult ? String(Math.round(ult.valor_absoluto * 1.035)) : "1500000",
+      indice: "",
+      valor_absoluto: "",
       observaciones: ""
     });
     setModalIndiceOpen(true);
+  };
+
+  const reiniciarIndiceACero = async () => {
+    if (!window.confirm("¿Confirmas reiniciar todos los registros del Índice Link a 0 para comenzar la carga desde cero?")) return;
+    setIndiceLink([]);
+    try {
+      localStorage.setItem("cf_indice_link_data", JSON.stringify([]));
+      await supabase.from("cf_indice_link").delete().neq("id_mes", "");
+    } catch (e) {
+      console.warn("Error al resetear Supabase:", e);
+    }
+    setToast("Valores del Índice Link reiniciados a 0");
+    setTimeout(() => setToast(""), 3000);
   };
 
   const abrirModalEditarIndice = (row) => {
@@ -786,6 +862,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                 { id: "1M", label: "1 Mes (30D)" },
                 { id: "3M", label: "3 Meses (Trimestre)" },
                 { id: "6M", label: "6 Meses (Semestre)" },
+                { id: "2027", label: "Año 2027 (Proy)" },
                 { id: "2026", label: "Año 2026" },
                 { id: "2025", label: "Año 2025" },
                 { id: "2024", label: "Año 2024" },
@@ -969,6 +1046,29 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                 Historial ({indiceLinkNormalizado.length})
                 {mostrarHistorialIndice ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
+
+              {/* Botón para reiniciar a 0 si hay registros cargados */}
+              {indiceLink.length > 0 && (
+                <button
+                  onClick={reiniciarIndiceACero}
+                  title="Reiniciar todos los registros del Índice Link a 0"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    background: "#FEF2F2",
+                    border: "1px solid #FECACA",
+                    color: "#DC2626",
+                    borderRadius: 8,
+                    padding: "8px 11px",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  <RotateCcw size={13} /> Reiniciar a 0
+                </button>
+              )}
             </div>
           </div>
 
@@ -993,12 +1093,12 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                   Índice Link Actual
                 </span>
                 <span style={{ fontSize: 10, fontFamily: tokens.fontMono, color: tokens.textFaint, background: "#F4F0E6", padding: "1px 5px", borderRadius: 4 }}>
-                  {ultIndice?.etiqueta || "—"}
+                  {ultIndice?.etiqueta || "Inicial (0)"}
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}>
                 <span style={{ fontFamily: tokens.fontDisplay, fontSize: 26, fontWeight: 700, color: tokens.ink }}>
-                  {ultIndice ? fmtNum(ultIndice.indice, 1) : "—"}
+                  {ultIndice ? fmtNum(ultIndice.indice, 1) : "0.0"}
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: tokens.textMuted }}>pts</span>
               </div>
@@ -1018,7 +1118,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                   {varIndiceMes >= 0 ? "+" : ""}{fmtNum(varIndiceMes, 1)}% mensual
                 </span>
                 <span style={{ fontSize: 11, color: tokens.textMuted }}>
-                  Acumulado: <strong>+{fmtNum(acumuladoIndiceTotal, 1)}%</strong>
+                  Acumulado: <strong>{acumuladoIndiceTotal > 0 ? "+" : ""}{fmtNum(acumuladoIndiceTotal, 1)}%</strong>
                 </span>
               </div>
             </div>
@@ -1043,7 +1143,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}>
                 <span style={{ fontFamily: tokens.fontDisplay, fontSize: 24, fontWeight: 700, color: tokens.ink }}>
-                  {ultIndice ? fmtPesos(ultIndice.valor_absoluto) : "—"}
+                  {ultIndice ? fmtPesos(ultIndice.valor_absoluto) : "$ 0"}
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
@@ -1061,7 +1161,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                   {varAbsolutoMes >= 0 ? "+" : ""}{fmtNum(varAbsolutoMes, 1)}% ({deltaAbsolutoPesos >= 0 ? "+$" : "-$"}{fmtNum(Math.abs(deltaAbsolutoPesos) / 1000, 0)}k)
                 </span>
                 <span style={{ fontSize: 11, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
-                  USD ~{ultIndice ? fmtNum(Math.round(ultIndice.valor_absoluto / (dolarMep || dolarBlue || 1350)), 0) : "—"}
+                  USD ~{ultIndice ? fmtNum(Math.round(ultIndice.valor_absoluto / (dolarMep || dolarBlue || 1350)), 0) : "0"}
                 </span>
               </div>
             </div>
@@ -1083,14 +1183,22 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                 <span style={{ fontSize: 10, color: tokens.textMuted }}>vs Macro</span>
               </div>
               <div style={{ fontSize: 12, color: tokens.ink, lineHeight: 1.5, marginTop: 4 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                  <span style={{ color: tokens.textMuted }}>vs CAC Mat (costo obra):</span>
-                  <strong style={{ color: tokens.positive }}>+{fmtNum(Math.max(1.8, varIndiceMes - 1.2), 1)}% real</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: tokens.textMuted }}>vs Dólar MEP ({fmtNum(dolarMep, 0)}):</span>
-                  <strong style={{ color: tokens.ink }}>+{fmtNum(Math.max(0.9, varAbsolutoMes - 0.8), 1)}% mensual</strong>
-                </div>
+                {ultIndice ? (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                      <span style={{ color: tokens.textMuted }}>vs CAC Mat (costo obra):</span>
+                      <strong style={{ color: tokens.positive }}>+{fmtNum(Math.max(1.8, varIndiceMes - 1.2), 1)}% real</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: tokens.textMuted }}>vs Dólar MEP ({fmtNum(dolarMep, 0)}):</span>
+                      <strong style={{ color: tokens.ink }}>+{fmtNum(Math.max(0.9, varAbsolutoMes - 0.8), 1)}% mensual</strong>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: tokens.textMuted, fontSize: 11.5, fontStyle: "italic", paddingTop: 4 }}>
+                    Sin datos aún. Se calculará automáticamente al ingresar el primer registro.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1110,14 +1218,14 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                   Estado de Carga
                 </span>
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: tokens.ink, marginTop: 4 }}>
-                  {ultIndice?.etiqueta || "Sin datos"}
+                  {ultIndice?.etiqueta || "En cero (0 registros)"}
                 </div>
                 <div style={{ fontSize: 11, color: tokens.textMuted }}>
-                  {ultIndice?.observaciones || "Serie histórica al día"}
+                  {ultIndice?.observaciones || "Listo para iniciar la carga manual"}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                {ultIndice && (
+                {ultIndice ? (
                   <button
                     onClick={() => abrirModalEditarIndice(ultIndice)}
                     style={{
@@ -1135,6 +1243,25 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                     }}
                   >
                     <Pencil size={11} /> Editar Último
+                  </button>
+                ) : (
+                  <button
+                    onClick={abrirModalNuevoIndice}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      background: tokens.goldSoft,
+                      border: `1px solid ${tokens.gold}55`,
+                      borderRadius: 6,
+                      padding: "4px 8px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      color: tokens.gold
+                    }}
+                  >
+                    <Plus size={11} /> Cargar Ahora
                   </button>
                 )}
                 <span style={{ fontSize: 10.5, color: tokens.textFaint, alignSelf: "center" }}>
@@ -1185,122 +1312,176 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
             border: `1px solid ${colorLineaSuave}`,
             borderRadius: 10,
             padding: "16px 12px 8px",
-            height: 280
+            height: 280,
+            display: "flex",
+            flexDirection: "column"
           }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={indiceLinkFiltrado} margin={{ top: 10, right: 25, left: 10, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="gradIndice" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={tokens.gold} stopOpacity={0.25} />
-                    <stop offset="95%" stopColor={tokens.gold} stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="gradAbsoluto" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                <XAxis
-                  dataKey="etiqueta"
-                  tick={{ fontSize: 11, fill: tokens.textMuted }}
-                  axisLine={{ stroke: "#CBD5E1" }}
-                  tickLine={false}
-                />
-                {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "indice") && (
-                  <YAxis
-                    yAxisId="left"
-                    domain={["auto", "auto"]}
-                    tick={{ fontSize: 10.5, fill: tokens.gold }}
-                    axisLine={{ stroke: tokens.gold }}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v} pts`}
-                  />
-                )}
-                {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "absoluto") && (
-                  <YAxis
-                    yAxisId={vistaGraficoIndice === "ambos" ? "right" : "left"}
-                    orientation={vistaGraficoIndice === "ambos" ? "right" : "left"}
-                    domain={["auto", "auto"]}
-                    tick={{ fontSize: 10.5, fill: "#4F46E5" }}
-                    axisLine={{ stroke: "#4F46E5" }}
-                    tickLine={false}
-                    tickFormatter={(v) => `$${fmtNum(v / 1000000, 1)}M`}
-                  />
-                )}
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload || !payload.length) return null;
-                    const d = payload[0].payload;
-                    return (
-                      <div style={{
-                        background: "#0F172A",
-                        color: "#FFFFFF",
-                        padding: "10px 14px",
-                        borderRadius: 8,
-                        boxShadow: "0 6px 18px rgba(0,0,0,0.3)",
-                        fontSize: 12,
-                        minWidth: 190
-                      }}>
-                        <div style={{ fontWeight: 700, borderBottom: "1px solid #334155", paddingBottom: 4, marginBottom: 6, color: tokens.gold }}>
-                          {d.etiqueta || d.id_mes}
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                          <span style={{ color: "#94A3B8" }}>Índice Link:</span>
-                          <strong style={{ color: tokens.gold }}>{fmtNum(d.indice, 1)} pts ({d.variacion_indice >= 0 ? "+" : ""}{fmtNum(d.variacion_indice, 1)}%)</strong>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                          <span style={{ color: "#94A3B8" }}>Valor Absoluto:</span>
-                          <strong style={{ color: "#A5B4FC" }}>{fmtPesos(d.valor_absoluto)}</strong>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                          <span style={{ color: "#94A3B8" }}>Var. Absoluta:</span>
-                          <strong style={{ color: d.variacion_absoluto >= 0 ? "#4ADE80" : "#F87171" }}>
-                            {d.variacion_absoluto >= 0 ? "+" : ""}{fmtNum(d.variacion_absoluto, 1)}%
-                          </strong>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
-                          <span style={{ color: "#94A3B8" }}>Equivalente USD:</span>
-                          <span style={{ fontFamily: tokens.fontMono, color: "#FFFFFF" }}>
-                            USD ~{fmtNum(Math.round(d.valor_absoluto / (dolarMep || dolarBlue || 1350)), 0)}
-                          </span>
-                        </div>
-                        {d.observaciones && (
-                          <div style={{ marginTop: 5, fontSize: 10.5, color: "#CBD5E1", fontStyle: "italic" }}>
-                            Nota: {d.observaciones}
-                          </div>
-                        )}
-                      </div>
-                    );
+            {indiceLinkFiltrado.length === 0 ? (
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                gap: 10,
+                textAlign: "center",
+                padding: "20px"
+              }}>
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "#F1F5F9",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                  <BarChart3 size={22} color={tokens.textMuted} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: tokens.ink }}>
+                    Índice Link en 0 · Listo para empezar a cargar
+                  </div>
+                  <div style={{ fontSize: 11.5, color: tokens.textMuted, maxWidth: 440, margin: "4px auto 0" }}>
+                    Actualmente no hay registros cargados. Presiona el botón a continuación para ingresar el primer valor del índice y su importe absoluto en pesos.
+                  </div>
+                </div>
+                <button
+                  onClick={abrirModalNuevoIndice}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: tokens.gold,
+                    color: "#FFFFFF",
+                    border: "none",
+                    borderRadius: 7,
+                    padding: "8px 16px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 6px rgba(184, 134, 42, 0.25)"
                   }}
-                />
-                {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "indice") && (
-                  <Area
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="indice"
-                    name="Índice Link (pts)"
-                    stroke={tokens.gold}
-                    strokeWidth={2.5}
-                    fill="url(#gradIndice)"
-                    dot={{ r: 3, fill: tokens.gold }}
-                    activeDot={{ r: 5, fill: tokens.gold }}
+                >
+                  <Plus size={14} strokeWidth={2.5} /> Cargar Primer Dato
+                </button>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={indiceLinkFiltrado} margin={{ top: 10, right: 25, left: 10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="gradIndice" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={tokens.gold} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={tokens.gold} stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="gradAbsoluto" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#4F46E5" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                  <XAxis
+                    dataKey="etiqueta"
+                    tick={{ fontSize: 11, fill: tokens.textMuted }}
+                    axisLine={{ stroke: "#CBD5E1" }}
+                    tickLine={false}
                   />
-                )}
-                {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "absoluto") && (
-                  <Area
-                    yAxisId={vistaGraficoIndice === "ambos" ? "right" : "left"}
-                    type="monotone"
-                    dataKey="valor_absoluto"
-                    name="Valor Absoluto ($)"
-                    stroke="#4F46E5"
-                    strokeWidth={2}
-                    fill="url(#gradAbsoluto)"
-                    dot={{ r: 3, fill: "#4F46E5" }}
-                    activeDot={{ r: 5, fill: "#4F46E5" }}
+                  {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "indice") && (
+                    <YAxis
+                      yAxisId="left"
+                      domain={["auto", "auto"]}
+                      tick={{ fontSize: 10.5, fill: tokens.gold }}
+                      axisLine={{ stroke: tokens.gold }}
+                      tickLine={false}
+                      tickFormatter={(v) => `${v} pts`}
+                    />
+                  )}
+                  {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "absoluto") && (
+                    <YAxis
+                      yAxisId={vistaGraficoIndice === "ambos" ? "right" : "left"}
+                      orientation={vistaGraficoIndice === "ambos" ? "right" : "left"}
+                      domain={["auto", "auto"]}
+                      tick={{ fontSize: 10.5, fill: "#4F46E5" }}
+                      axisLine={{ stroke: "#4F46E5" }}
+                      tickLine={false}
+                      tickFormatter={(v) => `$${fmtNum(v / 1000000, 1)}M`}
+                    />
+                  )}
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div style={{
+                          background: "#0F172A",
+                          color: "#FFFFFF",
+                          padding: "10px 14px",
+                          borderRadius: 8,
+                          boxShadow: "0 6px 18px rgba(0,0,0,0.3)",
+                          fontSize: 12,
+                          minWidth: 190
+                        }}>
+                          <div style={{ fontWeight: 700, borderBottom: "1px solid #334155", paddingBottom: 4, marginBottom: 6, color: tokens.gold }}>
+                            {d.etiqueta || d.id_mes}
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <span style={{ color: "#94A3B8" }}>Índice Link:</span>
+                            <strong style={{ color: tokens.gold }}>{fmtNum(d.indice, 1)} pts ({d.variacion_indice >= 0 ? "+" : ""}{fmtNum(d.variacion_indice, 1)}%)</strong>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <span style={{ color: "#94A3B8" }}>Valor Absoluto:</span>
+                            <strong style={{ color: "#A5B4FC" }}>{fmtPesos(d.valor_absoluto)}</strong>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <span style={{ color: "#94A3B8" }}>Var. Absoluta:</span>
+                            <strong style={{ color: d.variacion_absoluto >= 0 ? "#4ADE80" : "#F87171" }}>
+                              {d.variacion_absoluto >= 0 ? "+" : ""}{fmtNum(d.variacion_absoluto, 1)}%
+                            </strong>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
+                            <span style={{ color: "#94A3B8" }}>Equivalente USD:</span>
+                            <span style={{ fontFamily: tokens.fontMono, color: "#FFFFFF" }}>
+                              USD ~{fmtNum(Math.round(d.valor_absoluto / (dolarMep || dolarBlue || 1350)), 0)}
+                            </span>
+                          </div>
+                          {d.observaciones && (
+                            <div style={{ marginTop: 5, fontSize: 10.5, color: "#CBD5E1", fontStyle: "italic" }}>
+                              Nota: {d.observaciones}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }}
                   />
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
+                  {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "indice") && (
+                    <Area
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="indice"
+                      name="Índice Link (pts)"
+                      stroke={tokens.gold}
+                      strokeWidth={2.5}
+                      fill="url(#gradIndice)"
+                      dot={{ r: 3, fill: tokens.gold }}
+                      activeDot={{ r: 5, fill: tokens.gold }}
+                    />
+                  )}
+                  {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "absoluto") && (
+                    <Area
+                      yAxisId={vistaGraficoIndice === "ambos" ? "right" : "left"}
+                      type="monotone"
+                      dataKey="valor_absoluto"
+                      name="Valor Absoluto ($)"
+                      stroke="#4F46E5"
+                      strokeWidth={2}
+                      fill="url(#gradAbsoluto)"
+                      dot={{ r: 3, fill: "#4F46E5" }}
+                      activeDot={{ r: 5, fill: "#4F46E5" }}
+                    />
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           {/* TABLA HISTÓRICA DESPLEGABLE CON EDICIÓN Y ELIMINACIÓN */}
@@ -1350,76 +1531,89 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...indiceLinkNormalizado].reverse().map((row) => {
-                    const equivUsd = Math.round(row.valor_absoluto / (dolarMep || dolarBlue || 1350));
-                    return (
-                      <tr key={row.id_mes} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
-                        <td style={{ padding: "8px 10px", fontWeight: 600, color: tokens.ink }}>
-                          {row.etiqueta || row.id_mes}
-                        </td>
-                        <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.gold }}>
-                          {fmtNum(row.indice, 1)}
-                        </td>
-                        <td style={{
-                          padding: "8px 10px",
-                          textAlign: "right",
-                          fontWeight: 600,
-                          color: row.variacion_indice >= 0 ? tokens.positive : tokens.negative
-                        }}>
-                          {row.variacion_indice >= 0 ? "+" : ""}{fmtNum(row.variacion_indice, 1)}%
-                        </td>
-                        <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: "#4F46E5" }}>
-                          {fmtPesos(row.valor_absoluto)}
-                        </td>
-                        <td style={{
-                          padding: "8px 10px",
-                          textAlign: "right",
-                          fontWeight: 600,
-                          color: row.variacion_absoluto >= 0 ? tokens.positive : tokens.negative
-                        }}>
-                          {row.variacion_absoluto >= 0 ? "+" : ""}{fmtNum(row.variacion_absoluto, 1)}%
-                        </td>
-                        <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.ink }}>
-                          USD {fmtNum(equivUsd, 0)}
-                        </td>
-                        <td style={{ padding: "8px 10px", color: tokens.textMuted, fontSize: 11 }}>
-                          {row.observaciones || "—"}
-                        </td>
-                        <td style={{ padding: "8px 10px", textAlign: "center" }}>
-                          <div style={{ display: "inline-flex", gap: 4 }}>
-                            <button
-                              onClick={() => abrirModalEditarIndice(row)}
-                              title="Editar este registro"
-                              style={{
-                                background: "#FFFFFF",
-                                border: `1px solid ${colorLineaSuave}`,
-                                borderRadius: 4,
-                                padding: "3px 6px",
-                                cursor: "pointer",
-                                color: tokens.ink
-                              }}
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              onClick={() => eliminarIndiceLink(row.id_mes)}
-                              title="Eliminar registro"
-                              style={{
-                                background: "#FEF2F2",
-                                border: "1px solid #FECACA",
-                                color: "#DC2626",
-                                borderRadius: 4,
-                                padding: "3px 6px",
-                                cursor: "pointer"
-                              }}
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {indiceLinkNormalizado.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ padding: "28px 12px", textAlign: "center", color: tokens.textMuted }}>
+                        <div style={{ fontWeight: 600, color: tokens.ink, marginBottom: 4, fontSize: 13 }}>
+                          No hay registros cargados aún · Valores en 0
+                        </div>
+                        <div style={{ fontSize: 11.5, color: tokens.textMuted }}>
+                          Presiona el botón <strong>"Agregar Registro"</strong> para ingresar el primer dato del Índice Link.
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    [...indiceLinkNormalizado].reverse().map((row) => {
+                      const equivUsd = Math.round(row.valor_absoluto / (dolarMep || dolarBlue || 1350));
+                      return (
+                        <tr key={row.id_mes} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                          <td style={{ padding: "8px 10px", fontWeight: 600, color: tokens.ink }}>
+                            {row.etiqueta || row.id_mes}
+                          </td>
+                          <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.gold }}>
+                            {fmtNum(row.indice, 1)}
+                          </td>
+                          <td style={{
+                            padding: "8px 10px",
+                            textAlign: "right",
+                            fontWeight: 600,
+                            color: row.variacion_indice >= 0 ? tokens.positive : tokens.negative
+                          }}>
+                            {row.variacion_indice >= 0 ? "+" : ""}{fmtNum(row.variacion_indice, 1)}%
+                          </td>
+                          <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: "#4F46E5" }}>
+                            {fmtPesos(row.valor_absoluto)}
+                          </td>
+                          <td style={{
+                            padding: "8px 10px",
+                            textAlign: "right",
+                            fontWeight: 600,
+                            color: row.variacion_absoluto >= 0 ? tokens.positive : tokens.negative
+                          }}>
+                            {row.variacion_absoluto >= 0 ? "+" : ""}{fmtNum(row.variacion_absoluto, 1)}%
+                          </td>
+                          <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.ink }}>
+                            USD {fmtNum(equivUsd, 0)}
+                          </td>
+                          <td style={{ padding: "8px 10px", color: tokens.textMuted, fontSize: 11 }}>
+                            {row.observaciones || "—"}
+                          </td>
+                          <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                            <div style={{ display: "inline-flex", gap: 4 }}>
+                              <button
+                                onClick={() => abrirModalEditarIndice(row)}
+                                title="Editar este registro"
+                                style={{
+                                  background: "#FFFFFF",
+                                  border: `1px solid ${colorLineaSuave}`,
+                                  borderRadius: 4,
+                                  padding: "3px 6px",
+                                  cursor: "pointer",
+                                  color: tokens.ink
+                                }}
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                onClick={() => eliminarIndiceLink(row.id_mes)}
+                                title="Eliminar registro"
+                                style={{
+                                  background: "#FFFFFF",
+                                  border: "1px solid #FECACA",
+                                  color: "#DC2626",
+                                  borderRadius: 4,
+                                  padding: "3px 6px",
+                                  cursor: "pointer"
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
