@@ -572,7 +572,9 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                 { id: "3M", label: "3 Meses (Trimestre)" },
                 { id: "6M", label: "6 Meses (Semestre)" },
                 { id: "2026", label: "Año 2026" },
-                { id: "1A", label: "1 Año (12M)" },
+                { id: "2025", label: "Año 2025" },
+                { id: "2024", label: "Año 2024" },
+                { id: "1A", label: "Últimos 12M" },
                 { id: "todo", label: "Histórico Completo" },
               ].map((p) => {
                 const activo = periodoSeleccionado === p.id;
