@@ -2029,14 +2029,28 @@ export default function PresupuestoAnualTab({
 
           {/* ── RANKING DE PROYECTOS POR DESEMBOLSO ANUAL ── */}
           <div style={{ background: "#0F172A", borderRadius: 10, border: "1px solid #1E293B", padding: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
               <div>
                 <h4 style={{ margin: 0, color: "#fff", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
                   <HardHat size={16} color={tokens.gold} />
                   Ranking de Inversión por Proyecto {selectedYear}
                 </h4>
                 <span style={{ fontSize: 12, color: "#94A3B8" }}>
-                  Visualiza rápidamente qué obras concentran el mayor flujo de desembolsos.
+                  Visualiza rápidamente qué obras concentran el mayor flujo de desembolsos anuales.
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: tokens.gold,
+                  background: "rgba(217, 119, 6, 0.15)",
+                  border: "1px solid rgba(217, 119, 6, 0.35)",
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  letterSpacing: "0.2px"
+                }}>
+                  {enMillones ? "Cifras en Millones de Pesos ($ M)" : "Cifras en Pesos ($)"}
                 </span>
               </div>
             </div>
@@ -2053,6 +2067,8 @@ export default function PresupuestoAnualTab({
                 .filter(d => d.rawVal > 0 || (simulacionActiva && !d.activo))
                 .sort((a, b) => b.rawVal - a.rawVal);
 
+              const totalObras = ranking.reduce((acc, curr) => acc + (curr.rawVal || 0), 0);
+
               if (ranking.length === 0) {
                 return <div style={{ padding: "20px 0", textAlign: "center", color: "#64748B", fontSize: 12.5 }}>Ningún proyecto tiene monto asignado para {selectedYear}.</div>;
               }
@@ -2060,12 +2076,19 @@ export default function PresupuestoAnualTab({
               return (
                 <div style={{ height: Math.max(ranking.length * 36, 120) }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={ranking} layout="vertical" margin={{ top: 0, right: 80, left: 20, bottom: 0 }}>
+                    <BarChart data={ranking} layout="vertical" margin={{ top: 0, right: 110, left: 20, bottom: 0 }}>
                       <XAxis type="number" hide />
                       <YAxis type="category" dataKey="name" width={160} tick={{ fill: "#CBD5E1", fontSize: 12 }} axisLine={false} tickLine={false} />
                       <Tooltip
                         contentStyle={{ background: "#0B1120", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                        formatter={(val, name, item) => [formatMoney(item.payload.rawVal), "Total Anual"]}
+                        formatter={(val, name, item) => {
+                          const raw = item?.payload?.rawVal || 0;
+                          const pct = totalObras > 0 ? ((raw / totalObras) * 100).toFixed(1) : 0;
+                          return [
+                            `${formatMoney(raw, true)} (${pct}%) · ${formatUSD(raw)}`,
+                            "Desembolso Anual"
+                          ];
+                        }}
                       />
                       <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20}>
                         {ranking.map((d) => (
@@ -2078,8 +2101,15 @@ export default function PresupuestoAnualTab({
                         <LabelList
                           dataKey="value"
                           position="right"
-                          formatter={(v, item) => item ? formatMoney(item.rawVal) : v}
-                          style={{ fill: "#CBD5E1", fontSize: 11, fontFamily: tokens.fontMono, fontWeight: 600 }}
+                          formatter={(v) => {
+                            const num = Number(v);
+                            if (isNaN(num)) return "";
+                            if (enMillones) {
+                              return `$ ${num.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} M`;
+                            }
+                            return `$ ${Math.round(num).toLocaleString("es-AR")}`;
+                          }}
+                          style={{ fill: "#F1F5F9", fontSize: 11, fontFamily: tokens.fontMono, fontWeight: 600 }}
                         />
                       </Bar>
                     </BarChart>
