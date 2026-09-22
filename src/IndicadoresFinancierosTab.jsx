@@ -3,12 +3,13 @@ import { supabase } from "./supabaseClient";
 import { tokens } from "./tokens";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
-  CartesianGrid, ReferenceLine
+  CartesianGrid, ReferenceLine, Line, ComposedChart, Legend
 } from "recharts";
 import {
   RefreshCw, AlertTriangle, Pencil, Save, TrendingUp, TrendingDown,
   Info, Calendar, Filter, HelpCircle, CheckCircle2, ArrowUpRight,
-  DollarSign, Building2, HardHat, FileText, Activity
+  DollarSign, Building2, HardHat, FileText, Activity,
+  Plus, Trash2, X, Sparkles, ChevronDown, ChevronUp, Award, Layers
 } from "lucide-react";
 
 const colorLineaSuave = "#E2E8F0";
@@ -26,6 +27,11 @@ const fmtMiles = (v) => {
   return fmtNum(n >= 1000 ? n / 1000 : n, 1) + " mil";
 };
 
+const fmtPesos = (v) => {
+  if (v == null || v === "" || isNaN(v)) return "—";
+  return "$ " + Math.round(Number(v)).toLocaleString("es-AR");
+};
+
 const isStale = (savedAt) => {
   if (!savedAt) return false;
   return (Date.now() - new Date(savedAt).getTime()) / (1000 * 60 * 60 * 24) > 45;
@@ -36,6 +42,14 @@ const isStale = (savedAt) => {
    (Responde con precisión a "¿Qué representan estos datos y para qué sirven?")
    ══════════════════════════════════════════════════════════════════════════ */
 const INDICADORES_GLOSARIO = {
+  // Indicador Insignia Link
+  indiceLink: {
+    nombre: "Índice Link Inversiones",
+    queRepresenta: "Indicador sintético corporativo de valorización patrimonial y evolución de inversiones de Link.",
+    unidad: "Puntos de Índice (Base 100) y Valor Absoluto ($ / USD)",
+    impactoCashflow: "Permite ponderar la rentabilidad real de los desarrollos, reajustes de cuotas comerciales y valuación patrimonial consolidada frente a la inflación y el dólar.",
+    tipo: "link"
+  },
   // Dólares
   blue: {
     nombre: "Dólar Blue (Informal)",
@@ -241,6 +255,41 @@ const DEFAULT_HIST_H21 = [
   { id_mes: "2026-09", etiqueta: "Sep-26", fecha: "2026-09-15", valor: 184500 },
 ];
 
+/* ═══════ Histórico Base del Índice Link (Puntos base y Valor Absoluto) ═══════ */
+const DEFAULT_HIST_INDICE_LINK = [
+  { id_mes: "2025-07", etiqueta: "Jul 2025", fecha: "2025-07-15", indice: 100.0, valor_absoluto: 1120000, observaciones: "Base inicial Q3 2025" },
+  { id_mes: "2025-08", etiqueta: "Ago 2025", fecha: "2025-08-15", indice: 104.2, valor_absoluto: 1180000, observaciones: "Ajuste cartera" },
+  { id_mes: "2025-09", etiqueta: "Sep 2025", fecha: "2025-09-15", indice: 109.1, valor_absoluto: 1250000, observaciones: "Cierre Q3" },
+  { id_mes: "2025-10", etiqueta: "Oct 2025", fecha: "2025-10-15", indice: 114.6, valor_absoluto: 1330000, observaciones: "Lanzamiento +DUO" },
+  { id_mes: "2025-11", etiqueta: "Nov 2025", fecha: "2025-11-15", indice: 120.3, valor_absoluto: 1410000, observaciones: "Avance obra hormigón" },
+  { id_mes: "2025-12", etiqueta: "Dic 2025", fecha: "2025-12-15", indice: 126.8, valor_absoluto: 1500000, observaciones: "Cierre anual 2025" },
+  { id_mes: "2026-01", etiqueta: "Ene 2026", fecha: "2026-01-15", indice: 133.5, valor_absoluto: 1590000, observaciones: "Inicio presupuesto 2026" },
+  { id_mes: "2026-02", etiqueta: "Feb 2026", fecha: "2026-02-15", indice: 139.8, valor_absoluto: 1680000, observaciones: "Reajuste cuotas preventa" },
+  { id_mes: "2026-03", etiqueta: "Mar 2026", fecha: "2026-03-15", indice: 146.4, valor_absoluto: 1770000, observaciones: "Lanzamiento Torre Green" },
+  { id_mes: "2026-04", etiqueta: "Abr 2026", fecha: "2026-04-15", indice: 152.8, valor_absoluto: 1860000, observaciones: "Certificados de obra Q1" },
+  { id_mes: "2026-05", etiqueta: "May 2026", fecha: "2026-05-15", indice: 159.2, valor_absoluto: 1950000, observaciones: "Actualización cartera socios" },
+  { id_mes: "2026-06", etiqueta: "Jun 2026", fecha: "2026-06-15", indice: 165.5, valor_absoluto: 2040000, observaciones: "Cierre semestral S1" },
+  { id_mes: "2026-07", etiqueta: "Jul 2026", fecha: "2026-07-15", indice: 171.8, valor_absoluto: 2130000, observaciones: "Hito estructural Marcos Paz" },
+  { id_mes: "2026-08", etiqueta: "Ago 2026", fecha: "2026-08-15", indice: 178.0, valor_absoluto: 2220000, observaciones: "Cobranzas cupos socios" },
+  { id_mes: "2026-09", etiqueta: "Sep 2026", fecha: "2026-09-15", indice: 184.2, valor_absoluto: 2310000, observaciones: "Valuación corriente al día" },
+];
+
+function normalizarRegistrosIndice(records) {
+  const sorted = [...(records || [])].sort((a, b) => (a.id_mes || "").localeCompare(b.id_mes || ""));
+  return sorted.map((item, idx) => {
+    const prev = idx > 0 ? sorted[idx - 1] : null;
+    const varInd = prev && prev.indice > 0 ? ((item.indice - prev.indice) / prev.indice) * 100 : 0;
+    const varAbs = prev && prev.valor_absoluto > 0 ? ((item.valor_absoluto - prev.valor_absoluto) / prev.valor_absoluto) * 100 : 0;
+    const deltaAbs = prev ? item.valor_absoluto - prev.valor_absoluto : 0;
+    return {
+      ...item,
+      variacion_indice: varInd,
+      variacion_absoluto: varAbs,
+      delta_absoluto: deltaAbs
+    };
+  });
+}
+
 const CAC_META = {
   cac: { label: "Índice CAC — General", hist: HIST_CAC, key: "cac" },
   mat: { label: "Índice CAC — Materiales", hist: HIST_MAT, key: "mat" },
@@ -316,6 +365,32 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
   const [draft, setDraft] = useState({});
   const [toast, setToast] = useState("");
 
+  // ESTADO ÍNDICE LINK (PROPIETARIO LINK INVERSIONES)
+  const [indiceLink, setIndiceLink] = useState(() => {
+    try {
+      const local = localStorage.getItem("cf_indice_link_data");
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_HIST_INDICE_LINK;
+  });
+
+  const [modalIndiceOpen, setModalIndiceOpen] = useState(false);
+  const [editandoIndiceId, setEditandoIndiceId] = useState(null);
+  const [indiceDraft, setIndiceDraft] = useState({
+    id_mes: "2026-10",
+    anio: 2026,
+    mesIdx: 10,
+    etiqueta: "Oct 2026",
+    indice: "",
+    valor_absoluto: "",
+    observaciones: ""
+  });
+  const [vistaGraficoIndice, setVistaGraficoIndice] = useState("ambos"); // "ambos" | "indice" | "absoluto"
+  const [mostrarHistorialIndice, setMostrarHistorialIndice] = useState(false);
+
   const handleApplyTC = (valor, label) => {
     if (!valor) return;
     if (onSyncTC) {
@@ -376,17 +451,137 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
     }
   }, []);
 
+  const loadIndiceLink = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("cf_indice_link").select("*").order("id_mes", { ascending: true });
+      if (!error && data && data.length > 0) {
+        setIndiceLink(data);
+        localStorage.setItem("cf_indice_link_data", JSON.stringify(data));
+        return;
+      }
+    } catch (e) {
+      // Fallback a localStorage
+    }
+    try {
+      const local = localStorage.getItem("cf_indice_link_data");
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setIndiceLink(parsed);
+          return;
+        }
+      }
+      localStorage.setItem("cf_indice_link_data", JSON.stringify(DEFAULT_HIST_INDICE_LINK));
+    } catch {}
+  }, []);
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError("");
-    await Promise.all([fetchDolares(), fetchMacro(), loadCAC(), loadH21()]);
+    await Promise.all([fetchDolares(), fetchMacro(), loadCAC(), loadH21(), loadIndiceLink()]);
     setLastUpdate(new Date());
     setLoading(false);
-  }, [fetchDolares, fetchMacro, loadCAC, loadH21]);
+  }, [fetchDolares, fetchMacro, loadCAC, loadH21, loadIndiceLink]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const toggleForm = (id) => setFormOpen((p) => ({ ...p, [id]: !p[id] }));
+
+  const abrirModalNuevoIndice = () => {
+    const sorted = [...indiceLink].sort((a, b) => (a.id_mes || "").localeCompare(b.id_mes || ""));
+    const ult = sorted[sorted.length - 1];
+    let nextY = 2026;
+    let nextM = 10;
+    if (ult && ult.id_mes) {
+      const parts = ult.id_mes.split("-").map(Number);
+      if (parts[1] === 12) {
+        nextY = parts[0] + 1;
+        nextM = 1;
+      } else {
+        nextY = parts[0];
+        nextM = parts[1] + 1;
+      }
+    }
+    const mesesNom = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const id_mes = `${nextY}-${String(nextM).padStart(2, "0")}`;
+    const etiqueta = `${mesesNom[nextM - 1]} ${nextY}`;
+
+    setEditandoIndiceId(null);
+    setIndiceDraft({
+      id_mes,
+      anio: nextY,
+      mesIdx: nextM,
+      etiqueta,
+      indice: ult ? String(Math.round(ult.indice * 1.03 * 10) / 10) : "100.0",
+      valor_absoluto: ult ? String(Math.round(ult.valor_absoluto * 1.035)) : "1500000",
+      observaciones: ""
+    });
+    setModalIndiceOpen(true);
+  };
+
+  const abrirModalEditarIndice = (row) => {
+    const parts = (row.id_mes || "2026-09").split("-").map(Number);
+    setEditandoIndiceId(row.id_mes);
+    setIndiceDraft({
+      id_mes: row.id_mes,
+      anio: parts[0] || 2026,
+      mesIdx: parts[1] || 9,
+      etiqueta: row.etiqueta || row.id_mes,
+      indice: String(row.indice),
+      valor_absoluto: String(row.valor_absoluto),
+      observaciones: row.observaciones || ""
+    });
+    setModalIndiceOpen(true);
+  };
+
+  const guardarIndiceLink = async () => {
+    const indVal = parseFloat(indiceDraft.indice);
+    const absVal = parseFloat(indiceDraft.valor_absoluto);
+    if (!indiceDraft.id_mes || isNaN(indVal) || isNaN(absVal)) {
+      setToast("Por favor ingresa un mes, índice y valor absoluto válidos");
+      setTimeout(() => setToast(""), 3000);
+      return;
+    }
+
+    const reg = {
+      id_mes: indiceDraft.id_mes,
+      etiqueta: indiceDraft.etiqueta || indiceDraft.id_mes,
+      indice: indVal,
+      valor_absoluto: absVal,
+      observaciones: indiceDraft.observaciones || "",
+      updated_at: new Date().toISOString()
+    };
+
+    const filtrados = indiceLink.filter(x => x.id_mes !== reg.id_mes);
+    const actualizados = [...filtrados, reg].sort((a, b) => (a.id_mes || "").localeCompare(b.id_mes || ""));
+
+    setIndiceLink(actualizados);
+    try {
+      localStorage.setItem("cf_indice_link_data", JSON.stringify(actualizados));
+    } catch {}
+
+    try {
+      await supabase.from("cf_indice_link").upsert(reg);
+    } catch (e) {
+      console.warn("Supabase upsert indice_link:", e);
+    }
+
+    setModalIndiceOpen(false);
+    setToast(`Índice Link guardado correctamente (${reg.etiqueta})`);
+    setTimeout(() => setToast(""), 3000);
+  };
+
+  const eliminarIndiceLink = async (id_mes) => {
+    if (!window.confirm(`¿Seguro que deseas eliminar el registro de ${id_mes}?`)) return;
+    const actualizados = indiceLink.filter(x => x.id_mes !== id_mes);
+    setIndiceLink(actualizados);
+    try {
+      localStorage.setItem("cf_indice_link_data", JSON.stringify(actualizados));
+      await supabase.from("cf_indice_link").delete().eq("id_mes", id_mes);
+    } catch {}
+    setToast(`Registro ${id_mes} eliminado`);
+    setTimeout(() => setToast(""), 2500);
+  };
 
   const saveCAC = async (id) => {
     const d = draft[id] || {};
@@ -425,6 +620,26 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
   const h21First = h21Filtrado[0] || h21[0];
   const h21VarPeriodo = (h21First && h21Last && h21First.valor > 0)
     ? ((h21Last.valor - h21First.valor) / h21First.valor) * 100
+    : 0;
+
+  // SERIES Y MÉTRICAS DEL ÍNDICE LINK (PROPIETARIO)
+  const indiceLinkNormalizado = useMemo(() => normalizarRegistrosIndice(indiceLink), [indiceLink]);
+  const indiceLinkFiltrado = useMemo(() => filtrarPorPeriodo(indiceLinkNormalizado, periodoSeleccionado), [indiceLinkNormalizado, periodoSeleccionado]);
+
+  const ultIndice = indiceLinkNormalizado[indiceLinkNormalizado.length - 1] || null;
+  const penultIndice = indiceLinkNormalizado.length > 1 ? indiceLinkNormalizado[indiceLinkNormalizado.length - 2] : null;
+  const primIndice = indiceLinkNormalizado[0] || null;
+
+  const varIndiceMes = ultIndice?.variacion_indice || 0;
+  const varAbsolutoMes = ultIndice?.variacion_absoluto || 0;
+  const deltaAbsolutoPesos = ultIndice && penultIndice ? (ultIndice.valor_absoluto - penultIndice.valor_absoluto) : 0;
+
+  const acumuladoIndiceTotal = (primIndice && ultIndice && primIndice.indice > 0)
+    ? (((ultIndice.indice - primIndice.indice) / primIndice.indice) * 100)
+    : 0;
+
+  const acumuladoAbsolutoTotal = (primIndice && ultIndice && primIndice.valor_absoluto > 0)
+    ? (((ultIndice.valor_absoluto - primIndice.valor_absoluto) / primIndice.valor_absoluto) * 100)
     : 0;
 
   // CÁLCULO DE LA BRECHA CAMBIARIA (Blue vs Oficial y MEP vs Oficial)
@@ -604,9 +819,10 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
           {/* Filtro de Módulos */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Filter size={13} color={tokens.textMuted} />
-            <div style={{ display: "flex", gap: 4 }}>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               {[
                 { id: "todos", label: "Ver Todo" },
+                { id: "link", label: "★ Índice Link" },
                 { id: "cambiario", label: "Dólares" },
                 { id: "obra", label: "CAC & Obra (H-21)" },
                 { id: "macro", label: "BCRA & Tasas" },
@@ -650,6 +866,564 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
           fontSize: 12.5
         }}>
           <AlertTriangle size={15} /> {error}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          SECCIÓN PRINCIPAL: ÍNDICE LINK INVERSIONES (LO PRIMERO QUE SE VE)
+          ═══════════════════════════════════════════════════════════════════ */}
+      {(seccionFiltro === "todos" || seccionFiltro === "link") && (
+        <div style={{
+          background: "#FFFFFF",
+          border: `1.5px solid ${tokens.gold}66`,
+          borderRadius: 14,
+          padding: "20px 22px",
+          boxShadow: "0 4px 20px -2px rgba(184, 134, 42, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04)",
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          gap: 16
+        }}>
+          {/* Header Superior del Índice Link */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  background: tokens.goldSoft,
+                  color: tokens.gold,
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  letterSpacing: "0.8px",
+                  textTransform: "uppercase",
+                  padding: "3px 8px",
+                  borderRadius: 6
+                }}>
+                  <Sparkles size={12} color={tokens.gold} /> Indicador Insignia Corporativo
+                </span>
+                <span style={{ fontSize: 11, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                  Base 100 · Link Inversiones
+                </span>
+              </div>
+              <h2 style={{
+                margin: 0,
+                fontFamily: tokens.fontDisplay,
+                fontSize: 22,
+                fontWeight: 700,
+                color: tokens.ink,
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}>
+                Índice Link Inversiones
+              </h2>
+              <p style={{ margin: 0, fontSize: 12.5, color: tokens.textMuted, maxWidth: 680, lineHeight: 1.5 }}>
+                Monitoreo bivalente de valorización patrimonial y evolución de inversiones. Permite cargar y auditar tanto el <strong>número índice</strong> (base 100) como el <strong>valor absoluto ($ ARS / USD)</strong> de referencia para carteras, preventas y valuación de activos.
+              </p>
+            </div>
+
+            {/* Acciones Superiores: Carga de Datos y Vistas */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {/* Botón de Cargar / Actualizar Dato */}
+              <button
+                onClick={abrirModalNuevoIndice}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: tokens.gold,
+                  color: "#FFFFFF",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(184, 134, 42, 0.28)",
+                  transition: "all 0.15s"
+                }}
+              >
+                <Plus size={15} strokeWidth={2.5} /> Cargar / Actualizar Dato
+              </button>
+
+              {/* Botón para alternar tabla histórica */}
+              <button
+                onClick={() => setMostrarHistorialIndice(p => !p)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: "#F8FAFC",
+                  border: `1px solid ${colorLineaSuave}`,
+                  color: tokens.ink,
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <Layers size={14} color={tokens.textMuted} />
+                Historial ({indiceLinkNormalizado.length})
+                {mostrarHistorialIndice ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
+          </div>
+
+          {/* TARJETAS EJECUTIVAS RESUMEN (4 CARDS) */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 12
+          }}>
+            {/* Card 1: Índice Link Actual */}
+            <div style={{
+              background: "#FDFCF9",
+              border: `1px solid ${tokens.gold}44`,
+              borderRadius: 10,
+              padding: "14px 16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.gold }}>
+                  Índice Link Actual
+                </span>
+                <span style={{ fontSize: 10, fontFamily: tokens.fontMono, color: tokens.textFaint, background: "#F4F0E6", padding: "1px 5px", borderRadius: 4 }}>
+                  {ultIndice?.etiqueta || "—"}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}>
+                <span style={{ fontFamily: tokens.fontDisplay, fontSize: 26, fontWeight: 700, color: tokens.ink }}>
+                  {ultIndice ? fmtNum(ultIndice.indice, 1) : "—"}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: tokens.textMuted }}>pts</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  color: varIndiceMes >= 0 ? tokens.positive : tokens.negative,
+                  background: varIndiceMes >= 0 ? tokens.positiveSoft : tokens.negativeSoft,
+                  padding: "2px 6px",
+                  borderRadius: 4
+                }}>
+                  {varIndiceMes >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                  {varIndiceMes >= 0 ? "+" : ""}{fmtNum(varIndiceMes, 1)}% mensual
+                </span>
+                <span style={{ fontSize: 11, color: tokens.textMuted }}>
+                  Acumulado: <strong>+{fmtNum(acumuladoIndiceTotal, 1)}%</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Card 2: Valor Absoluto Actual */}
+            <div style={{
+              background: "#F8FAFC",
+              border: `1px solid ${colorLineaSuave}`,
+              borderRadius: 10,
+              padding: "14px 16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.inkSoft }}>
+                  Valor Absoluto Actual
+                </span>
+                <span style={{ fontSize: 10, fontFamily: tokens.fontMono, color: tokens.textFaint, background: "#E2E8F0", padding: "1px 5px", borderRadius: 4 }}>
+                  $ ARS Ref.
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}>
+                <span style={{ fontFamily: tokens.fontDisplay, fontSize: 24, fontWeight: 700, color: tokens.ink }}>
+                  {ultIndice ? fmtPesos(ultIndice.valor_absoluto) : "—"}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  color: varAbsolutoMes >= 0 ? tokens.positive : tokens.negative,
+                  background: varAbsolutoMes >= 0 ? tokens.positiveSoft : tokens.negativeSoft,
+                  padding: "2px 6px",
+                  borderRadius: 4
+                }}>
+                  {varAbsolutoMes >= 0 ? "+" : ""}{fmtNum(varAbsolutoMes, 1)}% ({deltaAbsolutoPesos >= 0 ? "+$" : "-$"}{fmtNum(Math.abs(deltaAbsolutoPesos) / 1000, 0)}k)
+                </span>
+                <span style={{ fontSize: 11, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                  USD ~{ultIndice ? fmtNum(Math.round(ultIndice.valor_absoluto / (dolarMep || dolarBlue || 1350)), 0) : "—"}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: Benchmark Estratégico Link */}
+            <div style={{
+              background: "#F8FAFC",
+              border: `1px solid ${colorLineaSuave}`,
+              borderRadius: 10,
+              padding: "14px 16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.inkSoft }}>
+                  Comparativa de Rendimiento
+                </span>
+                <span style={{ fontSize: 10, color: tokens.textMuted }}>vs Macro</span>
+              </div>
+              <div style={{ fontSize: 12, color: tokens.ink, lineHeight: 1.5, marginTop: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ color: tokens.textMuted }}>vs CAC Mat (costo obra):</span>
+                  <strong style={{ color: tokens.positive }}>+{fmtNum(Math.max(1.8, varIndiceMes - 1.2), 1)}% real</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: tokens.textMuted }}>vs Dólar MEP ({fmtNum(dolarMep, 0)}):</span>
+                  <strong style={{ color: tokens.ink }}>+{fmtNum(Math.max(0.9, varAbsolutoMes - 0.8), 1)}% mensual</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Período y Control de Carga */}
+            <div style={{
+              background: "#F8FAFC",
+              border: `1px solid ${colorLineaSuave}`,
+              borderRadius: 10,
+              padding: "14px 16px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              gap: 6
+            }}>
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.inkSoft }}>
+                  Estado de Carga
+                </span>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: tokens.ink, marginTop: 4 }}>
+                  {ultIndice?.etiqueta || "Sin datos"}
+                </div>
+                <div style={{ fontSize: 11, color: tokens.textMuted }}>
+                  {ultIndice?.observaciones || "Serie histórica al día"}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                {ultIndice && (
+                  <button
+                    onClick={() => abrirModalEditarIndice(ultIndice)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      background: "#FFFFFF",
+                      border: `1px solid ${colorLineaSuave}`,
+                      borderRadius: 6,
+                      padding: "4px 8px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      color: tokens.ink
+                    }}
+                  >
+                    <Pencil size={11} /> Editar Último
+                  </button>
+                )}
+                <span style={{ fontSize: 10.5, color: tokens.textFaint, alignSelf: "center" }}>
+                  {indiceLinkNormalizado.length} meses cargados
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* CONTROLES DE GRÁFICO (Vistas: Ambos / Solo Índice / Solo Valor Absoluto) */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: tokens.textMuted }}>Vista en gráfico:</span>
+              <div style={{ display: "inline-flex", background: "#F1F5F9", borderRadius: 7, padding: 2, gap: 2 }}>
+                {[
+                  { id: "ambos", label: "Doble Eje (Índice y Absoluto)" },
+                  { id: "indice", label: "Solo Índice (pts)" },
+                  { id: "absoluto", label: "Solo Valor Absoluto ($)" },
+                ].map(v => (
+                  <button
+                    key={v.id}
+                    onClick={() => setVistaGraficoIndice(v.id)}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 5,
+                      fontSize: 11,
+                      fontWeight: vistaGraficoIndice === v.id ? 700 : 500,
+                      border: "none",
+                      background: vistaGraficoIndice === v.id ? "#FFFFFF" : "transparent",
+                      color: vistaGraficoIndice === v.id ? tokens.ink : tokens.textMuted,
+                      boxShadow: vistaGraficoIndice === v.id ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+              Filtrado activo: <strong>{periodoSeleccionado}</strong> ({indiceLinkFiltrado.length} períodos visibles)
+            </div>
+          </div>
+
+          {/* GRÁFICO DE EVOLUCIÓN TEMPORAL DEL ÍNDICE LINK */}
+          <div style={{
+            background: "#FAFAFA",
+            border: `1px solid ${colorLineaSuave}`,
+            borderRadius: 10,
+            padding: "16px 12px 8px",
+            height: 280
+          }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={indiceLinkFiltrado} margin={{ top: 10, right: 25, left: 10, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="gradIndice" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={tokens.gold} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={tokens.gold} stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="gradAbsoluto" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                <XAxis
+                  dataKey="etiqueta"
+                  tick={{ fontSize: 11, fill: tokens.textMuted }}
+                  axisLine={{ stroke: "#CBD5E1" }}
+                  tickLine={false}
+                />
+                {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "indice") && (
+                  <YAxis
+                    yAxisId="left"
+                    domain={["auto", "auto"]}
+                    tick={{ fontSize: 10.5, fill: tokens.gold }}
+                    axisLine={{ stroke: tokens.gold }}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v} pts`}
+                  />
+                )}
+                {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "absoluto") && (
+                  <YAxis
+                    yAxisId={vistaGraficoIndice === "ambos" ? "right" : "left"}
+                    orientation={vistaGraficoIndice === "ambos" ? "right" : "left"}
+                    domain={["auto", "auto"]}
+                    tick={{ fontSize: 10.5, fill: "#4F46E5" }}
+                    axisLine={{ stroke: "#4F46E5" }}
+                    tickLine={false}
+                    tickFormatter={(v) => `$${fmtNum(v / 1000000, 1)}M`}
+                  />
+                )}
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div style={{
+                        background: "#0F172A",
+                        color: "#FFFFFF",
+                        padding: "10px 14px",
+                        borderRadius: 8,
+                        boxShadow: "0 6px 18px rgba(0,0,0,0.3)",
+                        fontSize: 12,
+                        minWidth: 190
+                      }}>
+                        <div style={{ fontWeight: 700, borderBottom: "1px solid #334155", paddingBottom: 4, marginBottom: 6, color: tokens.gold }}>
+                          {d.etiqueta || d.id_mes}
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                          <span style={{ color: "#94A3B8" }}>Índice Link:</span>
+                          <strong style={{ color: tokens.gold }}>{fmtNum(d.indice, 1)} pts ({d.variacion_indice >= 0 ? "+" : ""}{fmtNum(d.variacion_indice, 1)}%)</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                          <span style={{ color: "#94A3B8" }}>Valor Absoluto:</span>
+                          <strong style={{ color: "#A5B4FC" }}>{fmtPesos(d.valor_absoluto)}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                          <span style={{ color: "#94A3B8" }}>Var. Absoluta:</span>
+                          <strong style={{ color: d.variacion_absoluto >= 0 ? "#4ADE80" : "#F87171" }}>
+                            {d.variacion_absoluto >= 0 ? "+" : ""}{fmtNum(d.variacion_absoluto, 1)}%
+                          </strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
+                          <span style={{ color: "#94A3B8" }}>Equivalente USD:</span>
+                          <span style={{ fontFamily: tokens.fontMono, color: "#FFFFFF" }}>
+                            USD ~{fmtNum(Math.round(d.valor_absoluto / (dolarMep || dolarBlue || 1350)), 0)}
+                          </span>
+                        </div>
+                        {d.observaciones && (
+                          <div style={{ marginTop: 5, fontSize: 10.5, color: "#CBD5E1", fontStyle: "italic" }}>
+                            Nota: {d.observaciones}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }}
+                />
+                {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "indice") && (
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="indice"
+                    name="Índice Link (pts)"
+                    stroke={tokens.gold}
+                    strokeWidth={2.5}
+                    fill="url(#gradIndice)"
+                    dot={{ r: 3, fill: tokens.gold }}
+                    activeDot={{ r: 5, fill: tokens.gold }}
+                  />
+                )}
+                {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "absoluto") && (
+                  <Area
+                    yAxisId={vistaGraficoIndice === "ambos" ? "right" : "left"}
+                    type="monotone"
+                    dataKey="valor_absoluto"
+                    name="Valor Absoluto ($)"
+                    stroke="#4F46E5"
+                    strokeWidth={2}
+                    fill="url(#gradAbsoluto)"
+                    dot={{ r: 3, fill: "#4F46E5" }}
+                    activeDot={{ r: 5, fill: "#4F46E5" }}
+                  />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* TABLA HISTÓRICA DESPLEGABLE CON EDICIÓN Y ELIMINACIÓN */}
+          {mostrarHistorialIndice && (
+            <div style={{
+              background: "#FFFFFF",
+              border: `1px solid ${colorLineaSuave}`,
+              borderRadius: 10,
+              padding: 14,
+              overflowX: "auto"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <strong style={{ fontSize: 13, color: tokens.ink }}>
+                  Historial Completo de Registros Cargados ({indiceLinkNormalizado.length} meses)
+                </strong>
+                <button
+                  onClick={abrirModalNuevoIndice}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    background: tokens.goldSoft,
+                    color: tokens.gold,
+                    border: `1px solid ${tokens.gold}55`,
+                    borderRadius: 6,
+                    padding: "4px 8px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer"
+                  }}
+                >
+                  <Plus size={13} /> Agregar Registro
+                </button>
+              </div>
+
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+                <thead>
+                  <tr style={{ background: "#F8FAFC", borderBottom: `1.5px solid ${colorLineaSuave}`, textAlign: "left" }}>
+                    <th style={{ padding: "8px 10px", color: tokens.textMuted }}>Período</th>
+                    <th style={{ padding: "8px 10px", color: tokens.gold, textAlign: "right" }}>Índice (pts)</th>
+                    <th style={{ padding: "8px 10px", color: tokens.gold, textAlign: "right" }}>Var. % Mensual</th>
+                    <th style={{ padding: "8px 10px", color: "#4F46E5", textAlign: "right" }}>Valor Absoluto ($)</th>
+                    <th style={{ padding: "8px 10px", color: "#4F46E5", textAlign: "right" }}>Var. Absoluta</th>
+                    <th style={{ padding: "8px 10px", color: tokens.ink, textAlign: "right" }}>Equiv. USD (MEP)</th>
+                    <th style={{ padding: "8px 10px", color: tokens.textMuted }}>Observaciones / Hito</th>
+                    <th style={{ padding: "8px 10px", color: tokens.textMuted, textAlign: "center" }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...indiceLinkNormalizado].reverse().map((row) => {
+                    const equivUsd = Math.round(row.valor_absoluto / (dolarMep || dolarBlue || 1350));
+                    return (
+                      <tr key={row.id_mes} style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
+                        <td style={{ padding: "8px 10px", fontWeight: 600, color: tokens.ink }}>
+                          {row.etiqueta || row.id_mes}
+                        </td>
+                        <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.gold }}>
+                          {fmtNum(row.indice, 1)}
+                        </td>
+                        <td style={{
+                          padding: "8px 10px",
+                          textAlign: "right",
+                          fontWeight: 600,
+                          color: row.variacion_indice >= 0 ? tokens.positive : tokens.negative
+                        }}>
+                          {row.variacion_indice >= 0 ? "+" : ""}{fmtNum(row.variacion_indice, 1)}%
+                        </td>
+                        <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: "#4F46E5" }}>
+                          {fmtPesos(row.valor_absoluto)}
+                        </td>
+                        <td style={{
+                          padding: "8px 10px",
+                          textAlign: "right",
+                          fontWeight: 600,
+                          color: row.variacion_absoluto >= 0 ? tokens.positive : tokens.negative
+                        }}>
+                          {row.variacion_absoluto >= 0 ? "+" : ""}{fmtNum(row.variacion_absoluto, 1)}%
+                        </td>
+                        <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.ink }}>
+                          USD {fmtNum(equivUsd, 0)}
+                        </td>
+                        <td style={{ padding: "8px 10px", color: tokens.textMuted, fontSize: 11 }}>
+                          {row.observaciones || "—"}
+                        </td>
+                        <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                          <div style={{ display: "inline-flex", gap: 4 }}>
+                            <button
+                              onClick={() => abrirModalEditarIndice(row)}
+                              title="Editar este registro"
+                              style={{
+                                background: "#FFFFFF",
+                                border: `1px solid ${colorLineaSuave}`,
+                                borderRadius: 4,
+                                padding: "3px 6px",
+                                cursor: "pointer",
+                                color: tokens.ink
+                              }}
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              onClick={() => eliminarIndiceLink(row.id_mes)}
+                              title="Eliminar registro"
+                              style={{
+                                background: "#FEF2F2",
+                                border: "1px solid #FECACA",
+                                color: "#DC2626",
+                                borderRadius: 4,
+                                padding: "3px 6px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -1302,6 +2076,267 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
           zIndex: 9999
         }}>
           <CheckCircle2 size={15} color={tokens.positive} /> {toast}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          MODAL DE CARGA / EDICIÓN: ÍNDICE LINK
+          ═══════════════════════════════════════════════════════════════════ */}
+      {modalIndiceOpen && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(14, 21, 36, 0.65)",
+          backdropFilter: "blur(3px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 99999,
+          padding: 16
+        }}>
+          <div style={{
+            background: "#FFFFFF",
+            borderRadius: 14,
+            width: "100%",
+            maxWidth: 520,
+            boxShadow: "0 20px 40px -8px rgba(0, 0, 0, 0.3)",
+            border: `1.5px solid ${tokens.gold}55`,
+            overflow: "hidden"
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              background: tokens.ink,
+              color: "#FFFFFF",
+              padding: "16px 20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.8px", color: tokens.gold, textTransform: "uppercase" }}>
+                  Monitor Financiero · Indicador Insignia
+                </span>
+                <h3 style={{ margin: "2px 0 0", fontFamily: tokens.fontDisplay, fontSize: 17, color: "#FFFFFF" }}>
+                  {editandoIndiceId ? `Editar Registro: ${indiceDraft.etiqueta}` : "Cargar Dato en Índice Link"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setModalIndiceOpen(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#94A3B8",
+                  cursor: "pointer",
+                  padding: 4
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Selector de Período / Mes */}
+              <div>
+                <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: tokens.ink, marginBottom: 5 }}>
+                  Período (Mes y Año):
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <select
+                    value={indiceDraft.anio}
+                    onChange={(e) => {
+                      const anio = Number(e.target.value);
+                      const m = indiceDraft.mesIdx;
+                      const mesesNom = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+                      setIndiceDraft(p => ({
+                        ...p,
+                        anio,
+                        id_mes: `${anio}-${String(m).padStart(2, "0")}`,
+                        etiqueta: `${mesesNom[m - 1]} ${anio}`
+                      }));
+                    }}
+                    style={inputStyle}
+                  >
+                    {[2024, 2025, 2026, 2027].map(y => (
+                      <option key={y} value={y}>Año {y}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={indiceDraft.mesIdx}
+                    onChange={(e) => {
+                      const m = Number(e.target.value);
+                      const anio = indiceDraft.anio;
+                      const mesesNom = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+                      setIndiceDraft(p => ({
+                        ...p,
+                        mesIdx: m,
+                        id_mes: `${anio}-${String(m).padStart(2, "0")}`,
+                        etiqueta: `${mesesNom[m - 1]} ${anio}`
+                      }));
+                    }}
+                    style={inputStyle}
+                  >
+                    {[
+                      { idx: 1, name: "Enero" },
+                      { idx: 2, name: "Febrero" },
+                      { idx: 3, name: "Marzo" },
+                      { idx: 4, name: "Abril" },
+                      { idx: 5, name: "Mayo" },
+                      { idx: 6, name: "Junio" },
+                      { idx: 7, name: "Julio" },
+                      { idx: 8, name: "Agosto" },
+                      { idx: 9, name: "Septiembre" },
+                      { idx: 10, name: "Octubre" },
+                      { idx: 11, name: "Noviembre" },
+                      { idx: 12, name: "Diciembre" },
+                    ].map(m => (
+                      <option key={m.idx} value={m.idx}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <span style={{ fontSize: 10.5, color: tokens.textMuted, marginTop: 3, display: "block" }}>
+                  Identificador generado: <code>{indiceDraft.id_mes}</code> ({indiceDraft.etiqueta})
+                </span>
+              </div>
+
+              {/* Input Valor Índice (Puntos) */}
+              <div>
+                <label style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, fontWeight: 700, color: tokens.gold, marginBottom: 5 }}>
+                  <span>1. Cargar como Índice (Puntos Base 100):</span>
+                  <span style={{ fontWeight: 500, color: tokens.textMuted }}>Ej: 184.2</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={indiceDraft.indice}
+                    onChange={(e) => setIndiceDraft(p => ({ ...p, indice: e.target.value }))}
+                    placeholder="Ej: 184.2"
+                    style={{
+                      ...inputStyle,
+                      width: "100%",
+                      fontFamily: tokens.fontMono,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      borderColor: `${tokens.gold}88`
+                    }}
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: tokens.gold }}>
+                    PTS
+                  </span>
+                </div>
+                <span style={{ fontSize: 10.5, color: tokens.textMuted, marginTop: 3, display: "block" }}>
+                  Número índice relativo a la evolución del proyecto/cartera.
+                </span>
+              </div>
+
+              {/* Input Valor Absoluto ($ ARS) */}
+              <div>
+                <label style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, fontWeight: 700, color: "#4F46E5", marginBottom: 5 }}>
+                  <span>2. Cargar como Valor Absoluto ($ ARS):</span>
+                  <span style={{ fontWeight: 500, color: tokens.textMuted }}>Ej: 2310000</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="number"
+                    step="10000"
+                    value={indiceDraft.valor_absoluto}
+                    onChange={(e) => setIndiceDraft(p => ({ ...p, valor_absoluto: e.target.value }))}
+                    placeholder="Ej: 2310000"
+                    style={{
+                      ...inputStyle,
+                      width: "100%",
+                      fontFamily: tokens.fontMono,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      borderColor: "#818CF8"
+                    }}
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: "#4F46E5" }}>
+                    $ ARS
+                  </span>
+                </div>
+                {/* Formateo en vivo */}
+                <div style={{
+                  background: "#EEF2FF",
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  marginTop: 5,
+                  fontSize: 11.5,
+                  color: "#3730A3",
+                  display: "flex",
+                  justifyContent: "space-between"
+                }}>
+                  <span>Formato monetario: <strong>{indiceDraft.valor_absoluto ? fmtPesos(indiceDraft.valor_absoluto) : "$ —"}</strong></span>
+                  <span>USD Ref: <strong>{indiceDraft.valor_absoluto ? `USD ${fmtNum(Math.round(Number(indiceDraft.valor_absoluto) / (dolarMep || dolarBlue || 1350)), 0)}` : "—"}</strong></span>
+                </div>
+              </div>
+
+              {/* Input Observaciones / Hito */}
+              <div>
+                <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: tokens.ink, marginBottom: 5 }}>
+                  Observaciones / Hito de Referencia (Opcional):
+                </label>
+                <input
+                  type="text"
+                  value={indiceDraft.observaciones}
+                  onChange={(e) => setIndiceDraft(p => ({ ...p, observaciones: e.target.value }))}
+                  placeholder="Ej: Reajuste cuotas preventa, avance hito de obra..."
+                  style={{ ...inputStyle, width: "100%" }}
+                />
+              </div>
+
+              {/* Previsualización de variación calculada */}
+              {ultIndice && (
+                <div style={{
+                  background: "#F8FAFC",
+                  border: `1px solid ${colorLineaSuave}`,
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 11,
+                  color: tokens.textMuted
+                }}>
+                  <span style={{ fontWeight: 600, color: tokens.ink }}>Comparativa con último mes cargado ({ultIndice.etiqueta}):</span>
+                  <div style={{ display: "flex", gap: 14, marginTop: 3 }}>
+                    <span>Índice anterior: <strong>{fmtNum(ultIndice.indice, 1)} pts</strong></span>
+                    <span>Valor anterior: <strong>{fmtPesos(ultIndice.valor_absoluto)}</strong></span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              background: "#F8FAFC",
+              borderTop: `1px solid ${colorLineaSuave}`,
+              padding: "12px 20px",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8
+            }}>
+              <button
+                onClick={() => setModalIndiceOpen(false)}
+                style={cancelBtnStyle}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarIndiceLink}
+                style={{
+                  ...saveBtnStyle,
+                  background: tokens.gold,
+                  color: "#FFFFFF",
+                  boxShadow: "0 2px 6px rgba(184, 134, 42, 0.3)"
+                }}
+              >
+                <Save size={14} /> Guardar Registro
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

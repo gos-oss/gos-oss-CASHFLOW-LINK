@@ -1624,30 +1624,74 @@ export default function MotorFinancieroTab({
                   </div>
                 </div>
 
-                {/* Inyección de Capital Fresco */}
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ color: tokens.textMuted }}>Inyección Aporte Extra:</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <strong style={{ fontFamily: tokens.fontMono, color: tokens.positive }}>
-                        $ {fmt(simParams.nuevosAportesCapitalARS)}
-                      </strong>
-                      <div style={{ display: "inline-flex", gap: 2 }}>
-                        <button onClick={() => adjustParam("nuevosAportesCapitalARS", -25000000, 0, 200000000)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-25M</button>
-                        <button onClick={() => adjustParam("nuevosAportesCapitalARS", 25000000, 0, 200000000)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+25M</button>
-                      </div>
+                {/* Inyección de Capital Fresco (Aporte Extra Socios) */}
+                <div style={{ background: "#FFFFFF", padding: 12, borderRadius: 8, border: "1px solid #DCFCE7" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
+                    <span style={{ color: tokens.ink, fontWeight: 600, fontSize: 12 }}>
+                      Inyección Aporte Extra:
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: tokens.positive }}>$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="10"
+                        value={Math.round((simParams.nuevosAportesCapitalARS || 0) / 1000000)}
+                        onChange={(e) => {
+                          const valM = Math.max(0, Number(e.target.value) || 0);
+                          handleSimParamChange("nuevosAportesCapitalARS", valM * 1000000);
+                        }}
+                        placeholder="0"
+                        title="Ingresa manualmente el importe en Millones de Pesos ($ M)"
+                        style={{
+                          width: 86,
+                          padding: "3px 6px",
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          fontFamily: tokens.fontMono,
+                          textAlign: "right",
+                          borderRadius: 5,
+                          border: `1.5px solid ${tokens.positive}`,
+                          color: tokens.positive,
+                          background: "#F0FDF4",
+                          outline: "none"
+                        }}
+                      />
+                      <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted }}>M</span>
                     </div>
                   </div>
+
+                  {/* Detalle y Botones de micro-ajuste rápido */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 4 }}>
+                    <span style={{ fontSize: 10.5, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                      {simParams.nuevosAportesCapitalARS > 0 
+                        ? `$ ${fmt(simParams.nuevosAportesCapitalARS)}`
+                        : "Sin inyección ($ 0)"}
+                    </span>
+                    <div style={{ display: "inline-flex", gap: 2, flexWrap: "wrap" }}>
+                      <button onClick={() => adjustParam("nuevosAportesCapitalARS", -50000000, 0, 10000000000)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-50M</button>
+                      <button onClick={() => adjustParam("nuevosAportesCapitalARS", 50000000, 0, 10000000000)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+50M</button>
+                      <button onClick={() => adjustParam("nuevosAportesCapitalARS", 100000000, 0, 10000000000)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+100M</button>
+                      <button onClick={() => adjustParam("nuevosAportesCapitalARS", 250000000, 0, 10000000000)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+250M</button>
+                      {simParams.nuevosAportesCapitalARS > 0 && (
+                        <button onClick={() => handleSimParamChange("nuevosAportesCapitalARS", 0)} style={{ border: "1px solid #FECACA", background: "#FEF2F2", color: "#DC2626", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer", fontWeight: 700 }} title="Restablecer aporte extra a $0">Reset</button>
+                      )}
+                    </div>
+                  </div>
+
                   <input
-                    type="range" min="0" max="200000000" step="10000000"
+                    type="range"
+                    min="0"
+                    max={Math.max(1000000000, Number(simParams.nuevosAportesCapitalARS || 0) * 1.2)}
+                    step="10000000"
                     value={simParams.nuevosAportesCapitalARS}
                     onChange={(e) => handleSimParamChange("nuevosAportesCapitalARS", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
                     <span>$0</span>
-                    <span>$100M</span>
-                    <span>$200M</span>
+                    <span>$500M</span>
+                    <span>{simParams.nuevosAportesCapitalARS > 1000000000 ? `$${(simParams.nuevosAportesCapitalARS/1000000).toFixed(0)}M` : "$1.000M+"}</span>
                   </div>
                 </div>
               </div>
