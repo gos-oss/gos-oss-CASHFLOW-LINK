@@ -361,7 +361,11 @@ export default function App() {
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
       }
 
-      if (!planesTemporales["2027"] || !planesTemporales["2027"].egreso || !planesTemporales["2027"].egreso["proy_neuquen"]) {
+      const necesitaMigracion2027 = !planesTemporales["2027"]
+        || !planesTemporales["2027"].egreso
+        || !planesTemporales["2027"].egreso["proy_neuquen"]
+        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-cdo"]?.["01"] || 0) < 400000000;
+      if (necesitaMigracion2027) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
         await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
       }

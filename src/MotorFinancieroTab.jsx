@@ -3,7 +3,8 @@ import { tokens } from "./tokens";
 import {
   Building2, HardHat, Users, Cpu, ArrowRight, TrendingUp, TrendingDown,
   Scale, DollarSign, Wallet, PieChart, ShieldAlert, Sparkles, CheckCircle2,
-  ChevronRight, BarChart3, Sliders, RefreshCw, Layers, Calendar, HelpCircle
+  ChevronRight, BarChart3, Sliders, RefreshCw, Layers, Calendar, HelpCircle,
+  Zap, AlertTriangle, Activity
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -39,7 +40,15 @@ export default function MotorFinancieroTab({
   // Año analizado (por defecto 2026)
   const [selectedYear, setSelectedYear] = useState("2026");
 
+  // Tipo de cambio de referencia
+  const ultimoDolar = useMemo(() => {
+    if (!tcList || tcList.length === 0) return 1540;
+    const sorted = [...tcList].sort((a, b) => b.fecha_corte.localeCompare(a.fecha_corte));
+    return Number(sorted[0].saldo_efectivo) || 1540;
+  }, [tcList]);
+
   // Estado del Simulador Estratégico Multivariable (Pilar Empresa, Proyectos, Socios)
+  const [activePreset, setActivePreset] = useState("base");
   const [simParams, setSimParams] = useState({
     // Empresa:
     retrasoCobranzasDias: 0, // 0 a 60 días
@@ -57,22 +66,91 @@ export default function MotorFinancieroTab({
     nuevosAportesCapitalARS: 0 // Inyección fresca
   });
 
+  const aplicarPresetSim = (presetKey) => {
+    setActivePreset(presetKey);
+    if (presetKey === "base") {
+      setSimParams({
+        retrasoCobranzasDias: 0,
+        ajusteGastoEstructura: 0,
+        renegociarPasivosPct: 0,
+        inflacionCACCostoObra: 0,
+        ritmoVentasPct: 0,
+        desvioPlazoMeses: 0,
+        cuposCumplimientoPct: 100,
+        politicaRetirosPct: 0,
+        nuevosAportesCapitalARS: 0
+      });
+    } else if (presetKey === "estres") {
+      setSimParams({
+        retrasoCobranzasDias: 30,
+        ajusteGastoEstructura: 0,
+        renegociarPasivosPct: 0,
+        inflacionCACCostoObra: 15,
+        ritmoVentasPct: -15,
+        desvioPlazoMeses: 2,
+        cuposCumplimientoPct: 80,
+        politicaRetirosPct: 0,
+        nuevosAportesCapitalARS: 0
+      });
+    } else if (presetKey === "expansion") {
+      setSimParams({
+        retrasoCobranzasDias: 0,
+        ajusteGastoEstructura: 10,
+        renegociarPasivosPct: 0,
+        inflacionCACCostoObra: 5,
+        ritmoVentasPct: 25,
+        desvioPlazoMeses: 0,
+        cuposCumplimientoPct: 110,
+        politicaRetirosPct: 10,
+        nuevosAportesCapitalARS: 50000000
+      });
+    } else if (presetKey === "austeridad") {
+      setSimParams({
+        retrasoCobranzasDias: 0,
+        ajusteGastoEstructura: -15,
+        renegociarPasivosPct: 40,
+        inflacionCACCostoObra: 0,
+        ritmoVentasPct: 0,
+        desvioPlazoMeses: 0,
+        cuposCumplimientoPct: 100,
+        politicaRetirosPct: 0,
+        nuevosAportesCapitalARS: 0
+      });
+    } else if (presetKey === "equilibrado") {
+      setSimParams({
+        retrasoCobranzasDias: 5,
+        ajusteGastoEstructura: -5,
+        renegociarPasivosPct: 20,
+        inflacionCACCostoObra: 5,
+        ritmoVentasPct: 10,
+        desvioPlazoMeses: 0,
+        cuposCumplimientoPct: 100,
+        politicaRetirosPct: 5,
+        nuevosAportesCapitalARS: 25000000
+      });
+    }
+  };
+
+  const handleSimParamChange = (key, val) => {
+    setActivePreset("personalizado");
+    setSimParams(prev => ({ ...prev, [key]: val }));
+  };
+
+  const adjustParam = (key, delta, min, max) => {
+    setActivePreset("personalizado");
+    setSimParams(prev => {
+      const cur = Number(prev[key] || 0);
+      const next = Math.max(min, Math.min(max, cur + delta));
+      return { ...prev, [key]: next };
+    });
+  };
+
   // Segmentación por períodos: ANUAL, S1, S2, Q1, Q2, Q3, Q4
   const [periodoFiltro, setPeriodoFiltro] = useState("ANUAL");
   const [mostrarExplicativos, setMostrarExplicativos] = useState(true);
 
   const resetSimParams = () => {
-    setSimParams({
-      retrasoCobranzasDias: 0,
-      ajusteGastoEstructura: 0,
-      renegociarPasivosPct: 0,
-      inflacionCACCostoObra: 0,
-      ritmoVentasPct: 0,
-      desvioPlazoMeses: 0,
-      cuposCumplimientoPct: 100,
-      politicaRetirosPct: 0,
-      nuevosAportesCapitalARS: 0
-    });
+    aplicarPresetSim("base");
   };
 
   // Mapeo de meses según la segmentación seleccionada
@@ -152,6 +230,64 @@ export default function MotorFinancieroTab({
     return tot;
   }, [ingresosActivos, mesesFiltro]);
 
+  // Lista canónica de meses
+  const mesesDetalle = [
+    { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
+    { k: "05", n: "May" }, { k: "06", n: "Jun" }, { k: "07", n: "Jul" }, { k: "08", n: "Ago" },
+    { k: "09", n: "Sep" }, { k: "10", n: "Oct" }, { k: "11", n: "Nov" }, { k: "12", n: "Dic" }
+  ];
+
+  // Cálculo mensual del flujo por pilar para el ejercicio analizado (con acumulador de caja)
+  const cronogramaMensual = useMemo(() => {
+    let saldoAcumulado = kpis ? kpis.liquidez : 124596986;
+
+    return mesesDetalle.map(m => {
+      // Ingresos ventas / cuotas de proyectos
+      let ingVentas = 0;
+      ["custom_cuotas-mensuales", "custom_ventas-cdo", "custom_pesa"].forEach(k => {
+        ingVentas += Number(ingresosActivos[k]?.[m.k] || 0);
+      });
+
+      // Ingresos socios
+      let ingSocios = 0;
+      ["custom_cupos-socios", "custom_aportes"].forEach(k => {
+        ingSocios += Number(ingresosActivos[k]?.[m.k] || 0);
+      });
+
+      const totalIng = ingVentas + ingSocios;
+
+      // Egresos proyectos (obras)
+      let egObra = 0;
+      Object.entries(egresosActivos).forEach(([k, mesesObj]) => {
+        if (k.startsWith("proy_")) {
+          egObra += Number(mesesObj?.[m.k] || 0);
+        }
+      });
+
+      // Egresos empresa (estructura)
+      let egEmpresa = 0;
+      ["custom_rrhh", "custom_administracion", "custom_inversiones", "custom_pasivos-financieros"].forEach(k => {
+        egEmpresa += Number(egresosActivos[k]?.[m.k] || 0);
+      });
+
+      const totalEg = egObra + egEmpresa;
+      const flujoNeto = totalIng - totalEg;
+      saldoAcumulado += flujoNeto;
+
+      return {
+        ...m,
+        ingVentas,
+        ingSocios,
+        totalIng,
+        egObra,
+        egEmpresa,
+        totalEg,
+        flujoNeto,
+        saldoAcumulado
+      };
+    });
+  }, [ingresosActivos, egresosActivos, kpis]);
+
   // SIMULACIÓN DEL MOTOR FINANCIERO CON PARÁMETROS ACTIVOS
   const simEngine = useMemo(() => {
     // 1. Impacto en Ingresos:
@@ -214,6 +350,44 @@ export default function MotorFinancieroTab({
     const allocProyectosSim = totalEgresosSim > 0 ? (costoProyectosSim / totalEgresosSim) * 100 : 0;
     const allocSociosSim = totalEgresosSim > 0 ? (retirosSociosSim / totalEgresosSim) * 100 : 0;
 
+    // Deltas de sensibilidad individuales para la cascada (Waterfall)
+    const deltaVentas = ingresosVentasSim - ingresosVentasProyectosBase;
+    const deltaSocios = ingresosSociosSim - ingresosSociosBase;
+    const deltaObras = -(costoProyectosSim - costoProyectosBase);
+    const deltaEstructura = -(estructuraSim - estructuraBase);
+    const deltaPasivos = -(pasivosSim - pasivosBase);
+    const deltaRetiros = -retirosSociosSim;
+    const deltaNetoTotal = flujoNetoSim - flujoNetoBase;
+
+    // Trayectoria mensual simulada
+    let saldoSimAcum = liquidezActual;
+    const cronogramaSimulado = cronogramaMensual.map(m => {
+      const ingVentasM = Math.max(0, m.ingVentas * factorVentas);
+      const ingSociosM = (m.ingSocios * factorCupos) + (Number(simParams.nuevosAportesCapitalARS || 0) / 12);
+      const totIngM = ingVentasM + ingSociosM;
+
+      const egObraM = m.egObra * factorCostoObra;
+      const factorEmpresa = costoEmpresaBase > 0 ? (costoEmpresaSim / costoEmpresaBase) : 1;
+      const egEmpresaM = m.egEmpresa * factorEmpresa;
+      const retirosM = totIngM * (simParams.politicaRetirosPct / 100);
+      const totEgM = egObraM + egEmpresaM + retirosM;
+      const flujoNetoM = totIngM - totEgM;
+      saldoSimAcum += flujoNetoM;
+
+      return {
+        ...m,
+        totIngSim: totIngM,
+        egObraSim: egObraM,
+        egEmpresaSim: egEmpresaM,
+        retirosSim: retirosM,
+        totEgSim: totEgM,
+        flujoNetoSim: flujoNetoM,
+        saldoSimAcum
+      };
+    });
+
+    const mesMenorCaja = [...cronogramaSimulado].sort((a, b) => a.saldoSimAcum - b.saldoSimAcum)[0] || cronogramaSimulado[0];
+
     return {
       liquidezActual,
       totalIngresosBase,
@@ -235,6 +409,17 @@ export default function MotorFinancieroTab({
       retirosSociosSim,
       ingresosVentasSim,
       ingresosSociosSim,
+      estructuraSim,
+      pasivosSim,
+      deltaVentas,
+      deltaSocios,
+      deltaObras,
+      deltaEstructura,
+      deltaPasivos,
+      deltaRetiros,
+      deltaNetoTotal,
+      cronogramaSimulado,
+      mesMenorCaja,
       alloc: {
         base: [
           { name: "Empresa", pct: Math.round(allocEmpresaBase), monto: costoEmpresaBase, color: "#1E293B" },
@@ -248,89 +433,80 @@ export default function MotorFinancieroTab({
         ]
       }
     };
-  }, [simParams, totalIngresosBase, totalEgresosBase, ingresosVentasProyectosBase, costoProyectosBase, ingresosSociosBase, costoEmpresaBase, egresosActivos, kpis]);
-
-  // Lista canónica de meses
-  const mesesDetalle = [
-    { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
-    { k: "05", n: "May" }, { k: "06", n: "Jun" }, { k: "07", n: "Jul" }, { k: "08", n: "Ago" },
-    { k: "09", n: "Sep" }, { k: "10", n: "Oct" }, { k: "11", n: "Nov" }, { k: "12", n: "Dic" }
-  ];
-
-  // Cálculo mensual del flujo por pilar para el ejercicio analizado (con acumulador de caja)
-  const cronogramaMensual = useMemo(() => {
-    let saldoAcumulado = kpis ? kpis.liquidez : 124596986;
-
-    return mesesDetalle.map(m => {
-      // Ingresos ventas / cuotas de proyectos
-      let ingVentas = 0;
-      ["custom_cuotas-mensuales", "custom_ventas-cdo", "custom_pesa"].forEach(k => {
-        ingVentas += Number(ingresosActivos[k]?.[m.k] || 0);
-      });
-
-      // Ingresos socios
-      let ingSocios = 0;
-      ["custom_cupos-socios", "custom_aportes"].forEach(k => {
-        ingSocios += Number(ingresosActivos[k]?.[m.k] || 0);
-      });
-
-      const totalIng = ingVentas + ingSocios;
-
-      // Egresos proyectos (obras)
-      let egObra = 0;
-      Object.entries(egresosActivos).forEach(([k, mesesObj]) => {
-        if (k.startsWith("proy_")) {
-          egObra += Number(mesesObj?.[m.k] || 0);
-        }
-      });
-
-      // Egresos empresa (estructura)
-      let egEmpresa = 0;
-      ["custom_rrhh", "custom_administracion", "custom_inversiones", "custom_pasivos-financieros"].forEach(k => {
-        egEmpresa += Number(egresosActivos[k]?.[m.k] || 0);
-      });
-
-      const totalEg = egObra + egEmpresa;
-      const flujoNeto = totalIng - totalEg;
-      saldoAcumulado += flujoNeto;
-
-      return {
-        ...m,
-        ingVentas,
-        ingSocios,
-        totalIng,
-        egObra,
-        egEmpresa,
-        totalEg,
-        flujoNeto,
-        saldoAcumulado
-      };
-    });
-  }, [ingresosActivos, egresosActivos, kpis]);
+  }, [simParams, totalIngresosBase, totalEgresosBase, ingresosVentasProyectosBase, costoProyectosBase, ingresosSociosBase, costoEmpresaBase, egresosActivos, kpis, cronogramaMensual]);
 
   // Datos para gráfico comparativo de Pilares Base vs Simulado
-  const pilaresChartData = [
+  const pilaresChartData = useMemo(() => [
     {
-      categoria: "Ingresos Ventas",
-      Base: Math.round(ingresosVentasProyectosBase / 1000000),
-      Simulado: Math.round(simEngine.ingresosVentasSim / 1000000)
-    },
-    {
-      categoria: "Ingresos Socios",
-      Base: Math.round(ingresosSociosBase / 1000000),
-      Simulado: Math.round(simEngine.ingresosSociosSim / 1000000)
+      categoria: "Ingresos Totales",
+      Base: Math.round(simEngine.totalIngresosBase / 1000000),
+      Simulado: Math.round(simEngine.totalIngresosSim / 1000000),
+      diff: Math.round((simEngine.totalIngresosSim - simEngine.totalIngresosBase) / 1000000)
     },
     {
       categoria: "Costo Obra",
       Base: Math.round(costoProyectosBase / 1000000),
-      Simulado: Math.round(simEngine.costoProyectosSim / 1000000)
+      Simulado: Math.round(simEngine.costoProyectosSim / 1000000),
+      diff: Math.round((simEngine.costoProyectosSim - costoProyectosBase) / 1000000)
     },
     {
-      categoria: "Costo Empresa",
+      categoria: "Estructura & Pasivos",
       Base: Math.round(costoEmpresaBase / 1000000),
-      Simulado: Math.round(simEngine.costoEmpresaSim / 1000000)
+      Simulado: Math.round(simEngine.costoEmpresaSim / 1000000),
+      diff: Math.round((simEngine.costoEmpresaSim - costoEmpresaBase) / 1000000)
+    },
+    {
+      categoria: "Flujo Neto Anual",
+      Base: Math.round(simEngine.flujoNetoBase / 1000000),
+      Simulado: Math.round(simEngine.flujoNetoSim / 1000000),
+      diff: Math.round((simEngine.flujoNetoSim - simEngine.flujoNetoBase) / 1000000)
     }
-  ];
+  ], [simEngine, costoProyectosBase, costoEmpresaBase]);
+
+  const waterfallSensibilidad = useMemo(() => [
+    {
+      palanca: "Ritmo Comercial & Ventas",
+      impacto: simEngine.deltaVentas,
+      tipo: simEngine.deltaVentas >= 0 ? "positivo" : "negativo",
+      detalle: `${simParams.ritmoVentasPct >= 0 ? "+" : ""}${simParams.ritmoVentasPct}% ritmo | Demora ${simParams.retrasoCobranzasDias}d`,
+      pilar: "Comercial"
+    },
+    {
+      palanca: "Cupos & Aportes Socios",
+      impacto: simEngine.deltaSocios,
+      tipo: simEngine.deltaSocios >= 0 ? "positivo" : "negativo",
+      detalle: `${simParams.cuposCumplimientoPct}% cupos | +$ ${fmt(simParams.nuevosAportesCapitalARS)} capital`,
+      pilar: "Socios"
+    },
+    {
+      palanca: "Costo Directo Obras (CAC & Plazo)",
+      impacto: simEngine.deltaObras,
+      tipo: simEngine.deltaObras >= 0 ? "positivo" : "negativo",
+      detalle: `+${simParams.inflacionCACCostoObra}% CAC | +${simParams.desvioPlazoMeses}m plazo`,
+      pilar: "Proyectos"
+    },
+    {
+      palanca: "Gasto de Estructura / Admin",
+      impacto: simEngine.deltaEstructura,
+      tipo: simEngine.deltaEstructura >= 0 ? "positivo" : "negativo",
+      detalle: `${simParams.ajusteGastoEstructura > 0 ? "+" : ""}${simParams.ajusteGastoEstructura}% ajuste gasto`,
+      pilar: "Empresa"
+    },
+    {
+      palanca: "Refinanciación de Pasivos",
+      impacto: simEngine.deltaPasivos,
+      tipo: simEngine.deltaPasivos >= 0 ? "positivo" : "negativo",
+      detalle: `${simParams.renegociarPasivosPct}% postergado/refinanciado`,
+      pilar: "Financiero"
+    },
+    {
+      palanca: "Política Retiros de Socios",
+      impacto: simEngine.deltaRetiros,
+      tipo: simEngine.deltaRetiros >= 0 ? "positivo" : "negativo",
+      detalle: `${simParams.politicaRetirosPct}% s/ Ingresos`,
+      pilar: "Socios"
+    }
+  ], [simEngine, simParams, fmt]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -1126,44 +1302,116 @@ export default function MotorFinancieroTab({
       {subTab === "simulador" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           
-          {/* PANEL DE CONTROL MULTIVARIABLE (3 PILARES) */}
-          <div style={{ background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 12, padding: 24, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Sliders size={20} color={tokens.gold} /> Parámetros de Simulación por Pilar
-                </h2>
-                <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>
-                  Ajusta los deslizadores para poner a prueba el negocio frente a estrés de mercado o decisiones de capital.
-                </p>
+          {/* TOOLBAR DE ESCENARIOS ESTRATÉGICOS (PRESETS CON 1 CLIC) */}
+          <div style={{ background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 12, padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.6px", marginRight: 4 }}>
+                  Escenarios Rápidos:
+                </span>
+                {[
+                  { key: "base", label: `Base ${selectedYear}`, icon: RefreshCw, desc: "Valores nominales del presupuesto" },
+                  { key: "estres", label: "Estrés Severo (CAC + Mora)", icon: AlertTriangle, desc: "-15% ventas, +30d retraso, +15% CAC" },
+                  { key: "expansion", label: "Aceleración Comercial", icon: TrendingUp, desc: "+25% ventas, al día, +$50M aporte capital" },
+                  { key: "austeridad", label: "Austeridad y Refinanciación", icon: ShieldAlert, desc: "-15% estructura, 40% pasivos" },
+                  { key: "equilibrado", label: "Plan Integral Equilibrado", icon: Scale, desc: "+10% ventas, -5% estructura, 20% pasivos" },
+                ].map(p => {
+                  const isSel = activePreset === p.key;
+                  const IconComp = p.icon;
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => aplicarPresetSim(p.key)}
+                      title={p.desc}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "7px 12px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: isSel ? 700 : 500,
+                        cursor: "pointer",
+                        border: isSel ? `1.5px solid ${tokens.gold}` : `1px solid ${colorBorder}`,
+                        background: isSel ? tokens.goldSoft : "#F8FAFC",
+                        color: isSel ? tokens.ink : tokens.textMuted,
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <IconComp size={13} color={isSel ? tokens.gold : tokens.textMuted} />
+                      {p.label}
+                    </button>
+                  );
+                })}
+
+                {activePreset === "personalizado" && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#2563EB", background: "#EFF6FF", border: "1px solid #BFDBFE", padding: "4px 10px", borderRadius: 6 }}>
+                    ⚡ Calibración Dinámica Personalizada
+                  </span>
+                )}
               </div>
 
               <button
                 onClick={resetSimParams}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 6, fontSize: 12, fontWeight: 600, color: tokens.ink, cursor: "pointer" }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "7px 14px",
+                  background: tokens.surface,
+                  border: `1px solid ${colorBorderStrong}`,
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: tokens.ink,
+                  cursor: "pointer"
+                }}
               >
-                <RefreshCw size={13} /> Resetear Escenario
+                <RefreshCw size={13} /> Restablecer a Base
               </button>
             </div>
+          </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+          {/* PANEL DE CONTROL MULTIVARIABLE (3 PILARES CON BOTONES DE MICRO-AJUSTE) */}
+          <div style={{ background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 12, padding: 24, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ marginBottom: 18 }}>
+              <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 8 }}>
+                <Sliders size={20} color={tokens.gold} /> Parámetros y Palancas por Pilar del Negocio
+              </h2>
+              <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>
+                Mueve los controles o usa los botones (+ / -) para calibrar con precisión las variables del ejercicio {selectedYear}.
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
               
               {/* COLUMNA 1: PALANCAS DE EMPRESA */}
               <div style={{ background: "#F8FAFC", border: `1px solid ${colorBorder}`, borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: tokens.ink, borderBottom: `1px solid ${colorBorder}`, paddingBottom: 8 }}>
-                  <Building2 size={16} /> Palancas: EMPRESA
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${colorBorder}`, paddingBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: tokens.ink }}>
+                    <Building2 size={16} /> Palancas: EMPRESA
+                  </div>
+                  <span style={{ fontSize: 10, color: tokens.textMuted, textTransform: "uppercase" }}>Estructura & Pasivos</span>
                 </div>
 
                 {/* Retraso de cobranzas */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Retraso medio cobranzas:</span>
-                    <strong style={{ fontFamily: tokens.fontMono }}>{simParams.retrasoCobranzasDias} días</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono, color: simParams.retrasoCobranzasDias > 15 ? tokens.negative : tokens.ink }}>
+                        {simParams.retrasoCobranzasDias} días
+                      </strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("retrasoCobranzasDias", -5, 0, 60)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-5d</button>
+                        <button onClick={() => adjustParam("retrasoCobranzasDias", 5, 0, 60)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+5d</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="0" max="60" step="5"
                     value={simParams.retrasoCobranzasDias}
-                    onChange={(e) => setSimParams({ ...simParams, retrasoCobranzasDias: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("retrasoCobranzasDias", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
@@ -1175,16 +1423,22 @@ export default function MotorFinancieroTab({
 
                 {/* Ajuste de estructura */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Gasto Estructura / Admin:</span>
-                    <strong style={{ fontFamily: tokens.fontMono, color: simParams.ajusteGastoEstructura > 0 ? tokens.negative : tokens.positive }}>
-                      {simParams.ajusteGastoEstructura > 0 ? `+${simParams.ajusteGastoEstructura}%` : `${simParams.ajusteGastoEstructura}%`}
-                    </strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono, color: simParams.ajusteGastoEstructura > 0 ? tokens.negative : tokens.positive }}>
+                        {simParams.ajusteGastoEstructura > 0 ? `+${simParams.ajusteGastoEstructura}%` : `${simParams.ajusteGastoEstructura}%`}
+                      </strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("ajusteGastoEstructura", -5, -30, 30)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-5%</button>
+                        <button onClick={() => adjustParam("ajusteGastoEstructura", 5, -30, 30)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+5%</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="-30" max="30" step="5"
                     value={simParams.ajusteGastoEstructura}
-                    onChange={(e) => setSimParams({ ...simParams, ajusteGastoEstructura: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("ajusteGastoEstructura", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
@@ -1196,18 +1450,27 @@ export default function MotorFinancieroTab({
 
                 {/* Renegociar Pasivos */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Refinanciar pasivos:</span>
-                    <strong style={{ fontFamily: tokens.fontMono }}>{simParams.renegociarPasivosPct}%</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono, color: simParams.renegociarPasivosPct > 0 ? tokens.positive : tokens.ink }}>
+                        {simParams.renegociarPasivosPct}%
+                      </strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("renegociarPasivosPct", -10, 0, 50)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-10%</button>
+                        <button onClick={() => adjustParam("renegociarPasivosPct", 10, 0, 50)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+10%</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="0" max="50" step="10"
                     value={simParams.renegociarPasivosPct}
-                    onChange={(e) => setSimParams({ ...simParams, renegociarPasivosPct: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("renegociarPasivosPct", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
                     <span>0% (Plan normal)</span>
+                    <span>25%</span>
                     <span>50% (Prorrogado)</span>
                   </div>
                 </div>
@@ -1215,22 +1478,31 @@ export default function MotorFinancieroTab({
 
               {/* COLUMNA 2: PALANCAS DE PROYECTOS */}
               <div style={{ background: "#FDFBF7", border: `1px solid #F0E6D2`, borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: tokens.gold, borderBottom: `1px solid #F0E6D2`, paddingBottom: 8 }}>
-                  <HardHat size={16} /> Palancas: PROYECTOS
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid #F0E6D2`, paddingBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: tokens.gold }}>
+                    <HardHat size={16} /> Palancas: PROYECTOS
+                  </div>
+                  <span style={{ fontSize: 10, color: tokens.textMuted, textTransform: "uppercase" }}>Obras & Ventas</span>
                 </div>
 
                 {/* Inflación CAC Costo Obra */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Desvío CAC Costo Obra:</span>
-                    <strong style={{ fontFamily: tokens.fontMono, color: simParams.inflacionCACCostoObra > 0 ? tokens.negative : tokens.positive }}>
-                      +{simParams.inflacionCACCostoObra}%
-                    </strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono, color: simParams.inflacionCACCostoObra > 0 ? tokens.negative : tokens.positive }}>
+                        +{simParams.inflacionCACCostoObra}%
+                      </strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("inflacionCACCostoObra", -5, 0, 40)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-5%</button>
+                        <button onClick={() => adjustParam("inflacionCACCostoObra", 5, 0, 40)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+5%</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="0" max="40" step="5"
                     value={simParams.inflacionCACCostoObra}
-                    onChange={(e) => setSimParams({ ...simParams, inflacionCACCostoObra: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("inflacionCACCostoObra", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
@@ -1242,16 +1514,22 @@ export default function MotorFinancieroTab({
 
                 {/* Ritmo de Ventas */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Ritmo Comercial Ventas:</span>
-                    <strong style={{ fontFamily: tokens.fontMono, color: simParams.ritmoVentasPct >= 0 ? tokens.positive : tokens.negative }}>
-                      {simParams.ritmoVentasPct > 0 ? `+${simParams.ritmoVentasPct}%` : `${simParams.ritmoVentasPct}%`}
-                    </strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono, color: simParams.ritmoVentasPct >= 0 ? tokens.positive : tokens.negative }}>
+                        {simParams.ritmoVentasPct > 0 ? `+${simParams.ritmoVentasPct}%` : `${simParams.ritmoVentasPct}%`}
+                      </strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("ritmoVentasPct", -5, -40, 40)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-5%</button>
+                        <button onClick={() => adjustParam("ritmoVentasPct", 5, -40, 40)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+5%</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="-40" max="40" step="5"
                     value={simParams.ritmoVentasPct}
-                    onChange={(e) => setSimParams({ ...simParams, ritmoVentasPct: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("ritmoVentasPct", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
@@ -1263,14 +1541,20 @@ export default function MotorFinancieroTab({
 
                 {/* Desvío en Plazos de Obra */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Extensión de cronograma:</span>
-                    <strong style={{ fontFamily: tokens.fontMono }}>+{simParams.desvioPlazoMeses} meses</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono }}>+{simParams.desvioPlazoMeses} meses</strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("desvioPlazoMeses", -1, 0, 6)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-1m</button>
+                        <button onClick={() => adjustParam("desvioPlazoMeses", 1, 0, 6)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+1m</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="0" max="6" step="1"
                     value={simParams.desvioPlazoMeses}
-                    onChange={(e) => setSimParams({ ...simParams, desvioPlazoMeses: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("desvioPlazoMeses", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
@@ -1283,20 +1567,29 @@ export default function MotorFinancieroTab({
 
               {/* COLUMNA 3: PALANCAS DE SOCIOS */}
               <div style={{ background: "#F0FDF4", border: `1px solid #DCFCE7`, borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: tokens.positive, borderBottom: `1px solid #DCFCE7`, paddingBottom: 8 }}>
-                  <Users size={16} /> Palancas: SOCIOS
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid #DCFCE7`, paddingBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: tokens.positive }}>
+                    <Users size={16} /> Palancas: SOCIOS
+                  </div>
+                  <span style={{ fontSize: 10, color: tokens.textMuted, textTransform: "uppercase" }}>Cupos & Dividendos</span>
                 </div>
 
                 {/* Cumplimiento Cupos */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Efectividad Cupos Socios:</span>
-                    <strong style={{ fontFamily: tokens.fontMono }}>{simParams.cuposCumplimientoPct}%</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono }}>{simParams.cuposCumplimientoPct}%</strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("cuposCumplimientoPct", -5, 50, 120)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-5%</button>
+                        <button onClick={() => adjustParam("cuposCumplimientoPct", 5, 50, 120)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+5%</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="50" max="120" step="5"
                     value={simParams.cuposCumplimientoPct}
-                    onChange={(e) => setSimParams({ ...simParams, cuposCumplimientoPct: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("cuposCumplimientoPct", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
@@ -1308,14 +1601,20 @@ export default function MotorFinancieroTab({
 
                 {/* Política de Retiros */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Retiro de Dividendos:</span>
-                    <strong style={{ fontFamily: tokens.fontMono }}>{simParams.politicaRetirosPct}%</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono }}>{simParams.politicaRetirosPct}%</strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("politicaRetirosPct", -5, 0, 30)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-5%</button>
+                        <button onClick={() => adjustParam("politicaRetirosPct", 5, 0, 30)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+5%</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="0" max="30" step="5"
                     value={simParams.politicaRetirosPct}
-                    onChange={(e) => setSimParams({ ...simParams, politicaRetirosPct: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("politicaRetirosPct", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
@@ -1327,16 +1626,22 @@ export default function MotorFinancieroTab({
 
                 {/* Inyección de Capital Fresco */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ color: tokens.textMuted }}>Inyección Aporte Extra:</span>
-                    <strong style={{ fontFamily: tokens.fontMono, color: tokens.positive }}>
-                      $ {fmt(simParams.nuevosAportesCapitalARS)}
-                    </strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong style={{ fontFamily: tokens.fontMono, color: tokens.positive }}>
+                        $ {fmt(simParams.nuevosAportesCapitalARS)}
+                      </strong>
+                      <div style={{ display: "inline-flex", gap: 2 }}>
+                        <button onClick={() => adjustParam("nuevosAportesCapitalARS", -25000000, 0, 200000000)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>-25M</button>
+                        <button onClick={() => adjustParam("nuevosAportesCapitalARS", 25000000, 0, 200000000)} style={{ border: `1px solid ${colorBorder}`, background: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+25M</button>
+                      </div>
+                    </div>
                   </div>
                   <input
                     type="range" min="0" max="200000000" step="10000000"
                     value={simParams.nuevosAportesCapitalARS}
-                    onChange={(e) => setSimParams({ ...simParams, nuevosAportesCapitalARS: Number(e.target.value) })}
+                    onChange={(e) => handleSimParamChange("nuevosAportesCapitalARS", Number(e.target.value))}
                     className="sim-slider"
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
@@ -1350,10 +1655,10 @@ export default function MotorFinancieroTab({
             </div>
           </div>
 
-          {/* TABLERO DE IMPACTO INMEDIATO (DECISIONES ESTRATÉGICAS) */}
+          {/* TABLERO DE IMPACTO INMEDIATO (4 TARJETAS CLAVE) */}
           <div style={{ background: tokens.ink, color: "#fff", borderRadius: 12, padding: 24, border: "1px solid #28324A" }}>
             <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#fff", display: "flex", alignItems: "center", gap: 8 }}>
-              <Scale size={18} color={tokens.gold} /> Impacto en el Negocio vs. Presupuesto Base
+              <Scale size={18} color={tokens.gold} /> Impacto en el Negocio vs. Presupuesto Base ({selectedYear})
             </h3>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
@@ -1372,18 +1677,19 @@ export default function MotorFinancieroTab({
               {/* SALDO FINAL AL CIERRE */}
               <div style={{ background: "#161F35", borderRadius: 8, padding: 16, border: "1px solid #2A3654" }}>
                 <div style={{ fontSize: 11, color: "#8590A6", textTransform: "uppercase", fontWeight: 700 }}>Caja Final Simulada</div>
-                <div style={{ fontFamily: tokens.fontMono, fontSize: 22, fontWeight: 700, margin: "6px 0", color: simEngine.cajaFinalSim < 0 ? "#E0897A" : tokens.positive }}>
+                <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 700, margin: "6px 0", color: simEngine.cajaFinalSim < 0 ? "#E0897A" : tokens.positive }}>
                   $ {fmt(simEngine.cajaFinalSim)}
                 </div>
-                <div style={{ fontSize: 11, color: "#9AA3B8" }}>
-                  Dif: $ {fmt(simEngine.flujoNetoSim - simEngine.flujoNetoBase)}
+                <div style={{ fontSize: 11, color: "#9AA3B8", display: "flex", justifyContent: "space-between" }}>
+                  <span>Dif: $ {fmt(simEngine.flujoNetoSim - simEngine.flujoNetoBase)}</span>
+                  <span>USD {((simEngine.cajaFinalSim / ultimoDolar) / 1000).toFixed(0)}k</span>
                 </div>
               </div>
 
               {/* MARGEN DE OBRAS */}
               <div style={{ background: "#161F35", borderRadius: 8, padding: 16, border: "1px solid #2A3654" }}>
                 <div style={{ fontSize: 11, color: "#8590A6", textTransform: "uppercase", fontWeight: 700 }}>Margen Operativo</div>
-                <div style={{ fontFamily: tokens.fontMono, fontSize: 22, fontWeight: 700, margin: "6px 0", color: tokens.gold }}>
+                <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 700, margin: "6px 0", color: tokens.gold }}>
                   $ {fmt(simEngine.margenBrutoSim)}
                 </div>
                 <div style={{ fontSize: 11, color: "#9AA3B8" }}>
@@ -1394,7 +1700,7 @@ export default function MotorFinancieroTab({
               {/* RETIRO ESTIMADO SOCIOS */}
               <div style={{ background: "#161F35", borderRadius: 8, padding: 16, border: "1px solid #2A3654" }}>
                 <div style={{ fontSize: 11, color: "#8590A6", textTransform: "uppercase", fontWeight: 700 }}>Retiros / Dividendos</div>
-                <div style={{ fontFamily: tokens.fontMono, fontSize: 22, fontWeight: 700, margin: "6px 0", color: "#60A5FA" }}>
+                <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 700, margin: "6px 0", color: "#60A5FA" }}>
                   $ {fmt(simEngine.retirosSociosSim)}
                 </div>
                 <div style={{ fontSize: 11, color: "#9AA3B8" }}>
@@ -1403,12 +1709,161 @@ export default function MotorFinancieroTab({
               </div>
 
             </div>
+          </div>
+
+          {/* SECCIÓN COMPARATIVA: GRÁFICO RECHARTS BASE VS SIMULADO + CASCADA DE SENSIBILIDAD */}
+          <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: 20 }}>
+            
+            {/* GRÁFICO RECHARTS DE PILARES */}
+            <div style={{ background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 12, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <h4 style={{ margin: "0 0 2px", fontSize: 15, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 8 }}>
+                    <BarChart3 size={18} color={tokens.gold} /> Comparativa Base vs. Simulado
+                  </h4>
+                  <span style={{ fontSize: 12, color: tokens.textMuted }}>Valores expresados en Millones de ARS ($ M)</span>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", background: "#F1F5F9", borderRadius: 4, color: tokens.ink }}>
+                  Año {selectedYear}
+                </span>
+              </div>
+
+              <div style={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pilaresChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                    <XAxis dataKey="categoria" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94A3B8" fontSize={11} tickFormatter={(v) => `$${v}M`} tickLine={false} />
+                    <Tooltip
+                      formatter={(val, name) => [`$ ${val.toLocaleString("es-AR")} M`, name]}
+                      contentStyle={{ background: "#1E293B", border: "none", borderRadius: 8, color: "#fff", fontSize: 12 }}
+                      itemStyle={{ color: "#fff" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 6 }} />
+                    <Bar dataKey="Base" fill="#94A3B8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Simulado" fill={tokens.gold} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* CASCADA DE SENSIBILIDAD FINANCIERA (WATERFALL) */}
+            <div style={{ background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 12, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 8 }}>
+                    <Activity size={18} color="#2563EB" /> Sensibilidad por Decisión
+                  </h4>
+                  <span style={{ fontSize: 11, color: tokens.textMuted }}>Aporte individual a la caja</span>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {waterfallSensibilidad.map((item, idx) => {
+                    const esPos = item.impacto >= 0;
+                    const enMillones = (item.impacto / 1000000).toFixed(1);
+                    return (
+                      <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#F8FAFC", borderRadius: 6, border: `1px solid ${colorBorder}` }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: tokens.ink }}>{item.palanca}</span>
+                          <span style={{ fontSize: 10, color: tokens.textMuted }}>{item.detalle}</span>
+                        </div>
+                        <span style={{
+                          fontFamily: tokens.fontMono,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: "2px 8px",
+                          borderRadius: 4,
+                          background: esPos ? "#DCFCE7" : "#FEE2E2",
+                          color: esPos ? "#15803D" : "#B91C1C"
+                        }}>
+                          {esPos ? "+" : ""}{enMillones} M
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* TOTAL NETO DE LA CASCADA */}
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${colorBorder}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: tokens.ink }}>Variación Neta en Caja:</span>
+                <span style={{
+                  fontFamily: tokens.fontMono,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: simEngine.deltaNetoTotal >= 0 ? tokens.positive : tokens.negative
+                }}>
+                  {simEngine.deltaNetoTotal >= 0 ? "+" : ""}$ {fmt(simEngine.deltaNetoTotal)}
+                </span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* CRONOGRAMA MENSUAL SIMULADO & ALERTA DEL VALLE DE CAJA */}
+          <div style={{ background: tokens.surface, border: `1px solid ${colorBorderStrong}`, borderRadius: 12, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Calendar size={18} color={tokens.gold} />
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: tokens.ink }}>
+                  Trayectoria Mensual Simulada · Ejercicio {selectedYear}
+                </h4>
+              </div>
+
+              {simEngine.mesMenorCaja && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#FEE2E2" : "#FEF3C7", border: `1px solid ${simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#FCA5A5" : "#FDE68A"}`, padding: "4px 12px", borderRadius: 6, fontSize: 12 }}>
+                  <AlertTriangle size={14} color={simEngine.mesMenorCaja.saldoSimAcum < 0 ? "#B91C1C" : "#B45309"} />
+                  <span>
+                    <strong>Mes con Menor Liquidez:</strong> {simEngine.mesMenorCaja.n} con caja de <strong>$ {fmt(simEngine.mesMenorCaja.saldoSimAcum)}</strong>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* TIRA DE LOS 12 MESES SIMULADOS */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+              {simEngine.cronogramaSimulado.map((m) => {
+                const esMenor = simEngine.mesMenorCaja?.k === m.k;
+                const netoSimPos = m.flujoNetoSim >= 0;
+                return (
+                  <div
+                    key={m.k}
+                    style={{
+                      background: esMenor ? "#FEF9C3" : "#F8FAFC",
+                      border: esMenor ? `1.5px solid ${tokens.gold}` : `1px solid ${colorBorder}`,
+                      borderRadius: 6,
+                      padding: "8px 6px",
+                      textAlign: "center",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 700, color: tokens.ink }}>{m.n}</span>
+                    <span style={{ fontSize: 10, color: tokens.textMuted }}>Base:</span>
+                    <span style={{ fontFamily: tokens.fontMono, fontSize: 10, color: m.flujoNeto >= 0 ? "#15803D" : "#B91C1C" }}>
+                      ${Math.round(m.flujoNeto / 1000000)}M
+                    </span>
+                    <span style={{ fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>Sim:</span>
+                    <span style={{ fontFamily: tokens.fontMono, fontSize: 11, fontWeight: 700, color: netoSimPos ? "#15803D" : "#B91C1C" }}>
+                      ${Math.round(m.flujoNetoSim / 1000000)}M
+                    </span>
+                    <div style={{ marginTop: 2, paddingTop: 4, borderTop: `1px solid ${colorBorder}` }}>
+                      <span style={{ fontSize: 9, color: tokens.textMuted, display: "block" }}>Caja fin:</span>
+                      <span style={{ fontFamily: tokens.fontMono, fontSize: 10, fontWeight: 600, color: m.saldoSimAcum < 0 ? "#B91C1C" : tokens.ink }}>
+                        ${Math.round(m.saldoSimAcum / 1000000)}M
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* RECOMENDACIÓN EJECUTIVA AUTOMATIZADA */}
-            <div style={{ marginTop: 18, background: "#1E293B", borderRadius: 8, padding: "14px 18px", border: "1px solid #334155", display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ marginTop: 16, background: "#1E293B", borderRadius: 8, padding: "14px 18px", border: "1px solid #334155", display: "flex", alignItems: "flex-start", gap: 12 }}>
               <CheckCircle2 size={20} color={tokens.gold} style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ fontSize: 13, lineHeight: 1.5, color: "#E2E8F0" }}>
-                <strong>Diagnóstico del Motor Financiero:</strong> {
+                <strong>Diagnóstico Estratégico del Escenario:</strong> {
                   simEngine.cajaFinalSim < 0
                     ? "Alerta de iliquidez futura. El desvío de costos o caída de ventas genera un quiebre de caja antes de finalizar el período. Se recomienda activar renegociación de pasivos o posponer retiros de socios."
                     : simEngine.diasCajaSim > 20
