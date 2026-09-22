@@ -1453,6 +1453,11 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                       );
                     }}
                   />
+                  <Legend
+                    verticalAlign="top"
+                    align="right"
+                    wrapperStyle={{ fontSize: 11.5, fontWeight: 600, paddingBottom: 8 }}
+                  />
                   {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "indice") && (
                     <Area
                       yAxisId="left"
