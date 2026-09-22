@@ -1185,27 +1185,41 @@ export default function PresupuestoAnualTab({
               </div>
             </div>
 
-            <div className="table-container" style={{ overflowX: "auto", maxWidth: "100%" }}>
+            <div className="table-container" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "75vh", maxWidth: "100%", border: "1px solid #CBD5E1", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
-                <thead>
+                <thead style={{ position: "sticky", top: 0, zIndex: 20 }}>
                   <tr style={{ background: "#F1F5F9", color: tokens.ink, borderBottom: "2px solid #CBD5E1" }}>
                     {/* COLUMNA FIJA (STICKY FREEZE COLUMN) */}
                     <th style={{
                       position: "sticky",
                       left: 0,
-                      zIndex: 3,
+                      top: 0,
+                      zIndex: 30,
                       background: "#F1F5F9",
                       padding: "12px 16px",
                       textAlign: "left",
                       minWidth: 260,
                       fontWeight: 700,
                       borderRight: "2px solid #CBD5E1",
-                      boxShadow: "2px 0 5px rgba(0,0,0,0.03)"
+                      borderBottom: "2px solid #CBD5E1",
+                      boxShadow: "2px 2px 5px rgba(0,0,0,0.06)"
                     }}>
                       Concepto / Rubro Presupuestario
                     </th>
                     {meses.map(m => (
-                      <th key={m.k} style={{ padding: "12px 10px", textAlign: "right", minWidth: enMillones ? 92 : 110, fontFamily: tokens.fontMono, fontWeight: 700 }}>
+                      <th key={m.k} style={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 20,
+                        background: "#F1F5F9",
+                        borderBottom: "2px solid #CBD5E1",
+                        padding: "12px 10px",
+                        textAlign: "right",
+                        minWidth: enMillones ? 92 : 110,
+                        fontFamily: tokens.fontMono,
+                        fontWeight: 700,
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.04)"
+                      }}>
                         <div>{m.n}</div>
                         {simulacionActiva && (
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: 4 }}>
@@ -1226,13 +1240,18 @@ export default function PresupuestoAnualTab({
                       </th>
                     ))}
                     <th style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 20,
                       padding: "12px 16px",
                       textAlign: "right",
                       minWidth: enMillones ? 110 : 130,
                       fontFamily: tokens.fontMono,
                       fontWeight: 800,
                       background: "#E2E8F0",
-                      color: tokens.ink
+                      borderBottom: "2px solid #CBD5E1",
+                      color: tokens.ink,
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.04)"
                     }}>
                       Total {selectedYear}
                     </th>

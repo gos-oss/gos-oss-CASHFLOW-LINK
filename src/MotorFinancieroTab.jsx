@@ -28,6 +28,17 @@ export default function MotorFinancieroTab({
   // 'simulador' (escenarios y decisiones estratégicas)
   const [subTab, setSubTab] = useState("arquitectura");
 
+  // Años disponibles en planes de fondos
+  const availableYears = useMemo(() => {
+    const keys = Object.keys(planesFondos || {});
+    if (!keys.includes("2026")) keys.push("2026");
+    if (!keys.includes("2027")) keys.push("2027");
+    return Array.from(new Set(keys)).sort();
+  }, [planesFondos]);
+
+  // Año analizado (por defecto 2026)
+  const [selectedYear, setSelectedYear] = useState("2026");
+
   // Estado del Simulador Estratégico Multivariable (Pilar Empresa, Proyectos, Socios)
   const [simParams, setSimParams] = useState({
     // Empresa:
@@ -82,64 +93,64 @@ export default function MotorFinancieroTab({
     return mesesFiltro.reduce((acc, m) => acc + Number(catObj[m] || 0), 0);
   };
 
-  // Cálculos base 2026 desde planesFondos filtrados por período
-  const plan2026 = planesFondos["2026"] || {};
-  const ingresos2026 = plan2026.ingreso || {};
-  const egresos2026 = plan2026.egreso || {};
+  // Cálculos base desde planesFondos para el año seleccionado y filtrados por período
+  const planActivo = planesFondos[selectedYear] || planesFondos["2026"] || {};
+  const ingresosActivos = planActivo.ingreso || {};
+  const egresosActivos = planActivo.egreso || {};
 
-  const totalIngresosBase2026 = useMemo(() => {
+  const totalIngresosBase = useMemo(() => {
     let tot = 0;
-    Object.values(ingresos2026).forEach(cat => {
+    Object.values(ingresosActivos).forEach(cat => {
       tot += sumCat(cat);
     });
     return tot || (periodoFiltro === "ANUAL" ? 3200000000 : periodoFiltro.startsWith("S") ? 1600000000 : 800000000);
-  }, [ingresos2026, mesesFiltro, periodoFiltro]);
+  }, [ingresosActivos, mesesFiltro, periodoFiltro]);
 
-  const totalEgresosBase2026 = useMemo(() => {
+  const totalEgresosBase = useMemo(() => {
     let tot = 0;
-    Object.values(egresos2026).forEach(cat => {
+    Object.values(egresosActivos).forEach(cat => {
       tot += sumCat(cat);
     });
     return tot || (periodoFiltro === "ANUAL" ? 2950000000 : periodoFiltro.startsWith("S") ? 1475000000 : 737500000);
-  }, [egresos2026, mesesFiltro, periodoFiltro]);
+  }, [egresosActivos, mesesFiltro, periodoFiltro]);
 
   // Desglose por los 3 pilares en el presupuesto base filtrado por período
   // 1. Empresa (RRHH, Estructura, Inversiones, Pasivos)
   const costoEmpresaBase = useMemo(() => {
     let tot = 0;
     ["custom_rrhh", "custom_administracion", "custom_inversiones", "custom_pasivos-financieros"].forEach(k => {
-      tot += sumCat(egresos2026[k]);
+      tot += sumCat(egresosActivos[k]);
     });
     return tot;
-  }, [egresos2026, mesesFiltro]);
+  }, [egresosActivos, mesesFiltro]);
 
   // 2. Proyectos (Obras directas: Duo, Boulevard, #300, Torre Green, etc.)
   const costoProyectosBase = useMemo(() => {
     let tot = 0;
-    Object.entries(egresos2026).forEach(([k, mesesObj]) => {
+    Object.entries(egresosActivos).forEach(([k, mesesObj]) => {
       if (k.startsWith("proy_")) {
         tot += sumCat(mesesObj);
       }
     });
     return tot;
-  }, [egresos2026, mesesFiltro]);
+  }, [egresosActivos, mesesFiltro]);
 
   const ingresosVentasProyectosBase = useMemo(() => {
     let tot = 0;
     ["custom_cuotas-mensuales", "custom_ventas-cdo", "custom_pesa"].forEach(k => {
-      tot += sumCat(ingresos2026[k]);
+      tot += sumCat(ingresosActivos[k]);
     });
     return tot;
-  }, [ingresos2026, mesesFiltro]);
+  }, [ingresosActivos, mesesFiltro]);
 
   // 3. Socios (Cupos socios, Aportes, etc.)
   const ingresosSociosBase = useMemo(() => {
     let tot = 0;
     ["custom_cupos-socios", "custom_aportes"].forEach(k => {
-      tot += sumCat(ingresos2026[k]);
+      tot += sumCat(ingresosActivos[k]);
     });
     return tot;
-  }, [ingresos2026, mesesFiltro]);
+  }, [ingresosActivos, mesesFiltro]);
 
   // SIMULACIÓN DEL MOTOR FINANCIERO CON PARÁMETROS ACTIVOS
   const simEngine = useMemo(() => {
@@ -160,10 +171,10 @@ export default function MotorFinancieroTab({
     const costoProyectosSim = costoProyectosBase * factorCostoObra;
 
     // Empresa: ajuste estructura y renegociación de pasivos
-    const pasivosBase = sumCat(egresos2026["custom_pasivos-financieros"]);
-    const estructuraBase = sumCat(egresos2026["custom_administracion"]);
-    const rrhhBase = sumCat(egresos2026["custom_rrhh"]);
-    const inversionesBase = sumCat(egresos2026["custom_inversiones"]);
+    const pasivosBase = sumCat(egresosActivos["custom_pasivos-financieros"]);
+    const estructuraBase = sumCat(egresosActivos["custom_administracion"]);
+    const rrhhBase = sumCat(egresosActivos["custom_rrhh"]);
+    const inversionesBase = sumCat(egresosActivos["custom_inversiones"]);
 
     const pasivosSim = pasivosBase * (1 - simParams.renegociarPasivosPct / 100);
     const estructuraSim = estructuraBase * (1 + simParams.ajusteGastoEstructura / 100);
@@ -177,7 +188,7 @@ export default function MotorFinancieroTab({
     // 3. Los 3 Pilares del Motor Financiero Resultante:
     // A. Cash Flow (Posición neta de caja anual + liquidez actual)
     const liquidezActual = kpis ? kpis.liquidez : 124596986;
-    const flujoNetoBase = totalIngresosBase2026 - totalEgresosBase2026;
+    const flujoNetoBase = totalIngresosBase - totalEgresosBase;
     const flujoNetoSim = totalIngresosSim - totalEgresosSim;
     const cajaFinalSim = liquidezActual + flujoNetoSim;
 
@@ -188,15 +199,15 @@ export default function MotorFinancieroTab({
     // B. Resultado Proyectado (EBITDA / Margen Operativo del negocio inmobiliario)
     const margenBrutoBase = ingresosVentasProyectosBase - costoProyectosBase;
     const margenBrutoSim = ingresosVentasSim - costoProyectosSim;
-    const ebitdaBase = totalIngresosBase2026 - totalEgresosBase2026;
+    const ebitdaBase = totalIngresosBase - totalEgresosBase;
     const ebitdaSim = totalIngresosSim - totalEgresosSim;
 
     const roiBase = costoProyectosBase > 0 ? (margenBrutoBase / costoProyectosBase) * 100 : 0;
     const roiSim = costoProyectosSim > 0 ? (margenBrutoSim / costoProyectosSim) * 100 : 0;
 
     // C. Capital Allocation (Distribución de recursos en %)
-    const allocEmpresaBase = totalEgresosBase2026 > 0 ? (costoEmpresaBase / totalEgresosBase2026) * 100 : 0;
-    const allocProyectosBase = totalEgresosBase2026 > 0 ? (costoProyectosBase / totalEgresosBase2026) * 100 : 0;
+    const allocEmpresaBase = totalEgresosBase > 0 ? (costoEmpresaBase / totalEgresosBase) * 100 : 0;
+    const allocProyectosBase = totalEgresosBase > 0 ? (costoProyectosBase / totalEgresosBase) * 100 : 0;
     const allocSociosBase = 0;
 
     const allocEmpresaSim = totalEgresosSim > 0 ? (costoEmpresaSim / totalEgresosSim) * 100 : 0;
@@ -205,8 +216,8 @@ export default function MotorFinancieroTab({
 
     return {
       liquidezActual,
-      totalIngresosBase: totalIngresosBase2026,
-      totalEgresosBase: totalEgresosBase2026,
+      totalIngresosBase,
+      totalEgresosBase,
       flujoNetoBase,
       totalIngresosSim,
       totalEgresosSim,
@@ -237,7 +248,65 @@ export default function MotorFinancieroTab({
         ]
       }
     };
-  }, [simParams, totalIngresosBase2026, totalEgresosBase2026, ingresosVentasProyectosBase, costoProyectosBase, ingresosSociosBase, costoEmpresaBase, egresos2026, kpis]);
+  }, [simParams, totalIngresosBase, totalEgresosBase, ingresosVentasProyectosBase, costoProyectosBase, ingresosSociosBase, costoEmpresaBase, egresosActivos, kpis]);
+
+  // Lista canónica de meses
+  const mesesDetalle = [
+    { k: "01", n: "Ene" }, { k: "02", n: "Feb" }, { k: "03", n: "Mar" }, { k: "04", n: "Abr" },
+    { k: "05", n: "May" }, { k: "06", n: "Jun" }, { k: "07", n: "Jul" }, { k: "08", n: "Ago" },
+    { k: "09", n: "Sep" }, { k: "10", n: "Oct" }, { k: "11", n: "Nov" }, { k: "12", n: "Dic" }
+  ];
+
+  // Cálculo mensual del flujo por pilar para el ejercicio analizado (con acumulador de caja)
+  const cronogramaMensual = useMemo(() => {
+    let saldoAcumulado = kpis ? kpis.liquidez : 124596986;
+
+    return mesesDetalle.map(m => {
+      // Ingresos ventas / cuotas de proyectos
+      let ingVentas = 0;
+      ["custom_cuotas-mensuales", "custom_ventas-cdo", "custom_pesa"].forEach(k => {
+        ingVentas += Number(ingresosActivos[k]?.[m.k] || 0);
+      });
+
+      // Ingresos socios
+      let ingSocios = 0;
+      ["custom_cupos-socios", "custom_aportes"].forEach(k => {
+        ingSocios += Number(ingresosActivos[k]?.[m.k] || 0);
+      });
+
+      const totalIng = ingVentas + ingSocios;
+
+      // Egresos proyectos (obras)
+      let egObra = 0;
+      Object.entries(egresosActivos).forEach(([k, mesesObj]) => {
+        if (k.startsWith("proy_")) {
+          egObra += Number(mesesObj?.[m.k] || 0);
+        }
+      });
+
+      // Egresos empresa (estructura)
+      let egEmpresa = 0;
+      ["custom_rrhh", "custom_administracion", "custom_inversiones", "custom_pasivos-financieros"].forEach(k => {
+        egEmpresa += Number(egresosActivos[k]?.[m.k] || 0);
+      });
+
+      const totalEg = egObra + egEmpresa;
+      const flujoNeto = totalIng - totalEg;
+      saldoAcumulado += flujoNeto;
+
+      return {
+        ...m,
+        ingVentas,
+        ingSocios,
+        totalIng,
+        egObra,
+        egEmpresa,
+        totalEg,
+        flujoNeto,
+        saldoAcumulado
+      };
+    });
+  }, [ingresosActivos, egresosActivos, kpis]);
 
   // Datos para gráfico comparativo de Pilares Base vs Simulado
   const pilaresChartData = [
@@ -274,8 +343,11 @@ export default function MotorFinancieroTab({
             </span>
             <span style={{ fontSize: 12, color: tokens.textMuted }}>Azlepi · Sigma · Inversiones</span>
           </div>
-          <h1 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 26, fontWeight: 600, color: tokens.ink }}>
-            Motor Financiero y Asignación de Capital
+          <h1 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 26, fontWeight: 600, color: tokens.ink, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span>Motor Financiero y Asignación de Capital</span>
+            <span style={{ fontSize: 14, fontWeight: 800, background: tokens.gold, color: "#FFFFFF", padding: "2px 10px", borderRadius: 6, letterSpacing: "0.5px" }}>
+              AÑO {selectedYear}
+            </span>
           </h1>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: tokens.textMuted, maxWidth: 840 }}>
             Articulación integrada de los 3 ejes operativos: <strong>Empresa</strong> (tesorería y estructura), <strong>Proyectos</strong> (costos y cobranzas) y <strong>Socios</strong> (capital, préstamos y retiros) para proyectar <strong>Cash Flow</strong>, <strong>Resultado</strong> y <strong>Decisiones Estratégicas</strong>.
@@ -323,28 +395,81 @@ export default function MotorFinancieroTab({
         </div>
       </div>
 
-      {/* BARRA DE CONTROL DE SEGMENTACIÓN POR PERÍODOS */}
+      {/* BARRA DE EJERCICIO ANALIZADO Y SEGMENTACIÓN POR PERÍODOS */}
       <div style={{
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
         flexWrap: "wrap",
-        gap: 12,
+        gap: 14,
         background: tokens.surface,
         border: `1px solid ${colorBorder}`,
         borderRadius: 10,
-        padding: "10px 16px"
+        padding: "12px 18px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
       }}>
+        {/* SELECTOR EXPLÍCITO Y DESTACADO DEL AÑO ANALIZADO */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: tokens.ink,
+            color: "#FFF",
+            padding: "6px 12px",
+            borderRadius: 7,
+            fontWeight: 700,
+            fontSize: 12,
+            letterSpacing: "0.5px"
+          }}>
+            <Calendar size={15} color={tokens.gold} />
+            <span>AÑO ANALIZADO:</span>
+          </div>
+
+          <div style={{ display: "flex", background: "#F1F5F9", padding: 3, borderRadius: 8, border: `1px solid ${colorBorder}` }}>
+            {availableYears.map(yr => {
+              const activo = selectedYear === yr;
+              return (
+                <button
+                  key={yr}
+                  onClick={() => setSelectedYear(yr)}
+                  style={{
+                    padding: "6px 14px",
+                    border: "none",
+                    borderRadius: 6,
+                    fontSize: 12.5,
+                    fontWeight: activo ? 800 : 600,
+                    cursor: "pointer",
+                    background: activo ? tokens.gold : "transparent",
+                    color: activo ? "#FFFFFF" : tokens.textMuted,
+                    transition: "all 0.15s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6
+                  }}
+                >
+                  <span>Año {yr}</span>
+                  {activo && (
+                    <span style={{ fontSize: 9.5, background: "#FFFFFF", color: tokens.ink, padding: "1px 5px", borderRadius: 10, fontWeight: 800 }}>
+                      ACTIVO
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SELECTOR DE PERÍODO TEMPORAL DENTRO DEL AÑO ANALIZADO */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            <Calendar size={14} color={tokens.gold} />
-            <span>Segmentar por Período:</span>
+            <span>Período {selectedYear}:</span>
           </div>
           <div style={{ display: "flex", background: "#F8FAFC", padding: 3, borderRadius: 8, border: `1px solid ${colorBorder}` }}>
             {[
-              { id: "ANUAL", label: "Año Completo (12M)" },
-              { id: "S1", label: "1° Semestre (Ene-Jun)" },
-              { id: "S2", label: "2° Semestre (Jul-Dic)" },
+              { id: "ANUAL", label: `Año ${selectedYear} (12M)` },
+              { id: "S1", label: `1° Semestre (Ene-Jun)` },
+              { id: "S2", label: `2° Semestre (Jul-Dic)` },
               { id: "Q1", label: "Q1 (Ene-Mar)" },
               { id: "Q2", label: "Q2 (Abr-Jun)" },
               { id: "Q3", label: "Q3 (Jul-Sep)" },
@@ -372,27 +497,27 @@ export default function MotorFinancieroTab({
               );
             })}
           </div>
-        </div>
 
-        <button
-          onClick={() => setMostrarExplicativos(!mostrarExplicativos)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 12px",
-            background: mostrarExplicativos ? tokens.goldSoft : "transparent",
-            border: `1px solid ${mostrarExplicativos ? tokens.gold : colorBorder}`,
-            color: mostrarExplicativos ? tokens.gold : tokens.textMuted,
-            borderRadius: 6,
-            fontSize: 11.5,
-            fontWeight: 600,
-            cursor: "pointer"
-          }}
-        >
-          <HelpCircle size={13} />
-          {mostrarExplicativos ? "Ocultar Guía de Métricas" : "¿Qué representa cada indicador?"}
-        </button>
+          <button
+            onClick={() => setMostrarExplicativos(!mostrarExplicativos)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              background: mostrarExplicativos ? tokens.goldSoft : "transparent",
+              border: `1px solid ${mostrarExplicativos ? tokens.gold : colorBorder}`,
+              color: mostrarExplicativos ? tokens.gold : tokens.textMuted,
+              borderRadius: 6,
+              fontSize: 11.5,
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+          >
+            <HelpCircle size={13} />
+            {mostrarExplicativos ? "Ocultar Guía" : "¿Qué representa?"}
+          </button>
+        </div>
       </div>
 
       {mostrarExplicativos && (
@@ -776,6 +901,220 @@ export default function MotorFinancieroTab({
               </div>
             </div>
 
+          </div>
+
+          {/* TABLA CRONOGRAMA MENSUAL CON FILA DE MESES INMOVILIZADA */}
+          <div style={{ background: tokens.surface, border: `1px solid ${colorBorder}`, borderRadius: 10, padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Calendar size={18} color={tokens.gold} /> Cronograma Mensual del Motor Financiero · Ejercicio {selectedYear}
+                </h3>
+                <p style={{ margin: 0, fontSize: 12, color: tokens.textMuted }}>
+                  Desglose mensual de los 3 pilares operativos (Cobranzas de Proyectos, Aportes Socios, Obras Directas y Gastos de Empresa).
+                </p>
+              </div>
+              <span style={{ fontSize: 11, background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE", padding: "4px 10px", borderRadius: 20, fontWeight: 600 }}>
+                📌 Fila de meses inmovilizada para desplazamiento
+              </span>
+            </div>
+
+            {/* CONTENEDOR CON SCROLL Y CABECERA DE MESES FIJA/STICKY */}
+            <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: 440, border: `1px solid ${colorBorderStrong}`, borderRadius: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12, whiteSpace: "nowrap" }}>
+                <thead>
+                  <tr>
+                    <th style={{
+                      position: "sticky",
+                      left: 0,
+                      top: 0,
+                      zIndex: 35,
+                      background: "#F1F5F9",
+                      padding: "12px 16px",
+                      textAlign: "left",
+                      fontWeight: 700,
+                      color: tokens.ink,
+                      borderRight: `2px solid ${colorBorderStrong}`,
+                      borderBottom: `2px solid ${colorBorderStrong}`,
+                      minWidth: 260,
+                      boxShadow: "2px 2px 5px rgba(0,0,0,0.06)"
+                    }}>
+                      Concepto / Rubro ({selectedYear})
+                    </th>
+                    {cronogramaMensual.map(m => (
+                      <th
+                        key={m.k}
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 20,
+                          background: "#F1F5F9",
+                          borderBottom: `2px solid ${colorBorderStrong}`,
+                          borderRight: `1px solid ${colorBorder}`,
+                          padding: "12px 10px",
+                          textAlign: "right",
+                          minWidth: 105,
+                          fontFamily: tokens.fontMono,
+                          fontWeight: 700,
+                          color: tokens.ink,
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.04)"
+                        }}
+                      >
+                        {m.n} {selectedYear}
+                      </th>
+                    ))}
+                    <th
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 20,
+                        background: "#E2E8F0",
+                        borderBottom: `2px solid ${colorBorderStrong}`,
+                        padding: "12px 16px",
+                        textAlign: "right",
+                        minWidth: 130,
+                        fontFamily: tokens.fontMono,
+                        fontWeight: 800,
+                        color: tokens.ink,
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.04)"
+                      }}
+                    >
+                      Total {selectedYear}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* SECCIÓN 1: INGRESOS */}
+                  <tr style={{ background: "#F8FAFC" }}>
+                    <td colSpan={14} style={{ padding: "8px 16px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.positive, borderBottom: `1px solid ${colorBorder}` }}>
+                      ▲ INGRESOS OPERATIVOS (PILAR PROYECTOS & SOCIOS)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ position: "sticky", left: 0, zIndex: 10, background: "#FFFFFF", padding: "10px 16px", borderRight: `2px solid ${colorBorderStrong}`, borderBottom: `1px solid ${colorBorder}`, color: tokens.ink }}>
+                      Ventas & Cuotas Proyectos
+                    </td>
+                    {cronogramaMensual.map(m => (
+                      <td key={m.k} style={{ padding: "10px", textAlign: "right", fontFamily: tokens.fontMono, borderBottom: `1px solid ${colorBorder}`, borderRight: `1px solid #F1F5F9` }}>
+                        $ {fmt(m.ingVentas)}
+                      </td>
+                    ))}
+                    <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, background: "#F8FAFC", borderBottom: `1px solid ${colorBorder}` }}>
+                      $ {fmt(cronogramaMensual.reduce((acc, m) => acc + m.ingVentas, 0))}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ position: "sticky", left: 0, zIndex: 10, background: "#FFFFFF", padding: "10px 16px", borderRight: `2px solid ${colorBorderStrong}`, borderBottom: `1px solid ${colorBorder}`, color: tokens.ink }}>
+                      Cupos Socios & Aportes
+                    </td>
+                    {cronogramaMensual.map(m => (
+                      <td key={m.k} style={{ padding: "10px", textAlign: "right", fontFamily: tokens.fontMono, borderBottom: `1px solid ${colorBorder}`, borderRight: `1px solid #F1F5F9` }}>
+                        $ {fmt(m.ingSocios)}
+                      </td>
+                    ))}
+                    <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, background: "#F8FAFC", borderBottom: `1px solid ${colorBorder}` }}>
+                      $ {fmt(cronogramaMensual.reduce((acc, m) => acc + m.ingSocios, 0))}
+                    </td>
+                  </tr>
+                  <tr style={{ background: "#F0FDF4", fontWeight: 700 }}>
+                    <td style={{ position: "sticky", left: 0, zIndex: 10, background: "#F0FDF4", padding: "11px 16px", borderRight: `2px solid ${colorBorderStrong}`, borderBottom: `2px solid #BBF7D0`, color: tokens.positive }}>
+                      TOTAL INGRESOS
+                    </td>
+                    {cronogramaMensual.map(m => (
+                      <td key={m.k} style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.positive, borderBottom: `2px solid #BBF7D0`, borderRight: `1px solid #DCFCE7` }}>
+                        $ {fmt(m.totalIng)}
+                      </td>
+                    ))}
+                    <td style={{ padding: "11px 16px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 800, color: tokens.positive, background: "#DCFCE7", borderBottom: `2px solid #BBF7D0` }}>
+                      $ {fmt(cronogramaMensual.reduce((acc, m) => acc + m.totalIng, 0))}
+                    </td>
+                  </tr>
+
+                  {/* SECCIÓN 2: EGRESOS */}
+                  <tr style={{ background: "#F8FAFC" }}>
+                    <td colSpan={14} style={{ padding: "12px 16px 8px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.negative, borderBottom: `1px solid ${colorBorder}` }}>
+                      ▼ EGRESOS OPERATIVOS (PILAR PROYECTOS & EMPRESA)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ position: "sticky", left: 0, zIndex: 10, background: "#FFFFFF", padding: "10px 16px", borderRight: `2px solid ${colorBorderStrong}`, borderBottom: `1px solid ${colorBorder}`, color: tokens.ink }}>
+                      Obras Directas (Proyectos)
+                    </td>
+                    {cronogramaMensual.map(m => (
+                      <td key={m.k} style={{ padding: "10px", textAlign: "right", fontFamily: tokens.fontMono, borderBottom: `1px solid ${colorBorder}`, borderRight: `1px solid #F1F5F9` }}>
+                        $ {fmt(m.egObra)}
+                      </td>
+                    ))}
+                    <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, background: "#F8FAFC", borderBottom: `1px solid ${colorBorder}` }}>
+                      $ {fmt(cronogramaMensual.reduce((acc, m) => acc + m.egObra, 0))}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ position: "sticky", left: 0, zIndex: 10, background: "#FFFFFF", padding: "10px 16px", borderRight: `2px solid ${colorBorderStrong}`, borderBottom: `1px solid ${colorBorder}`, color: tokens.ink }}>
+                      Estructura, RRHH y Pasivos (Empresa)
+                    </td>
+                    {cronogramaMensual.map(m => (
+                      <td key={m.k} style={{ padding: "10px", textAlign: "right", fontFamily: tokens.fontMono, borderBottom: `1px solid ${colorBorder}`, borderRight: `1px solid #F1F5F9` }}>
+                        $ {fmt(m.egEmpresa)}
+                      </td>
+                    ))}
+                    <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, background: "#F8FAFC", borderBottom: `1px solid ${colorBorder}` }}>
+                      $ {fmt(cronogramaMensual.reduce((acc, m) => acc + m.egEmpresa, 0))}
+                    </td>
+                  </tr>
+                  <tr style={{ background: "#FEF2F2", fontWeight: 700 }}>
+                    <td style={{ position: "sticky", left: 0, zIndex: 10, background: "#FEF2F2", padding: "11px 16px", borderRight: `2px solid ${colorBorderStrong}`, borderBottom: `2px solid #FECACA`, color: tokens.negative }}>
+                      TOTAL EGRESOS
+                    </td>
+                    {cronogramaMensual.map(m => (
+                      <td key={m.k} style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.negative, borderBottom: `2px solid #FECACA`, borderRight: `1px solid #FEE2E2` }}>
+                        $ {fmt(m.totalEg)}
+                      </td>
+                    ))}
+                    <td style={{ padding: "11px 16px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 800, color: tokens.negative, background: "#FEE2E2", borderBottom: `2px solid #FECACA` }}>
+                      $ {fmt(cronogramaMensual.reduce((acc, m) => acc + m.totalEg, 0))}
+                    </td>
+                  </tr>
+
+                  {/* SECCIÓN 3: RESULTADOS */}
+                  <tr style={{ background: "#F8FAFC", fontWeight: 700 }}>
+                    <td style={{ position: "sticky", left: 0, zIndex: 10, background: "#F8FAFC", padding: "11px 16px", borderRight: `2px solid ${colorBorderStrong}`, borderBottom: `1px solid ${colorBorder}`, color: tokens.ink }}>
+                      FLUJO NETO MENSUAL
+                    </td>
+                    {cronogramaMensual.map(m => {
+                      const esPositivo = m.flujoNeto >= 0;
+                      return (
+                        <td key={m.k} style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: esPositivo ? tokens.positive : tokens.negative, borderBottom: `1px solid ${colorBorder}`, borderRight: `1px solid #E2E8F0` }}>
+                          $ {fmt(m.flujoNeto)}
+                        </td>
+                      );
+                    })}
+                    {(() => {
+                      const totNeto = cronogramaMensual.reduce((acc, m) => acc + m.flujoNeto, 0);
+                      return (
+                        <td style={{ padding: "11px 16px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 800, color: totNeto >= 0 ? tokens.positive : tokens.negative, background: "#F1F5F9", borderBottom: `1px solid ${colorBorder}` }}>
+                          $ {fmt(totNeto)}
+                        </td>
+                      );
+                    })()}
+                  </tr>
+
+                  <tr style={{ background: "#0E1524", color: "#FFFFFF", fontWeight: 700 }}>
+                    <td style={{ position: "sticky", left: 0, zIndex: 10, background: "#0E1524", padding: "12px 16px", borderRight: `2px solid #475569`, borderBottom: `none`, color: "#F8FAFC" }}>
+                      🏦 SALDO PROYECTADO CAJA
+                    </td>
+                    {cronogramaMensual.map(m => (
+                      <td key={m.k} style={{ padding: "12px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: m.saldoAcumulado >= 0 ? tokens.gold : "#F87171", borderBottom: `none`, borderRight: `1px solid #1E293B` }}>
+                        $ {fmt(m.saldoAcumulado)}
+                      </td>
+                    ))}
+                    <td style={{ padding: "12px 16px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 800, color: tokens.gold, background: "#1E293B", borderBottom: `none` }}>
+                      $ {fmt(cronogramaMensual[cronogramaMensual.length - 1]?.saldoAcumulado || 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
         </div>
