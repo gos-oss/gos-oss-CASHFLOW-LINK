@@ -598,12 +598,14 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
   const abrirModalEditarIndice = (row) => {
     const parts = (row.id_mes || "2026-09").split("-").map(Number);
     setEditandoIndiceId(row.id_mes);
+    const indNumber = Number(row.indice);
+    const formattedIndice = !isNaN(indNumber) ? indNumber.toFixed(3).replace('.', ',') : String(row.indice);
     setIndiceDraft({
       id_mes: row.id_mes,
       anio: parts[0] || 2026,
       mesIdx: parts[1] || 9,
       etiqueta: row.etiqueta || row.id_mes,
-      indice: String(row.indice),
+      indice: formattedIndice,
       valor_absoluto: String(row.valor_absoluto),
       observaciones: row.observaciones || ""
     });
@@ -611,10 +613,12 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
   };
 
   const guardarIndiceLink = async () => {
-    const indVal = parseFloat(indiceDraft.indice);
-    const absVal = parseFloat(indiceDraft.valor_absoluto);
+    const rawIndiceStr = String(indiceDraft.indice || "").trim().replace(',', '.');
+    const indVal = parseFloat(rawIndiceStr);
+    const rawAbsStr = String(indiceDraft.valor_absoluto || "").trim().replace(/\./g, '').replace(',', '.');
+    const absVal = parseFloat(rawAbsStr);
     if (!indiceDraft.id_mes || isNaN(indVal) || isNaN(absVal)) {
-      setToast("Por favor ingresa un mes, índice y valor absoluto válidos");
+      setToast("Por favor ingresa un mes, índice con 3 decimales y valor absoluto válidos");
       setTimeout(() => setToast(""), 3000);
       return;
     }
@@ -622,7 +626,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
     const reg = {
       id_mes: indiceDraft.id_mes,
       etiqueta: indiceDraft.etiqueta || indiceDraft.id_mes,
-      indice: indVal,
+      indice: Math.round(indVal * 1000) / 1000,
       valor_absoluto: absVal,
       observaciones: indiceDraft.observaciones || "",
       updated_at: new Date().toISOString()
@@ -1098,7 +1102,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}>
                 <span style={{ fontFamily: tokens.fontDisplay, fontSize: 26, fontWeight: 700, color: tokens.ink }}>
-                  {ultIndice ? fmtNum(ultIndice.indice, 1) : "0.0"}
+                  {ultIndice ? fmtNum(ultIndice.indice, 3) : "0,000"}
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: tokens.textMuted }}>pts</span>
               </div>
@@ -1393,7 +1397,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                       tick={{ fontSize: 10.5, fill: tokens.gold }}
                       axisLine={{ stroke: tokens.gold }}
                       tickLine={false}
-                      tickFormatter={(v) => `${v} pts`}
+                      tickFormatter={(v) => `${fmtNum(v, 3)} pts`}
                     />
                   )}
                   {(vistaGraficoIndice === "ambos" || vistaGraficoIndice === "absoluto") && (
@@ -1426,7 +1430,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                             <span style={{ color: "#94A3B8" }}>Índice Link:</span>
-                            <strong style={{ color: tokens.gold }}>{fmtNum(d.indice, 1)} pts ({d.variacion_indice >= 0 ? "+" : ""}{fmtNum(d.variacion_indice, 1)}%)</strong>
+                            <strong style={{ color: tokens.gold }}>{fmtNum(d.indice, 3)} pts ({d.variacion_indice >= 0 ? "+" : ""}{fmtNum(d.variacion_indice, 1)}%)</strong>
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                             <span style={{ color: "#94A3B8" }}>Valor Absoluto:</span>
@@ -1526,7 +1530,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                 <thead>
                   <tr style={{ background: "#F8FAFC", borderBottom: `1.5px solid ${colorLineaSuave}`, textAlign: "left" }}>
                     <th style={{ padding: "8px 10px", color: tokens.textMuted }}>Período</th>
-                    <th style={{ padding: "8px 10px", color: tokens.gold, textAlign: "right" }}>Índice (pts)</th>
+                    <th style={{ padding: "8px 10px", color: tokens.gold, textAlign: "right" }}>Índice (pts, 3 dec.)</th>
                     <th style={{ padding: "8px 10px", color: tokens.gold, textAlign: "right" }}>Var. % Mensual</th>
                     <th style={{ padding: "8px 10px", color: "#4F46E5", textAlign: "right" }}>Valor Absoluto ($)</th>
                     <th style={{ padding: "8px 10px", color: "#4F46E5", textAlign: "right" }}>Var. Absoluta</th>
@@ -1556,7 +1560,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                             {row.etiqueta || row.id_mes}
                           </td>
                           <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.gold }}>
-                            {fmtNum(row.indice, 1)}
+                            {fmtNum(row.indice, 3)}
                           </td>
                           <td style={{
                             padding: "8px 10px",
@@ -2402,19 +2406,19 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                 </span>
               </div>
 
-              {/* Input Valor Índice (Puntos) */}
+              {/* Input Valor Índice (Puntos con 3 decimales) */}
               <div>
                 <label style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, fontWeight: 700, color: tokens.gold, marginBottom: 5 }}>
-                  <span>1. Cargar como Índice (Puntos Base 100):</span>
-                  <span style={{ fontWeight: 500, color: tokens.textMuted }}>Ej: 184.2</span>
+                  <span>1. Cargar como Índice (Puntos Base 100 · 3 decimales):</span>
+                  <span style={{ fontWeight: 500, color: tokens.textMuted }}>Ej: 100,000 ó 104,250</span>
                 </label>
                 <div style={{ position: "relative" }}>
                   <input
-                    type="number"
-                    step="0.1"
+                    type="text"
+                    inputMode="decimal"
                     value={indiceDraft.indice}
                     onChange={(e) => setIndiceDraft(p => ({ ...p, indice: e.target.value }))}
-                    placeholder="Ej: 184.2"
+                    placeholder="Ej: 104,250"
                     style={{
                       ...inputStyle,
                       width: "100%",
@@ -2428,8 +2432,26 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                     PTS
                   </span>
                 </div>
+                {/* Formateo en vivo con 3 decimales después de la coma */}
+                <div style={{
+                  background: "#FEF9EE",
+                  borderRadius: 6,
+                  padding: "5px 10px",
+                  marginTop: 5,
+                  fontSize: 11.5,
+                  color: "#92400E",
+                  display: "flex",
+                  justifyContent: "space-between"
+                }}>
+                  <span>Formato registrado: <strong>{(() => {
+                    const cleanStr = String(indiceDraft.indice || "").trim().replace(',', '.');
+                    const parsed = parseFloat(cleanStr);
+                    return !isNaN(parsed) ? `${fmtNum(parsed, 3)} pts` : "—";
+                  })()}</strong></span>
+                  <span style={{ fontSize: 10.5, color: tokens.textMuted }}>3 dígitos después de la coma (,)</span>
+                </div>
                 <span style={{ fontSize: 10.5, color: tokens.textMuted, marginTop: 3, display: "block" }}>
-                  Número índice relativo a la evolución del proyecto/cartera.
+                  Número índice relativo al proyecto. Puedes ingresar punto o coma (se registran 3 dígitos decimales).
                 </span>
               </div>
 
@@ -2501,7 +2523,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                 }}>
                   <span style={{ fontWeight: 600, color: tokens.ink }}>Comparativa con último mes cargado ({ultIndice.etiqueta}):</span>
                   <div style={{ display: "flex", gap: 14, marginTop: 3 }}>
-                    <span>Índice anterior: <strong>{fmtNum(ultIndice.indice, 1)} pts</strong></span>
+                    <span>Índice anterior: <strong>{fmtNum(ultIndice.indice, 3)} pts</strong></span>
                     <span>Valor anterior: <strong>{fmtPesos(ultIndice.valor_absoluto)}</strong></span>
                   </div>
                 </div>
