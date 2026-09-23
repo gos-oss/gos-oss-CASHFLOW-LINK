@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { supabase } from "./supabaseClient";
 import { tokens } from "./tokens";
 import { DEFAULT_STOCK_UNITS, PROYECTOS_STOCK, TIPOLOGIAS_STOCK } from "./stockData";
 import ImportadorStockModal from "./ImportadorStockModal";
@@ -6,7 +7,7 @@ import {
   Building2, DollarSign, Layers, Plus, Search, Filter, Download,
   RotateCcw, CheckCircle2, Clock, AlertCircle, Trash2, Edit2,
   TrendingUp, BarChart3, PieChart as PieChartIcon, Eye, ArrowUpDown,
-  FileSpreadsheet, X, Check, Sparkles, MapPin, Tag, Upload
+  FileSpreadsheet, X, Check, Sparkles, MapPin, Tag, Upload, Cloud, RefreshCw
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -48,7 +49,7 @@ export default function StockDisponibleTab({
   const [moneda, setMoneda] = useState("USD"); // "USD" | "ARS"
   const [viewMode, setViewMode] = useState("unidades"); // "unidades" | "proyectos" | "graficos"
   
-  // Lista de unidades
+  // Lista de unidades (Sincronizada con Supabase Cloud)
   const [unidades, setUnidades] = useState(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -59,13 +60,49 @@ export default function StockDisponibleTab({
     return DEFAULT_STOCK_UNITS;
   });
 
-  // Guardar en localStorage
+  const [syncingStock, setSyncingStock] = useState(false);
+  const initialStockLoaded = useRef(false);
+
+  // Carga inicial desde Supabase Cloud
+  const cargarStockNube = async () => {
+    setSyncingStock(true);
+    try {
+      const { data, error } = await supabase.from("stock_units").select("*");
+      if (!error && Array.isArray(data) && data.length > 0) {
+        setUnidades(data);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn("Error cargando stock desde la nube:", err);
+    } finally {
+      setSyncingStock(false);
+      initialStockLoaded.current = true;
+    }
+  };
+
+  useEffect(() => {
+    cargarStockNube();
+  }, []);
+
+  // Guardar en localStorage y sincronizar con Supabase Cloud
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(unidades));
     } catch (e) {
       console.error("Error saving stock to localStorage:", e);
     }
+
+    if (!initialStockLoaded.current) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await supabase.from("stock_units").setAll(unidades);
+      } catch (err) {
+        console.warn("Error guardando stock en Supabase Cloud:", err);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
   }, [unidades]);
 
   // Filtros
@@ -531,6 +568,29 @@ export default function StockDisponibleTab({
             }}
           >
             <Plus size={16} /> Nueva Unidad
+          </button>
+
+          {/* BOTÓN SINCRONIZAR NUBE */}
+          <button
+            onClick={cargarStockNube}
+            disabled={syncingStock}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "8px 12px",
+              background: "#F0FDF4",
+              color: "#166534",
+              border: "1px solid #BBF7D0",
+              borderRadius: 8,
+              cursor: syncingStock ? "wait" : "pointer",
+              fontWeight: 600,
+              fontSize: 13,
+            }}
+            title="Sincronizar y recargar inventario desde la nube de Supabase"
+          >
+            <RefreshCw size={14} style={{ animation: syncingStock ? "spin 1s linear infinite" : "none" }} />
+            {syncingStock ? "Sincronizando..." : "Sincronizar Nube"}
           </button>
 
           {/* BOTÓN IMPORTAR EXCEL / CSV */}

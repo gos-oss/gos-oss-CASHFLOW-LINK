@@ -10,7 +10,7 @@ import {
   Info, Calendar, Filter, HelpCircle, CheckCircle2, ArrowUpRight,
   DollarSign, Building2, HardHat, FileText, Activity,
   Plus, Trash2, X, Sparkles, ChevronDown, ChevronUp, Award, Layers,
-  RotateCcw, BarChart3
+  RotateCcw, BarChart3, Cloud
 } from "lucide-react";
 
 const colorLineaSuave = "#E2E8F0";
@@ -413,24 +413,18 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
   const [toast, setToast] = useState("");
 
   // ESTADO ÍNDICE LINK (PROPIETARIO LINK INVERSIONES)
-  // Iniciamos estrictamente en 0 (vacío) para comenzar la carga manual
+  // Sincronizado en la nube (Supabase) con persistencia multiusuario
   const [indiceLink, setIndiceLink] = useState(() => {
     try {
-      const resetFlag = localStorage.getItem("cf_indice_link_zero_v1");
-      if (!resetFlag) {
-        localStorage.removeItem("cf_indice_link_data");
-        localStorage.setItem("cf_indice_link_zero_v1", "true");
-        localStorage.setItem("cf_indice_link_data", JSON.stringify([]));
-        return [];
-      }
       const local = localStorage.getItem("cf_indice_link_data");
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
     return [];
   });
+  const [syncingIndice, setSyncingIndice] = useState(false);
 
   const [modalIndiceOpen, setModalIndiceOpen] = useState(false);
   const [editandoIndiceId, setEditandoIndiceId] = useState(null);
@@ -507,35 +501,31 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
   }, []);
 
   const loadIndiceLink = useCallback(async () => {
+    setSyncingIndice(true);
     try {
-      const resetFlag = localStorage.getItem("cf_indice_link_zero_v1");
-      if (!resetFlag) {
-        localStorage.removeItem("cf_indice_link_data");
-        localStorage.setItem("cf_indice_link_zero_v1", "true");
-        localStorage.setItem("cf_indice_link_data", JSON.stringify([]));
-        setIndiceLink([]);
-        return;
-      }
       const { data, error } = await supabase.from("cf_indice_link").select("*").order("id_mes", { ascending: true });
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         setIndiceLink(data);
-        localStorage.setItem("cf_indice_link_data", JSON.stringify(data));
+        try {
+          localStorage.setItem("cf_indice_link_data", JSON.stringify(data));
+        } catch {}
+        setSyncingIndice(false);
         return;
       }
     } catch (e) {
-      // Fallback a localStorage
+      console.warn("Error al cargar Índice Link desde la nube:", e);
     }
+    // Fallback a localStorage si falló la conexión
     try {
       const local = localStorage.getItem("cf_indice_link_data");
       if (local) {
         const parsed = JSON.parse(local);
         if (Array.isArray(parsed)) {
           setIndiceLink(parsed);
-          return;
         }
       }
     } catch {}
-    setIndiceLink([]);
+    setSyncingIndice(false);
   }, []);
 
   const fetchAll = useCallback(async () => {
@@ -987,6 +977,20 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                 <span style={{ fontSize: 11, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
                   Base 100 · Link Inversiones
                 </span>
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  background: "#ECFDF5",
+                  color: "#065F46",
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  border: "1px solid #A7F3D0"
+                }} title="Datos sincronizados centralmente en la nube de Supabase para todo el equipo">
+                  <Cloud size={12} color="#059669" /> {syncingIndice ? "Sincronizando nube..." : "Nube Supabase Compartida"}
+                </span>
               </div>
               <h2 style={{
                 margin: 0,
@@ -1007,6 +1011,30 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
 
             {/* Acciones Superiores: Carga de Datos y Vistas */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {/* Botón para forzar sincronización con la nube */}
+              <button
+                onClick={loadIndiceLink}
+                disabled={syncingIndice}
+                title="Sincronizar y recargar valores más recientes desde la nube de Supabase"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: "#F0FDF4",
+                  border: "1px solid #BBF7D0",
+                  color: "#166534",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: syncingIndice ? "wait" : "pointer",
+                  transition: "all 0.15s"
+                }}
+              >
+                <RefreshCw size={13} style={{ animation: syncingIndice ? "spin 1s linear infinite" : "none" }} />
+                {syncingIndice ? "Sincronizando..." : "Sincronizar"}
+              </button>
+
               {/* Botón de Cargar / Actualizar Dato */}
               <button
                 onClick={abrirModalNuevoIndice}

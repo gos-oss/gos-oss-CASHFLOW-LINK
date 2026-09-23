@@ -91,9 +91,27 @@ export default function PresupuestoAnualTab({
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
   const [mostrarImportadorPresupuesto, setMostrarImportadorPresupuesto] = useState(false);
 
-  // NUEVO: Switch para Ver en Millones ($ M) o Pesos Completos ($)
-  // Resuelve el problema número 1: "son difíciles de entender"
+  // NUEVO: Switch para Ver en Moneda Pesos ($ ARS) o Dólares (USD)
+  const [moneda, setMoneda] = useState("ARS"); // "ARS" | "USD"
+
+  // Switch para Ver en Millones / Miles ($ M / kUSD) o Cifras Completas
   const [enMillones, setEnMillones] = useState(true);
+
+  // Tipo de cambio de referencia para conversión a USD
+  const tcPorDefecto = useMemo(() => {
+    if (!tcList || tcList.length === 0) return 1540; 
+    const sorted = [...tcList].sort((a, b) => (b.fecha_corte || "").localeCompare(a.fecha_corte || ""));
+    const val = Number(sorted[0]?.saldo_efectivo);
+    return (val && !isNaN(val)) ? val : 1540;
+  }, [tcList]);
+
+  const [tcReferencia, setTcReferencia] = useState(tcPorDefecto);
+
+  useEffect(() => {
+    setTcReferencia(tcPorDefecto);
+  }, [tcPorDefecto]);
+
+  const ultimoDolar = tcReferencia;
 
   // ESTADO DEL SIMULADOR DINÁMICO
   const [simulacionActiva, setSimulacionActiva] = useState(false);
@@ -116,12 +134,6 @@ export default function PresupuestoAnualTab({
   useEffect(() => {
     if (editMode) setSimulacionActiva(false);
   }, [editMode]);
-
-  const ultimoDolar = useMemo(() => {
-    if (!tcList || tcList.length === 0) return 1540; 
-    const sorted = [...tcList].sort((a,b) => b.fecha_corte.localeCompare(a.fecha_corte));
-    return Number(sorted[0].saldo_efectivo) || 1540;
-  }, [tcList]);
 
   const handleInputChange = (tipo, conceptoKey, mesKey, value) => {
     setPlanDraft(prev => {
@@ -232,37 +244,55 @@ export default function PresupuestoAnualTab({
     return financieroCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
   }, [financieroCats, planDraft, simData, simulacionActiva]);
 
-  // Función inteligente de formateo (Millones o Pesos Completos)
+  // Función inteligente de formateo según la moneda elegida (ARS o USD)
   const formatMoney = (val, forceFull = false) => {
     if (val == null || isNaN(val)) return "-";
     const num = Number(val);
     if (Math.abs(num) < 0.01) return "-";
 
-    if (enMillones && !forceFull) {
-      const enM = num / 1_000_000;
-      const sign = enM < 0 ? "-" : "";
-      const absFormatted = Math.abs(enM).toLocaleString("es-AR", {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
-      });
-      return `${sign}$ ${absFormatted} M`;
+    if (moneda === "USD") {
+      const usd = num / (tcReferencia || 1540);
+      const sign = usd < 0 ? "-" : "";
+      const absUsd = Math.abs(usd);
+
+      if (enMillones && !forceFull) {
+        if (absUsd >= 1_000_000) {
+          const mUsd = absUsd / 1_000_000;
+          return `${sign}USD ${mUsd.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} M`;
+        }
+        const kUsd = absUsd / 1000;
+        const dec = kUsd >= 100 ? 0 : 1;
+        return `${sign}USD ${kUsd.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec })}k`;
+      } else {
+        return `${sign}USD ${Math.abs(Math.round(usd)).toLocaleString("es-AR")}`;
+      }
     } else {
-      const sign = num < 0 ? "-" : "";
-      return `${sign}$ ${Math.abs(Math.round(num)).toLocaleString("es-AR")}`;
+      // Moneda Pesos ARS
+      if (enMillones && !forceFull) {
+        const enM = num / 1_000_000;
+        const sign = enM < 0 ? "-" : "";
+        const absFormatted = Math.abs(enM).toLocaleString("es-AR", {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1
+        });
+        return `${sign}$ ${absFormatted} M`;
+      } else {
+        const sign = num < 0 ? "-" : "";
+        return `${sign}$ ${Math.abs(Math.round(num)).toLocaleString("es-AR")}`;
+      }
     }
   };
 
-  // Formato USD: SIEMPRE en miles de dólares (kUSD) para máxima claridad en el análisis financiero
+  // Formato USD de referencia (kUSD o USD completo)
   const formatUSD = (valARS, forzarCompleto = false) => {
     if (valARS === null || valARS === undefined || isNaN(valARS)) return "-";
-    const usd = valARS / ultimoDolar;
+    const usd = valARS / (tcReferencia || 1540);
     if (Math.abs(usd) < 0.5) return "-";
 
     if (forzarCompleto) {
       return `${usd < 0 ? "-" : ""}USD ${Math.abs(Math.round(usd)).toLocaleString("es-AR")}`;
     }
 
-    // SIEMPRE expresado en miles de dólares (kUSD)
     const enMiles = usd / 1000;
     const absMiles = Math.abs(enMiles);
     const signo = enMiles < 0 ? "-" : "";
@@ -371,17 +401,31 @@ export default function PresupuestoAnualTab({
       const egS = calcularTotalColumna("egreso", m.k);
       const netoS = ingS - egS;
       acum += netoS;
+
+      const convertir = (val) => {
+        if (moneda === "USD") {
+          const usd = val / (tcReferencia || 1540);
+          return enMillones ? usd / 1000 : usd;
+        } else {
+          return enMillones ? val / 1_000_000 : val;
+        }
+      };
+
       return {
         mes: m.n,
-        ingresoBase: enMillones ? ingB / 1_000_000 : ingB,
-        egresoBase: enMillones ? egB / 1_000_000 : egB,
-        ingresoSim: enMillones ? ingS / 1_000_000 : ingS,
-        egresoSim: enMillones ? egS / 1_000_000 : egS,
-        netoSim: enMillones ? netoS / 1_000_000 : netoS,
-        acumSim: enMillones ? acum / 1_000_000 : acum,
+        ingresoBase: convertir(ingB),
+        egresoBase: convertir(egB),
+        ingresoSim: convertir(ingS),
+        egresoSim: convertir(egS),
+        netoSim: convertir(netoS),
+        acumSim: convertir(acum),
+        rawIngreso: ingS,
+        rawEgreso: egS,
+        rawNeto: netoS,
+        rawAcum: acum
       };
     });
-  }, [planDraft, simData, simulacionActiva, proyectosActivos, enMillones]);
+  }, [planDraft, simData, simulacionActiva, proyectosActivos, enMillones, moneda, tcReferencia]);
 
   // Distribución de Ingresos y Egresos para las donas
   const pieIngresos = useMemo(() => {
@@ -484,14 +528,122 @@ export default function PresupuestoAnualTab({
             {view === "mapeo" 
               ? "Vincula las categorías del Cashflow diario con las bolsas maestras del Presupuesto Anual." 
               : editMode
-                ? `Editando directamente los montos proyectados para el ejercicio ${selectedYear}.`
-                : `Plan Maestro financiero y curva de fondos proyectada para ${selectedYear}. TC Referencia: $${fmt(ultimoDolar)}.`}
+                ? `Editando directamente los montos proyectados para el ejercicio ${selectedYear} en ${moneda === "USD" ? "Dólares (USD)" : "Pesos ($ ARS)"}.`
+                : `Plan Maestro financiero y curva de fondos proyectada para ${selectedYear}. Expresado en ${moneda === "USD" ? "Dólares (USD)" : "Pesos ($ ARS)"} • TC Ref: $${fmt(tcReferencia)}.`}
           </p>
         </div>
         
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           
-          {/* TOGGLE SELECTOR DE UNIDAD: MILLONES vs COMPLETO */}
+          {/* SELECTOR DE MONEDA: PESOS ($ ARS) vs DÓLARES (USD) */}
+          {view === "presupuesto" && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "#F8FAFC",
+              borderRadius: 8,
+              padding: "3px 6px",
+              border: "1.5px solid #CBD5E1",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Moneda:
+              </span>
+
+              <div style={{ display: "flex", background: "#E2E8F0", borderRadius: 6, padding: 2 }}>
+                <button
+                  type="button"
+                  onClick={() => setMoneda("ARS")}
+                  style={{
+                    padding: "5px 11px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    borderRadius: 5,
+                    border: "none",
+                    background: moneda === "ARS" ? "#1E293B" : "transparent",
+                    color: moneda === "ARS" ? "#FFFFFF" : "#475569",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    transition: "all 0.15s ease",
+                    boxShadow: moneda === "ARS" ? "0 1px 3px rgba(0,0,0,0.2)" : "none"
+                  }}
+                  title="Expresar todo el presupuesto anual en Pesos Argentinos ($ ARS)"
+                >
+                  <span>$ ARS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMoneda("USD")}
+                  style={{
+                    padding: "5px 11px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    borderRadius: 5,
+                    border: "none",
+                    background: moneda === "USD" ? "linear-gradient(135deg, #B8862A 0%, #D4AF37 100%)" : "transparent",
+                    color: moneda === "USD" ? "#FFFFFF" : "#475569",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    transition: "all 0.15s ease",
+                    boxShadow: moneda === "USD" ? "0 1px 3px rgba(184,134,42,0.35)" : "none"
+                  }}
+                  title="Expresar todo el presupuesto anual en Dólares Estadounidenses (USD)"
+                >
+                  <DollarSign size={13} strokeWidth={2.5} />
+                  <span>USD</span>
+                </button>
+              </div>
+
+              {/* Indicador / Ajuste dinámico de Tipo de Cambio */}
+              <div style={{ display: "flex", alignItems: "center", gap: 5, borderLeft: "1px solid #CBD5E1", paddingLeft: 8 }}>
+                <span style={{ fontSize: 11, color: "#64748B", fontWeight: 600 }}>TC: $</span>
+                <input
+                  type="number"
+                  value={tcReferencia}
+                  onChange={(e) => setTcReferencia(Math.max(1, Number(e.target.value) || 1))}
+                  style={{
+                    width: 68,
+                    padding: "3px 6px",
+                    fontSize: 11.5,
+                    fontFamily: tokens.fontMono,
+                    fontWeight: 700,
+                    color: tokens.ink,
+                    border: "1px solid #CBD5E1",
+                    borderRadius: 4,
+                    textAlign: "right",
+                    background: "#FFFFFF"
+                  }}
+                  title="Tipo de Cambio de conversión aplicado para Dólares. Modifícalo para proyectar diferentes escenarios cambiarios."
+                />
+                {tcReferencia !== tcPorDefecto && (
+                  <button
+                    type="button"
+                    onClick={() => setTcReferencia(tcPorDefecto)}
+                    title={`Restablecer al tipo de cambio registrado ($${tcPorDefecto})`}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 3,
+                      color: tokens.textMuted,
+                      display: "flex",
+                      alignItems: "center",
+                      borderRadius: 4
+                    }}
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TOGGLE SELECTOR DE UNIDAD: MILLONES / MILES vs COMPLETO */}
           {view === "presupuesto" && (
             <div style={{
               display: "flex",
@@ -517,9 +669,9 @@ export default function PresupuestoAnualTab({
                   gap: 6,
                   transition: "all 0.15s ease"
                 }}
-                title="Muestra los importes redondeados en Millones de pesos ($ M) para lectura rápida"
+                title={moneda === "USD" ? "Muestra las cifras en miles de dólares (kUSD)" : "Muestra los importes redondeados en Millones de pesos ($ M)"}
               >
-                <Eye size={13} /> En Millones ($ M)
+                <Eye size={13} /> {moneda === "USD" ? "En Miles (kUSD)" : "En Millones ($ M)"}
               </button>
               <button
                 type="button"
@@ -538,9 +690,9 @@ export default function PresupuestoAnualTab({
                   gap: 6,
                   transition: "all 0.15s ease"
                 }}
-                title="Muestra todos los dígitos de cada peso"
+                title={moneda === "USD" ? "Muestra cada dólar exacto" : "Muestra todos los dígitos de cada peso"}
               >
-                <DollarSign size={13} /> Pesos Completos ($)
+                <DollarSign size={13} /> {moneda === "USD" ? "Dólares Completos" : "Pesos Completos ($)"}
               </button>
             </div>
           )}
@@ -793,7 +945,7 @@ export default function PresupuestoAnualTab({
                   Déficit Operativo Anual
                 </span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted }}>
-                  {formatUSD(totalNetoSim)}
+                  {moneda === "USD" ? `$ ${(Math.abs(totalNetoSim) / 1_000_000).toFixed(1)} M ARS` : formatUSD(totalNetoSim)}
                 </span>
               </div>
               <div style={{ fontSize: 24, fontWeight: 800, color: totalNetoSim >= 0 ? tokens.positive : tokens.negative, fontFamily: tokens.fontMono }}>
@@ -802,10 +954,10 @@ export default function PresupuestoAnualTab({
               <div style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 4 }}>
                 {simulacionActiva && Math.abs(alivioARS) > 1000 ? (
                   <span style={{ color: alivioARS > 0 ? tokens.positive : tokens.negative, fontWeight: 700 }}>
-                    {alivioARS > 0 ? "✨ Alivio: +" : "Mayor quema: "}{formatMoney(alivioARS)} ({formatUSD(alivioARS)})
+                    {alivioARS > 0 ? "✨ Alivio: +" : "Mayor quema: "}{formatMoney(alivioARS)} {moneda === "USD" ? `($ ${(alivioARS / 1_000_000).toFixed(1)}M)` : `(${formatUSD(alivioARS)})`}
                   </span>
                 ) : (
-                  <span>Brecha a financiar en el ejercicio</span>
+                  <span>Brecha a financiar en el ejercicio {moneda === "USD" ? `(TC $${fmt(tcReferencia)})` : `(${formatUSD(totalNetoSim)})`}</span>
                 )}
               </div>
             </div>
@@ -1176,10 +1328,10 @@ export default function PresupuestoAnualTab({
                 <div>
                   <h3 style={{ margin: 0, color: "#0F172A", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
                     <Activity size={16} color={tokens.gold} />
-                    Curva de Evolución Financiera Mensual {selectedYear} ({enMillones ? "en Millones de $" : "en $"})
+                    Curva de Evolución Financiera Mensual {selectedYear} ({moneda === "USD" ? (enMillones ? "en Miles de USD / kUSD" : "en USD") : (enMillones ? "en Millones de $" : "en $")})
                   </h3>
                   <p style={{ margin: "2px 0 0 0", fontSize: 12, color: "#64748B" }}>
-                    Comportamiento mes a mes de Ingresos, Egresos y la Brecha Neta resultante.
+                    Comportamiento mes a mes de Ingresos, Egresos y la Brecha Neta resultante ({moneda === "USD" ? `expresado en Dólares al TC $${fmt(tcReferencia)}` : "expresado en Pesos Argentinos"}).
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#64748B", fontWeight: 600 }}>
@@ -1201,7 +1353,12 @@ export default function PresupuestoAnualTab({
                       tick={{ fill: "#64748B", fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(v) => enMillones ? `${v.toFixed(0)}M` : v >= 1_000_000 ? `${(v/1_000_000).toFixed(0)}M` : v}
+                      tickFormatter={(v) => {
+                        if (moneda === "USD") {
+                          return enMillones ? `${v.toFixed(0)}k` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v;
+                        }
+                        return enMillones ? `${v.toFixed(0)}M` : v >= 1_000_000 ? `${(v/1_000_000).toFixed(0)}M` : v;
+                      }}
                     />
                     <Tooltip
                       contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0F172A", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
@@ -1214,8 +1371,13 @@ export default function PresupuestoAnualTab({
                           ingresoBase: "Ingresos Base",
                           egresoBase: "Egresos Base"
                         };
-                        const realVal = enMillones ? val * 1_000_000 : val;
-                        return [formatMoney(realVal), labels[name] || name];
+                        let realValARS;
+                        if (moneda === "USD") {
+                          realValARS = enMillones ? val * 1000 * (tcReferencia || 1540) : val * (tcReferencia || 1540);
+                        } else {
+                          realValARS = enMillones ? val * 1_000_000 : val;
+                        }
+                        return [formatMoney(realValARS), labels[name] || name];
                       }}
                     />
                     {simulacionActiva && (
@@ -1256,12 +1418,24 @@ export default function PresupuestoAnualTab({
                   Matriz Presupuestaria de Flujo de Fondos {selectedYear}
                 </h4>
                 <span style={{ fontSize: 12, color: tokens.textMuted }}>
-                  Valores en pesos {enMillones ? "en Millones ($ M)" : "completos ($)"} • Flujo neto en dólares expresado en <strong>miles de dólares (kUSD)</strong>. Pasa el cursor para ver el importe exacto.
+                  Valores expresados en <strong>{moneda === "USD" ? "Dólares (USD)" : "Pesos ($ ARS)"}</strong> {enMillones ? (moneda === "USD" ? "en Miles (kUSD)" : "en Millones ($ M)") : "completos"}. Pasa el cursor sobre cualquier celda para ver el importe en ambas monedas.
                 </span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 11.5, color: tokens.textMuted, background: "#FFFFFF", padding: "4px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontWeight: 600 }}>
-                  Dólar ref: ${fmt(ultimoDolar)}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{
+                  fontSize: 11.5,
+                  color: moneda === "USD" ? "#0F172A" : tokens.textMuted,
+                  background: moneda === "USD" ? "#FEF3C7" : "#FFFFFF",
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${moneda === "USD" ? "#FDE68A" : "#CBD5E1"}`,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5
+                }}>
+                  <DollarSign size={13} color={tokens.gold} />
+                  Dólar ref: ${fmt(tcReferencia)}
                 </span>
               </div>
             </div>
@@ -1939,7 +2113,7 @@ export default function PresupuestoAnualTab({
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <Scale size={14} color={tokens.gold} />
-                        <span>Flujo Neto Mensual (ARS)</span>
+                        <span>Flujo Neto Mensual ({moneda === "USD" ? "USD" : "ARS"})</span>
                       </div>
                     </td>
                     {meses.map(m => {
@@ -1950,7 +2124,7 @@ export default function PresupuestoAnualTab({
                       return (
                         <td
                           key={m.k}
-                          title={`Flujo Neto ${m.n}: $ ${Math.round(neto).toLocaleString("es-AR")} (${formatUSD(neto)})`}
+                          title={`Flujo Neto ${m.n}: ${formatMoney(neto, true)} • Equivalente: ${moneda === "USD" ? `$ ${Math.round(neto).toLocaleString("es-AR")} ARS` : formatUSD(neto)}`}
                           style={{
                             padding: "13px 10px",
                             textAlign: "right",
@@ -1964,7 +2138,7 @@ export default function PresupuestoAnualTab({
                       );
                     })}
                     <td
-                      title={`Flujo Neto Anual: $ ${Math.round(totalNetoSim).toLocaleString("es-AR")} (${formatUSD(totalNetoSim)})`}
+                      title={`Flujo Neto Anual: ${formatMoney(totalNetoSim, true)} • Equivalente: ${moneda === "USD" ? `$ ${Math.round(totalNetoSim).toLocaleString("es-AR")} ARS` : formatUSD(totalNetoSim)}`}
                       style={{
                         padding: "13px 16px",
                         textAlign: "right",
@@ -1979,7 +2153,7 @@ export default function PresupuestoAnualTab({
                     </td>
                   </tr>
 
-                  {/* 6. POSICIÓN NETA EN DÓLARES (USD) - SIEMPRE EN MILES DE DÓLARES (kUSD) */}
+                  {/* 6. POSICIÓN NETA EN LA OTRA MONEDA PARA VISIÓN COMPLEMENTARIA */}
                   <tr style={{ background: "#1E293B", borderBottom: "1px solid #334155" }}>
                     <td style={{
                       position: "sticky",
@@ -1993,18 +2167,31 @@ export default function PresupuestoAnualTab({
                       fontSize: 11.5
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <DollarSign size={13} color={tokens.gold} />
-                        <span>Flujo Neto en Dólares</span>
-                        <span style={{ background: "rgba(201, 174, 107, 0.2)", color: tokens.gold, padding: "1px 5px", borderRadius: 3, fontSize: 9.5, fontWeight: 800 }}>kUSD</span>
+                        {moneda === "USD" ? (
+                          <>
+                            <span style={{ color: tokens.gold, fontWeight: 800 }}>$</span>
+                            <span>Flujo Neto en Pesos</span>
+                            <span style={{ background: "rgba(201, 174, 107, 0.2)", color: tokens.gold, padding: "1px 5px", borderRadius: 3, fontSize: 9.5, fontWeight: 800 }}>$ M</span>
+                          </>
+                        ) : (
+                          <>
+                            <DollarSign size={13} color={tokens.gold} />
+                            <span>Flujo Neto en Dólares</span>
+                            <span style={{ background: "rgba(201, 174, 107, 0.2)", color: tokens.gold, padding: "1px 5px", borderRadius: 3, fontSize: 9.5, fontWeight: 800 }}>kUSD</span>
+                          </>
+                        )}
                       </div>
                     </td>
                     {meses.map(m => {
                       const neto = calcularTotalColumna("ingreso", m.k) - calcularTotalColumna("egreso", m.k);
-                      const netoUSD = Math.round(neto / ultimoDolar);
+                      const netoUSD = Math.round(neto / (tcReferencia || 1540));
+                      const textMostrar = moneda === "USD"
+                        ? `$ ${(neto / 1_000_000).toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} M`
+                        : formatUSD(neto);
                       return (
                         <td
                           key={m.k}
-                          title={`Flujo Neto ${m.n}: ${formatUSD(neto)} (Exacto: ${netoUSD >= 0 ? '+' : ''}${netoUSD.toLocaleString("es-AR")} USD al TC $${fmt(ultimoDolar)} | $ ${Math.round(neto).toLocaleString("es-AR")} ARS)`}
+                          title={`Flujo Neto ${m.n}: ${textMostrar} (Exacto: ${netoUSD >= 0 ? '+' : ''}${netoUSD.toLocaleString("es-AR")} USD al TC $${fmt(tcReferencia)} | $ ${Math.round(neto).toLocaleString("es-AR")} ARS)`}
                           style={{
                             padding: "10px 10px",
                             textAlign: "right",
@@ -2014,12 +2201,12 @@ export default function PresupuestoAnualTab({
                             fontSize: 11.5
                           }}
                         >
-                          {formatUSD(neto)}
+                          {textMostrar}
                         </td>
                       );
                     })}
                     <td
-                      title={`Flujo Neto Anual: ${formatUSD(totalNetoSim)} (Exacto: ${Math.round(totalNetoSim / ultimoDolar).toLocaleString("es-AR")} USD al TC $${fmt(ultimoDolar)})`}
+                      title={`Flujo Neto Anual: ${moneda === "USD" ? `$ ${(totalNetoSim / 1_000_000).toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} M` : formatUSD(totalNetoSim)}`}
                       style={{
                         padding: "10px 16px",
                         textAlign: "right",
@@ -2030,7 +2217,9 @@ export default function PresupuestoAnualTab({
                         fontSize: 12
                       }}
                     >
-                      {formatUSD(totalNetoSim)}
+                      {moneda === "USD"
+                        ? `$ ${(totalNetoSim / 1_000_000).toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} M`
+                        : formatUSD(totalNetoSim)}
                     </td>
                   </tr>
 
@@ -2152,13 +2341,15 @@ export default function PresupuestoAnualTab({
 
                 <div style={{ width: "100%", borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
                   <div style={{ fontSize: 11, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
-                    {totalNetoSim >= 0 ? "Superávit Proyectado en USD" : "Déficit Anual Proyectado en USD"}
+                    {totalNetoSim >= 0 
+                      ? (moneda === "USD" ? "Superávit Anual en USD" : "Superávit Proyectado en USD") 
+                      : (moneda === "USD" ? "Déficit Anual en USD" : "Déficit Anual Proyectado en USD")}
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: totalNetoSim >= 0 ? "#166534" : "#DC2626", fontFamily: tokens.fontMono, marginTop: 4 }}>
                     {formatUSD(totalNetoSim)}
                   </div>
                   <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
-                    TC oficial de cálculo: ${fmt(ultimoDolar)}
+                    {moneda === "USD" ? `Equivalente: $ ${(Math.abs(totalNetoSim) / 1_000_000).toFixed(1)} M ARS` : `TC ref aplicado: $${fmt(tcReferencia)}`}
                   </div>
                 </div>
 
@@ -2256,21 +2447,33 @@ export default function PresupuestoAnualTab({
                   borderRadius: 6,
                   letterSpacing: "0.2px"
                 }}>
-                  {enMillones ? "Cifras en Millones de Pesos ($ M)" : "Cifras en Pesos ($)"}
+                  {moneda === "USD" 
+                    ? (enMillones ? "Cifras en Miles de Dólares (kUSD)" : "Cifras en Dólares (USD)")
+                    : (enMillones ? "Cifras en Millones de Pesos ($ M)" : "Cifras en Pesos ($)")}
                 </span>
               </div>
             </div>
 
             {(() => {
               const ranking = PLAN_PROJECT_CATS_2027
-                .map(c => ({
-                  key: c.key,
-                  name: c.label,
-                  tag: c.tag,
-                  value: enMillones ? calcularTotalFila("egreso", c.key) / 1_000_000 : calcularTotalFila("egreso", c.key),
-                  rawVal: calcularTotalFila("egreso", c.key),
-                  activo: isProyectoActivo(c.key)
-                }))
+                .map(c => {
+                  const rawVal = calcularTotalFila("egreso", c.key);
+                  let value;
+                  if (moneda === "USD") {
+                    const usd = rawVal / (tcReferencia || 1540);
+                    value = enMillones ? usd / 1000 : usd;
+                  } else {
+                    value = enMillones ? rawVal / 1_000_000 : rawVal;
+                  }
+                  return {
+                    key: c.key,
+                    name: c.label,
+                    tag: c.tag,
+                    value,
+                    rawVal,
+                    activo: isProyectoActivo(c.key)
+                  };
+                })
                 .filter(d => d.rawVal > 0 || (simulacionActiva && !d.activo))
                 .sort((a, b) => b.rawVal - a.rawVal);
 
@@ -2313,6 +2516,12 @@ export default function PresupuestoAnualTab({
                             formatter={(v) => {
                               const num = Number(v);
                               if (isNaN(num)) return "";
+                              if (moneda === "USD") {
+                                if (enMillones) {
+                                  return `USD ${num >= 1000 ? (num/1000).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " M" : num.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "k"}`;
+                                }
+                                return `USD ${Math.round(num).toLocaleString("es-AR")}`;
+                              }
                               if (enMillones) {
                                 return `$ ${num.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} M`;
                               }
