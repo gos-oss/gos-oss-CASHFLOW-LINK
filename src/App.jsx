@@ -4,6 +4,7 @@ import ImportadorCashflow from "./ImportadorCashflow";
 import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
 import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab";
+import MonitorFinancieroTab from "./MonitorFinancieroTab";
 import MotorFinancieroTab from "./MotorFinancieroTab";
 import ImportadorMatrizExcel from "./ImportadorMatrizExcel";
 import ImportadorPresupuestoExcel from "./ImportadorPresupuestoExcel";
@@ -265,7 +266,7 @@ export default function App() {
   const [tcList, setTcList] = useState([]);
   const [fechaTC, setFechaTC] = useState(todayISO());
   const [valorTC, setValorTC] = useState("");
-  const [vistaMonitor, setVistaMonitor] = useState("nativo");
+  const [vistaMonitor, setVistaMonitor] = useState("ejecutivo"); // "ejecutivo" | "indicadores" | "externo"
   const [liveDolarQuotes, setLiveDolarQuotes] = useState([]);
   const [testSupabaseStatus, setTestSupabaseStatus] = useState(null);
   const [probandoSupabase, setProbandoSupabase] = useState(false);
@@ -941,33 +942,81 @@ export default function App() {
           />
         )}
         
-        {/* MÓDULO: MONITOR ECONÓMICO */}
+        {/* MÓDULO: MONITOR FINANCIERO */}
         {tab === "monitor" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div>
-                <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Monitor Económico e Indicadores</h2>
-                <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>Mercado en tiempo real, cotizaciones del dólar, BCRA, índices CAC y Hormigón H-21 sincronizados con el Cashflow.</p>
+                <h2 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 600 }}>Monitor Financiero Link</h2>
+                <p style={{ margin: 0, fontSize: 13, color: tokens.textMuted }}>
+                  Situación actual de caja, ingresos/egresos y necesidad de caja mensual, stock por proyecto y valuación total, e indicadores clave.
+                </p>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#F1F5F9", padding: 4, borderRadius: 8 }}>
                 <button
-                  onClick={() => setVistaMonitor(prev => prev === "nativo" ? "externo" : "nativo")}
+                  onClick={() => setVistaMonitor("ejecutivo")}
                   style={{
-                    display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
-                    background: tokens.surface, border: `1px solid ${colorLineaFuerte}`, borderRadius: 6,
-                    fontSize: 12.5, fontWeight: 600, color: tokens.text, cursor: "pointer",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)"
+                    display: "flex", alignItems: "center", gap: 6, padding: "7px 14px",
+                    background: vistaMonitor === "ejecutivo" ? tokens.ink : "transparent",
+                    color: vistaMonitor === "ejecutivo" ? "#FFFFFF" : tokens.textMuted,
+                    border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                    boxShadow: vistaMonitor === "ejecutivo" ? "0 1px 3px rgba(0,0,0,0.15)" : "none"
                   }}
                 >
-                  <Activity size={14} color={tokens.gold} />
-                  {vistaMonitor === "nativo" ? "Ver Monitor Web Externo" : "Ver Panel Nativo Link"}
+                  <Activity size={14} color={vistaMonitor === "ejecutivo" ? tokens.gold : "currentColor"} />
+                  Tablero Ejecutivo (4 Cuadros)
+                </button>
+                <button
+                  onClick={() => setVistaMonitor("indicadores")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "7px 14px",
+                    background: vistaMonitor === "indicadores" ? tokens.ink : "transparent",
+                    color: vistaMonitor === "indicadores" ? "#FFFFFF" : tokens.textMuted,
+                    border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                    boxShadow: vistaMonitor === "indicadores" ? "0 1px 3px rgba(0,0,0,0.15)" : "none"
+                  }}
+                >
+                  <BarChart3 size={14} color={vistaMonitor === "indicadores" ? tokens.gold : "currentColor"} />
+                  Matrices & Series Históricas
+                </button>
+                <button
+                  onClick={() => setVistaMonitor("externo")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "7px 14px",
+                    background: vistaMonitor === "externo" ? tokens.ink : "transparent",
+                    color: vistaMonitor === "externo" ? "#FFFFFF" : tokens.textMuted,
+                    border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                    boxShadow: vistaMonitor === "externo" ? "0 1px 3px rgba(0,0,0,0.15)" : "none"
+                  }}
+                >
+                  <Sparkles size={14} color={vistaMonitor === "externo" ? tokens.gold : "currentColor"} />
+                  Monitor Web Externo
                 </button>
               </div>
             </div>
 
-            {vistaMonitor === "nativo" ? (
+            {vistaMonitor === "ejecutivo" && (
+              <MonitorFinancieroTab
+                weeks={weeks}
+                procesadas={procesadas}
+                kpis={kpis}
+                tcList={tcList}
+                arqueosList={arqueosList}
+                planesFondos={planesFondos}
+                incomeCats={incomeCats}
+                expenseCats={expenseCats}
+                fmt={fmt}
+                formatDate={formatDate}
+                onSyncTC={handleSyncTCFromMonitor}
+                onNavigateToTab={(target) => setTab(target)}
+              />
+            )}
+
+            {vistaMonitor === "indicadores" && (
               <IndicadoresFinancierosTab onSyncTC={handleSyncTCFromMonitor} />
-            ) : (
+            )}
+
+            {vistaMonitor === "externo" && (
               <div style={{ height: "calc(100vh - 200px)", background: tokens.surface, borderRadius: 10, border: `1px solid ${colorLineaFuerte}`, overflow: "hidden" }}>
                 <iframe src="https://monitor-econ-mico.vercel.app/" style={{ width: "100%", height: "100%", border: "none" }} title="Monitor Económico" />
               </div>
