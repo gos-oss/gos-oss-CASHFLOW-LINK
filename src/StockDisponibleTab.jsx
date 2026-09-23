@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { tokens } from "./tokens";
 import { DEFAULT_STOCK_UNITS, PROYECTOS_STOCK, TIPOLOGIAS_STOCK } from "./stockData";
+import ImportadorStockModal from "./ImportadorStockModal";
 import {
   Building2, DollarSign, Layers, Plus, Search, Filter, Download,
   RotateCcw, CheckCircle2, Clock, AlertCircle, Trash2, Edit2,
   TrendingUp, BarChart3, PieChart as PieChartIcon, Eye, ArrowUpDown,
-  FileSpreadsheet, X, Check, Sparkles, MapPin, Tag
+  FileSpreadsheet, X, Check, Sparkles, MapPin, Tag, Upload
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -73,6 +74,29 @@ export default function StockDisponibleTab({
   const [selectedTipologia, setSelectedTipologia] = useState("TODAS");
   const [selectedEstado, setSelectedEstado] = useState("TODOS");
   const [sortBy, setSortBy] = useState("proyecto"); // "proyecto" | "precio_desc" | "precio_asc" | "m2_desc"
+
+  // Modal Importador de Stock Excel / CSV
+  const [importadorAbierto, setImportadorAbierto] = useState(false);
+
+  // Lista dinámica de proyectos (incluye los del inventario actual importado)
+  const todosLosProyectos = useMemo(() => {
+    const list = [...PROYECTOS_STOCK];
+    unidades.forEach(u => {
+      if (u.proyecto && !list.includes(u.proyecto)) {
+        list.push(u.proyecto);
+      }
+    });
+    return list;
+  }, [unidades]);
+
+  // Manejador de importación masiva
+  const handleImportarStock = (nuevasUnidades, modo) => {
+    if (modo === "reemplazar") {
+      setUnidades(nuevasUnidades);
+    } else {
+      setUnidades(prev => [...nuevasUnidades, ...prev]);
+    }
+  };
 
   // Modal Crear / Editar Unidad
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -509,6 +533,28 @@ export default function StockDisponibleTab({
             <Plus size={16} /> Nueva Unidad
           </button>
 
+          {/* BOTÓN IMPORTAR EXCEL / CSV */}
+          <button
+            onClick={() => setImportadorAbierto(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 14px",
+              background: "#ECFDF5",
+              color: "#065F46",
+              border: "1px solid #A7F3D0",
+              borderRadius: 8,
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: 13,
+              boxShadow: "0 1px 3px rgba(16, 185, 129, 0.15)"
+            }}
+            title="Importar inventario de disponibles desde Excel (.xlsx, .xls) o CSV con formato oficial"
+          >
+            <Upload size={15} color="#059669" /> Importar Excel
+          </button>
+
           {/* BOTÓN EXPORTAR CSV */}
           <button
             onClick={exportarCSV}
@@ -786,7 +832,7 @@ export default function StockDisponibleTab({
               }}
             >
               <option value="TODOS">Todos los Proyectos</option>
-              {PROYECTOS_STOCK.map(p => (
+              {todosLosProyectos.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
@@ -1577,6 +1623,15 @@ export default function StockDisponibleTab({
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── MODAL IMPORTADOR DE STOCK DESDE EXCEL / CSV ── */}
+      {importadorAbierto && (
+        <ImportadorStockModal
+          onImportar={handleImportarStock}
+          onClose={() => setImportadorAbierto(false)}
+          unidadesActualesCount={unidades.length}
+        />
       )}
 
     </div>
