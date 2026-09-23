@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { tokens } from "./tokens";
 import {
+  PLAN_INCOME_CATS_2026,
+  PLAN_INCOME_CATS_2027,
   PLAN_INCOME_CATS,
+  PLAN_PROJECT_CATS_2027,
   PLAN_PROJECT_CATS,
+  PLAN_ESTRUCTURA_CATS_2027,
+  PLAN_FINANCIERO_CATS_2027,
+  PLAN_EXPENSE_CATS_2027,
   PLAN_EXPENSE_CATS,
   DEFAULT_PLAN_2026,
   DEFAULT_PLAN_2027
@@ -161,34 +167,70 @@ export default function PresupuestoAnualTab({
     return total;
   };
 
+  // Categorías activas según el año seleccionado
+  const activeIncomeCats = useMemo(() => {
+    return selectedYear === "2027" ? PLAN_INCOME_CATS_2027 : planIncomeCats;
+  }, [selectedYear, planIncomeCats]);
+
+  const activeExpenseCats = useMemo(() => {
+    return selectedYear === "2027" ? PLAN_EXPENSE_CATS_2027 : planExpenseCats;
+  }, [selectedYear, planExpenseCats]);
+
   const calcularTotalColumna = (tipo, mesKey) => {
     let total = 0;
-    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
+    const catalogo = tipo === "ingreso" ? activeIncomeCats : activeExpenseCats;
     catalogo.forEach(c => { total += getSimVal(tipo, c.key, mesKey); });
     return total;
   };
 
   const calcularTotalColumnaBase = (tipo, mesKey) => {
     let total = 0;
-    const catalogo = tipo === "ingreso" ? planIncomeCats : planExpenseCats;
+    const catalogo = tipo === "ingreso" ? activeIncomeCats : activeExpenseCats;
     catalogo.forEach(c => { total += getBaseVal(tipo, c.key, mesKey); });
     return total;
   };
 
   // Totales Anuales
-  const totalIngSim = planIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
-  const totalEgSim = planExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
+  const totalIngSim = activeIncomeCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
+  const totalEgSim = activeExpenseCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
   const totalNetoSim = totalIngSim - totalEgSim;
 
-  const totalIngBase = planIncomeCats.reduce((acc, c) => acc + calcularTotalFilaBase("ingreso", c.key), 0);
-  const totalEgBase = planExpenseCats.reduce((acc, c) => acc + calcularTotalFilaBase("egreso", c.key), 0);
+  const totalIngBase = activeIncomeCats.reduce((acc, c) => acc + calcularTotalFilaBase("ingreso", c.key), 0);
+  const totalEgBase = activeExpenseCats.reduce((acc, c) => acc + calcularTotalFilaBase("egreso", c.key), 0);
   const totalNetoBase = totalIngBase - totalEgBase;
 
   // Clasificación de egresos para subtotales y análisis
-  const cuposCats = useMemo(() => PLAN_PROJECT_CATS.filter(p => ["proy_300", "proy_boulevard", "proy_neuquen"].includes(p.key)), []);
-  const obrasCats = useMemo(() => PLAN_PROJECT_CATS.filter(p => ["proy_torre-green", "proy_mas-duo", "proy_auria", "proy_duo", "proy_torre-blue", "proy_zoe", "proy_torre-red", "proy_isaura", "proy_300-t3-am", "proy_300-t4-am"].includes(p.key)), []);
-  const estructuraCats = useMemo(() => planExpenseCats.filter(p => ["custom_rrhh", "custom_administracion"].includes(p.key)), [planExpenseCats]);
-  const financieroCats = useMemo(() => planExpenseCats.filter(p => ["custom_inversiones", "custom_pasivos-financieros"].includes(p.key)), [planExpenseCats]);
+  const cuposCats = useMemo(() => {
+    return PLAN_PROJECT_CATS_2027.filter(p => p.group === "cupos");
+  }, []);
+
+  const obrasCats = useMemo(() => {
+    return PLAN_PROJECT_CATS_2027.filter(p => p.group === "obras");
+  }, []);
+
+  const estructuraCats = useMemo(() => {
+    return selectedYear === "2027"
+      ? PLAN_ESTRUCTURA_CATS_2027
+      : planExpenseCats.filter(p => ["custom_rrhh", "custom_administracion"].includes(p.key) || p.group === "estructura");
+  }, [selectedYear, planExpenseCats]);
+
+  const financieroCats = useMemo(() => {
+    return selectedYear === "2027"
+      ? PLAN_FINANCIERO_CATS_2027
+      : planExpenseCats.filter(p => ["custom_inversiones", "custom_pasivos-financieros"].includes(p.key) || p.group === "inversiones" || p.group === "pasivos");
+  }, [selectedYear, planExpenseCats]);
+
+  const totalObrasSim = useMemo(() => {
+    return PLAN_PROJECT_CATS_2027.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
+  }, [planDraft, simData, simulacionActiva, proyectosActivos]);
+
+  const totalEstructuraSim = useMemo(() => {
+    return estructuraCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
+  }, [estructuraCats, planDraft, simData, simulacionActiva]);
+
+  const totalFinancieroSim = useMemo(() => {
+    return financieroCats.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
+  }, [financieroCats, planDraft, simData, simulacionActiva]);
 
   // Función inteligente de formateo (Millones o Pesos Completos)
   const formatMoney = (val, forceFull = false) => {
@@ -342,18 +384,29 @@ export default function PresupuestoAnualTab({
   }, [planDraft, simData, simulacionActiva, proyectosActivos, enMillones]);
 
   // Distribución de Ingresos y Egresos para las donas
-  const pieIngresos = planIncomeCats.map(c => {
-    const val = calcularTotalFila("ingreso", c.key);
-    return { name: c.label, value: val, perc: totalIngSim > 0 ? (val / totalIngSim) * 100 : 0 };
-  }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+  const pieIngresos = useMemo(() => {
+    return activeIncomeCats.map(c => {
+      const val = calcularTotalFila("ingreso", c.key);
+      return { name: c.label, value: val, perc: totalIngSim > 0 ? (val / totalIngSim) * 100 : 0 };
+    }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+  }, [activeIncomeCats, planDraft, simData, simulacionActiva, totalIngSim]);
 
-  const pieEgresos = [
-    { name: "Obras y Proyectos", value: PLAN_PROJECT_CATS.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0) },
-    { name: "Sueldos y RRHH", value: calcularTotalFila("egreso", "custom_rrhh") },
-    { name: "Gastos Estructura", value: calcularTotalFila("egreso", "custom_administracion") },
-    { name: "Inversiones", value: calcularTotalFila("egreso", "custom_inversiones") },
-    { name: "Pasivos Financieros", value: calcularTotalFila("egreso", "custom_pasivos-financieros") }
-  ].map(d => ({ ...d, perc: totalEgSim > 0 ? (d.value / totalEgSim) * 100 : 0 })).filter(d => d.value > 0);
+  const pieEgresos = useMemo(() => {
+    const invVal = selectedYear === "2027"
+      ? PLAN_FINANCIERO_CATS_2027.filter(p => p.group === "inversiones").reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0)
+      : calcularTotalFila("egreso", "custom_inversiones");
+
+    const pasVal = selectedYear === "2027"
+      ? PLAN_FINANCIERO_CATS_2027.filter(p => p.group === "pasivos").reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0)
+      : calcularTotalFila("egreso", "custom_pasivos-financieros");
+
+    return [
+      { name: "Obras y Proyectos", value: totalObrasSim },
+      { name: "Estructura Operativa & RRHH", value: totalEstructuraSim },
+      { name: "Inversiones", value: invVal },
+      { name: "Pasivos Financieros", value: pasVal }
+    ].map(d => ({ ...d, perc: totalEgSim > 0 ? (d.value / totalEgSim) * 100 : 0 })).filter(d => d.value > 0);
+  }, [totalObrasSim, totalEstructuraSim, totalEgSim, selectedYear, planDraft, simData, simulacionActiva]);
 
   const COLORS_ING = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
   const COLORS_EG = ['#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#64748B'];
@@ -539,6 +592,34 @@ export default function PresupuestoAnualTab({
               >
                 <Upload size={14} color={tokens.textMuted} /> Subir Excel
               </button>
+
+              {selectedYear === "2027" && (
+                <button
+                  onClick={() => {
+                    if (window.confirm("¿Deseas restaurar la Proyección Oficial Link 2027 con todos los conceptos y montos exactos de la planilla?")) {
+                      setPlanDraft(DEFAULT_PLAN_2027);
+                      onGuardarPlan(DEFAULT_PLAN_2027, "2027");
+                    }
+                  }}
+                  type="button"
+                  title="Restaura la proyección oficial 2027 con las 5 fuentes de ingreso y todas las obras/estructura"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 13px",
+                    background: "#ECFDF5",
+                    color: "#065F46",
+                    border: "1px solid #A7F3D0",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    fontSize: 12.5
+                  }}
+                >
+                  <RotateCcw size={13} color="#059669" /> Cargar Proyección Oficial 2027
+                </button>
+              )}
 
               <button
                 onClick={() => setView("mapeo")}
@@ -1082,31 +1163,31 @@ export default function PresupuestoAnualTab({
             </div>
           )}
 
-          {/* ── EVOLUCIÓN MENSUAL GRÁFICA (BASE vs SIMULADO) ── */}
+          {/* ── EVOLUCIÓN MENSUAL GRÁFICA (BASE vs SIMULADO) - FONDO CLARO ── */}
           {!editMode && (
             <div style={{
-              background: "#0F172A",
+              background: "#FFFFFF",
               borderRadius: 12,
-              border: "1px solid #1E293B",
+              border: "1px solid #E2E8F0",
               padding: "20px 22px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+              boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 10 }}>
                 <div>
-                  <h3 style={{ margin: 0, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                  <h3 style={{ margin: 0, color: "#0F172A", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
                     <Activity size={16} color={tokens.gold} />
                     Curva de Evolución Financiera Mensual {selectedYear} ({enMillones ? "en Millones de $" : "en $"})
                   </h3>
-                  <p style={{ margin: "2px 0 0 0", fontSize: 12, color: "#94A3B8" }}>
+                  <p style={{ margin: "2px 0 0 0", fontSize: 12, color: "#64748B" }}>
                     Comportamiento mes a mes de Ingresos, Egresos y la Brecha Neta resultante.
                   </p>
                 </div>
-                <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#94A3B8" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 3, background: "#10B981", borderRadius: 2 }} /> Ingresos</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 3, background: "#EF4444", borderRadius: 2 }} /> Egresos</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 3, background: tokens.gold, borderRadius: 2 }} /> Flujo Neto</span>
+                <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#64748B", fontWeight: 600 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 4, background: "#10B981", borderRadius: 2 }} /> Ingresos</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 4, background: "#EF4444", borderRadius: 2 }} /> Egresos</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 4, background: tokens.gold, borderRadius: 2 }} /> Flujo Neto</span>
                   {simulacionActiva && (
-                    <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 0, borderTop: "2px dashed #64748B" }} /> Base original</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 0, borderTop: "2px dashed #94A3B8" }} /> Base original</span>
                   )}
                 </div>
               </div>
@@ -1114,17 +1195,17 @@ export default function PresupuestoAnualTab({
               <div style={{ height: 260, marginTop: 12 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={evolucionMensual} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-                    <XAxis dataKey="mes" tick={{ fill: "#94A3B8", fontSize: 11.5 }} axisLine={{ stroke: "#334155" }} tickLine={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                    <XAxis dataKey="mes" tick={{ fill: "#475569", fontSize: 11.5, fontWeight: 500 }} axisLine={{ stroke: "#CBD5E1" }} tickLine={false} />
                     <YAxis
-                      tick={{ fill: "#94A3B8", fontSize: 11 }}
+                      tick={{ fill: "#64748B", fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(v) => enMillones ? `${v.toFixed(0)}M` : v >= 1_000_000 ? `${(v/1_000_000).toFixed(0)}M` : v}
                     />
                     <Tooltip
-                      contentStyle={{ background: "#0B1120", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                      labelStyle={{ color: "#fff", fontWeight: 700, marginBottom: 4 }}
+                      contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0F172A", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                      labelStyle={{ color: "#0F172A", fontWeight: 700, marginBottom: 4 }}
                       formatter={(val, name) => {
                         const labels = {
                           ingresoSim: "Ingresos",
@@ -1139,12 +1220,12 @@ export default function PresupuestoAnualTab({
                     />
                     {simulacionActiva && (
                       <>
-                        <Line type="monotone" dataKey="ingresoBase" stroke="#64748B" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
-                        <Line type="monotone" dataKey="egresoBase" stroke="#64748B" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                        <Line type="monotone" dataKey="ingresoBase" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                        <Line type="monotone" dataKey="egresoBase" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
                       </>
                     )}
-                    <Bar dataKey="ingresoSim" fill="#10B981" fillOpacity={0.8} radius={[4, 4, 0, 0]} maxBarSize={22} />
-                    <Bar dataKey="egresoSim" fill="#EF4444" fillOpacity={0.7} radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="ingresoSim" fill="#10B981" fillOpacity={0.85} radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="egresoSim" fill="#EF4444" fillOpacity={0.8} radius={[4, 4, 0, 0]} maxBarSize={22} />
                     <Line type="monotone" dataKey="netoSim" stroke={tokens.gold} strokeWidth={2.5} dot={{ r: 4, fill: tokens.gold }} />
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -1280,8 +1361,9 @@ export default function PresupuestoAnualTab({
                     </td>
                   </tr>
 
-                  {planIncomeCats.map(c => {
+                  {activeIncomeCats.map(c => {
                     const rowTotal = calcularTotalFila("ingreso", c.key);
+                    const pctTotal = totalIngSim > 0 ? (rowTotal / totalIngSim) * 100 : 0;
                     return (
                       <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0" }}>
                         <td style={{
@@ -1294,13 +1376,11 @@ export default function PresupuestoAnualTab({
                           boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
                         }}>
                           <div style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                               <span style={{ fontWeight: 600, color: tokens.ink, fontSize: 13 }}>{c.label}</span>
-                              {c.type === "ventas" && (
-                                <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", padding: "1px 5px", borderRadius: 4 }}>
-                                  79,7% total
-                                </span>
-                              )}
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {pctTotal.toFixed(1)}% total
+                              </span>
                             </div>
                             <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{c.sublabel || "Ingreso"}</span>
                             {simulacionActiva && (
@@ -1420,6 +1500,8 @@ export default function PresupuestoAnualTab({
                   {cuposCats.map(c => {
                     const rowTotal = calcularTotalFila("egreso", c.key);
                     const activo = isProyectoActivo(c.key);
+                    const pctEgreso = totalEgSim > 0 ? (rowTotal / totalEgSim) * 100 : 0;
+                    const pctProy = totalObrasSim > 0 ? (rowTotal / totalObrasSim) * 100 : 0;
                     return (
                       <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0", opacity: !activo ? 0.45 : 1 }}>
                         <td style={{
@@ -1431,7 +1513,7 @@ export default function PresupuestoAnualTab({
                           borderRight: "2px solid #CBD5E1"
                         }}>
                           <div style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               {simulacionActiva && (
                                 <ToggleSwitch on={activo} onChange={(v) => setProyectosActivos(prev => ({ ...prev, [c.key]: v }))} />
                               )}
@@ -1439,6 +1521,11 @@ export default function PresupuestoAnualTab({
                               <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DBEAFE", color: "#1D4ED8", padding: "1px 5px", borderRadius: 4 }}>
                                 {c.tag}
                               </span>
+                              {rowTotal > 0 && (
+                                <span style={{ fontSize: 9.5, fontWeight: 700, background: "#EFF6FF", color: "#1E40AF", border: "1px solid #BFDBFE", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                  {pctEgreso.toFixed(1)}% egreso · {pctProy.toFixed(1)}% obras
+                                </span>
+                              )}
                               {!activo && <span style={{ fontSize: 9.5, color: tokens.negative, fontWeight: 800 }}>APAGADO</span>}
                             </div>
                             <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{c.sublabel}</span>
@@ -1494,6 +1581,8 @@ export default function PresupuestoAnualTab({
                   {obrasCats.filter(c => calcularTotalFila("egreso", c.key) > 0 || (simulacionActiva && !isProyectoActivo(c.key))).map(c => {
                     const rowTotal = calcularTotalFila("egreso", c.key);
                     const activo = isProyectoActivo(c.key);
+                    const pctEgreso = totalEgSim > 0 ? (rowTotal / totalEgSim) * 100 : 0;
+                    const pctProy = totalObrasSim > 0 ? (rowTotal / totalObrasSim) * 100 : 0;
                     return (
                       <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0", opacity: !activo ? 0.45 : 1 }}>
                         <td style={{
@@ -1505,7 +1594,7 @@ export default function PresupuestoAnualTab({
                           borderRight: "2px solid #CBD5E1"
                         }}>
                           <div style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               {simulacionActiva && (
                                 <ToggleSwitch on={activo} onChange={(v) => setProyectosActivos(prev => ({ ...prev, [c.key]: v }))} />
                               )}
@@ -1513,6 +1602,11 @@ export default function PresupuestoAnualTab({
                               <span style={{ fontSize: 9.5, fontWeight: 700, background: "#FEF3C7", color: "#B45309", padding: "1px 5px", borderRadius: 4 }}>
                                 {c.tag}
                               </span>
+                              {rowTotal > 0 && (
+                                <span style={{ fontSize: 9.5, fontWeight: 700, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                  {pctEgreso.toFixed(1)}% egreso · {pctProy.toFixed(1)}% obras
+                                </span>
+                              )}
                               {!activo && <span style={{ fontSize: 9.5, color: tokens.negative, fontWeight: 800 }}>DIFERIDO</span>}
                             </div>
                             <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{c.sublabel}</span>
@@ -1575,24 +1669,19 @@ export default function PresupuestoAnualTab({
                       color: "#1E3A8A",
                       borderRight: "2px solid #93C5FD"
                     }}>
-                      Subtotal Proyectos & Obras
+                      Subtotal Proyectos & Obras ({totalEgSim > 0 ? ((totalObrasSim / totalEgSim) * 100).toFixed(1) : 0}% del Egreso)
                     </td>
                     {meses.map(m => {
-                      const tot = PLAN_PROJECT_CATS.reduce((acc, c) => acc + getSimVal("egreso", c.key, m.k), 0);
+                      const tot = PLAN_PROJECT_CATS_2027.reduce((acc, c) => acc + getSimVal("egreso", c.key, m.k), 0);
                       return (
                         <td key={m.k} title={`Subtotal Obras (${m.n}): $ ${Math.round(tot).toLocaleString("es-AR")}`} style={{ padding: "10px 10px", textAlign: "right", fontWeight: 700, color: "#1E3A8A", fontFamily: tokens.fontMono }}>
                           {formatMoney(tot)}
                         </td>
                       );
                     })}
-                    {(() => {
-                      const totAnual = PLAN_PROJECT_CATS.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
-                      return (
-                        <td title={`Total Anual Obras: $ ${Math.round(totAnual).toLocaleString("es-AR")}`} style={{ padding: "10px 16px", textAlign: "right", fontWeight: 800, color: "#1E3A8A", fontFamily: tokens.fontMono, background: "#BFDBFE" }}>
-                          {formatMoney(totAnual)}
-                        </td>
-                      );
-                    })()}
+                    <td title={`Total Anual Obras: $ ${Math.round(totalObrasSim).toLocaleString("es-AR")}`} style={{ padding: "10px 16px", textAlign: "right", fontWeight: 800, color: "#1E3A8A", fontFamily: tokens.fontMono, background: "#BFDBFE" }}>
+                      {formatMoney(totalObrasSim)}
+                    </td>
                   </tr>
 
                   {/* ══════════════════════════════════════════════════════ */}
@@ -1612,12 +1701,14 @@ export default function PresupuestoAnualTab({
                         letterSpacing: "0.5px"
                       }}
                     >
-                      🏢 3. ESTRUCTURA OPERATIVA, RRHH & ADMINISTRACIÓN (27,3% DEL EGRESO)
+                      🏢 3. ESTRUCTURA OPERATIVA, RRHH & ADMINISTRACIÓN ({totalEgSim > 0 ? ((totalEstructuraSim / totalEgSim) * 100).toFixed(1) : 0}% DEL EGRESO)
                     </td>
                   </tr>
 
                   {estructuraCats.map(c => {
                     const rowTotal = calcularTotalFila("egreso", c.key);
+                    const pctEgreso = totalEgSim > 0 ? (rowTotal / totalEgSim) * 100 : 0;
+                    const pctEst = totalEstructuraSim > 0 ? (rowTotal / totalEstructuraSim) * 100 : 0;
                     return (
                       <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0" }}>
                         <td style={{
@@ -1629,10 +1720,15 @@ export default function PresupuestoAnualTab({
                           borderRight: "2px solid #CBD5E1"
                         }}>
                           <div style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                               <span style={{ fontWeight: 600, color: tokens.ink }}>{c.label}</span>
+                              {rowTotal > 0 && (
+                                <span style={{ fontSize: 9.5, fontWeight: 700, background: "#F3E8FF", color: "#6B21A8", border: "1px solid #E9D5FF", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                  {pctEgreso.toFixed(1)}% egreso · {pctEst.toFixed(1)}% estructura
+                                </span>
+                              )}
                               {c.key === "custom_rrhh" && (
-                                <span style={{ fontSize: 9.5, fontWeight: 700, background: "#F3E8FF", color: "#7E22CE", padding: "1px 5px", borderRadius: 4 }}>
+                                <span style={{ fontSize: 9.5, fontWeight: 700, background: "#FAF5FF", color: "#7E22CE", padding: "1px 5px", borderRadius: 4 }}>
                                   SAC en Jun/Dic
                                 </span>
                               )}
@@ -1669,6 +1765,33 @@ export default function PresupuestoAnualTab({
                     );
                   })}
 
+                  {/* SUBTOTAL ESTRUCTURA OPERATIVA */}
+                  <tr style={{ background: "#F3E8FF", borderTop: "2px solid #D8B4FE", borderBottom: "1px solid #C084FC" }}>
+                    <td style={{
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 2,
+                      background: "#F3E8FF",
+                      padding: "10px 16px",
+                      fontWeight: 700,
+                      color: "#6B21A8",
+                      borderRight: "2px solid #D8B4FE"
+                    }}>
+                      Subtotal Estructura Operativa & RRHH ({totalEgSim > 0 ? ((totalEstructuraSim / totalEgSim) * 100).toFixed(1) : 0}% del Egreso)
+                    </td>
+                    {meses.map(m => {
+                      const tot = estructuraCats.reduce((acc, c) => acc + getSimVal("egreso", c.key, m.k), 0);
+                      return (
+                        <td key={m.k} title={`Subtotal Estructura (${m.n}): $ ${Math.round(tot).toLocaleString("es-AR")}`} style={{ padding: "10px 10px", textAlign: "right", fontWeight: 700, color: "#6B21A8", fontFamily: tokens.fontMono }}>
+                          {formatMoney(tot)}
+                        </td>
+                      );
+                    })}
+                    <td title={`Total Anual Estructura: $ ${Math.round(totalEstructuraSim).toLocaleString("es-AR")}`} style={{ padding: "10px 16px", textAlign: "right", fontWeight: 800, color: "#6B21A8", fontFamily: tokens.fontMono, background: "#E9D5FF" }}>
+                      {formatMoney(totalEstructuraSim)}
+                    </td>
+                  </tr>
+
                   {/* ══════════════════════════════════════════════════════ */}
                   {/* 4. SECCIÓN INVERSIONES Y PASIVOS                       */}
                   {/* ══════════════════════════════════════════════════════ */}
@@ -1686,12 +1809,13 @@ export default function PresupuestoAnualTab({
                         letterSpacing: "0.5px"
                       }}
                     >
-                      💼 4. INVERSIONES Y PASIVOS FINANCIEROS (2,8% DEL EGRESO)
+                      💼 4. INVERSIONES Y PASIVOS FINANCIEROS ({totalEgSim > 0 ? ((totalFinancieroSim / totalEgSim) * 100).toFixed(1) : 0}% DEL EGRESO)
                     </td>
                   </tr>
 
                   {financieroCats.map(c => {
                     const rowTotal = calcularTotalFila("egreso", c.key);
+                    const pctEgreso = totalEgSim > 0 ? (rowTotal / totalEgSim) * 100 : 0;
                     return (
                       <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0" }}>
                         <td style={{
@@ -1703,7 +1827,14 @@ export default function PresupuestoAnualTab({
                           borderRight: "2px solid #CBD5E1"
                         }}>
                           <div style={{ display: "flex", flexDirection: "column" }}>
-                            <span style={{ fontWeight: 600, color: tokens.ink }}>{c.label}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 600, color: tokens.ink }}>{c.label}</span>
+                              {rowTotal > 0 && (
+                                <span style={{ fontSize: 9.5, fontWeight: 700, background: "#F1F5F9", color: "#334155", border: "1px solid #CBD5E1", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                  {pctEgreso.toFixed(1)}% egreso
+                                </span>
+                              )}
+                            </div>
                             <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{c.sublabel}</span>
                           </div>
                         </td>
@@ -1735,6 +1866,33 @@ export default function PresupuestoAnualTab({
                       </tr>
                     );
                   })}
+
+                  {/* SUBTOTAL INVERSIONES Y PASIVOS */}
+                  <tr style={{ background: "#F1F5F9", borderTop: "2px solid #CBD5E1", borderBottom: "1px solid #94A3B8" }}>
+                    <td style={{
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 2,
+                      background: "#F1F5F9",
+                      padding: "10px 16px",
+                      fontWeight: 700,
+                      color: "#334155",
+                      borderRight: "2px solid #CBD5E1"
+                    }}>
+                      Subtotal Inversiones & Pasivos ({totalEgSim > 0 ? ((totalFinancieroSim / totalEgSim) * 100).toFixed(1) : 0}% del Egreso)
+                    </td>
+                    {meses.map(m => {
+                      const tot = financieroCats.reduce((acc, c) => acc + getSimVal("egreso", c.key, m.k), 0);
+                      return (
+                        <td key={m.k} title={`Subtotal Financiero (${m.n}): $ ${Math.round(tot).toLocaleString("es-AR")}`} style={{ padding: "10px 10px", textAlign: "right", fontWeight: 700, color: "#334155", fontFamily: tokens.fontMono }}>
+                          {formatMoney(tot)}
+                        </td>
+                      );
+                    })}
+                    <td title={`Total Anual Financiero: $ ${Math.round(totalFinancieroSim).toLocaleString("es-AR")}`} style={{ padding: "10px 16px", textAlign: "right", fontWeight: 800, color: "#334155", fontFamily: tokens.fontMono, background: "#E2E8F0" }}>
+                      {formatMoney(totalFinancieroSim)}
+                    </td>
+                  </tr>
 
                   {/* ══════════════════════════════════════════════════════ */}
                   {/* TOTAL EGRESOS DEL EJERCICIO                            */}
@@ -1909,16 +2067,20 @@ export default function PresupuestoAnualTab({
             </div>
           </div>
 
-          {/* ── DONAS Y ANÁLISIS DE PARTICIPACIÓN ── */}
+          {/* ── DONAS Y ANÁLISIS DE PARTICIPACIÓN - FONDOS CLAROS ── */}
           {!editMode && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 260px 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px 1fr", gap: 16 }}>
               
-              {/* DONA INGRESOS */}
-              <div style={{ background: "#0F172A", borderRadius: 10, border: "1px solid #1E293B", padding: 18 }}>
-                <h4 style={{ margin: "0 0 12px 0", color: "#fff", fontSize: 14, fontWeight: 700, textAlign: "center" }}>
+              {/* DONA INGRESOS (FONDO CLARO) */}
+              <div style={{ background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                <h4 style={{ margin: "0 0 4px 0", color: "#0F172A", fontSize: 14.5, fontWeight: 700, textAlign: "center" }}>
                   Composición de Ingresos {selectedYear}
                 </h4>
-                <div style={{ height: 220 }}>
+                <div style={{ fontSize: 11.5, color: "#64748B", textAlign: "center", marginBottom: 10 }}>
+                  Participación porcentual de cada concepto sobre el Total de Ingresos
+                </div>
+
+                <div style={{ height: 210 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -1926,9 +2088,9 @@ export default function PresupuestoAnualTab({
                         cx="50%"
                         cy="50%"
                         innerRadius={50}
-                        outerRadius={80}
+                        outerRadius={78}
                         dataKey="value"
-                        stroke="#0F172A"
+                        stroke="#FFFFFF"
                         strokeWidth={2}
                       >
                         {pieIngresos.map((entry, index) => (
@@ -1936,62 +2098,92 @@ export default function PresupuestoAnualTab({
                         ))}
                       </Pie>
                       <Tooltip
-                        contentStyle={{ background: "#0B1120", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                        formatter={(val) => [formatMoney(val), "Monto Anual"]}
-                      />
-                      <Legend
-                        layout="vertical"
-                        verticalAlign="middle"
-                        align="right"
-                        iconType="circle"
-                        wrapperStyle={{ fontSize: 11, color: "#94A3B8" }}
+                        contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0F172A", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                        formatter={(val, name, item) => {
+                          const p = item?.payload?.perc || 0;
+                          return [`${formatMoney(val)} (${p.toFixed(1)}%)`, "Monto Anual"];
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
+
+                {/* LISTA DETALLADA CON PORCENTAJE AL LADO DE CADA CONCEPTO */}
+                <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {pieIngresos.map((entry, index) => (
+                    <div key={index} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "6px 10px", background: "#F8FAFC", borderRadius: 6, border: "1px solid #F1F5F9" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS_ING[index % COLORS_ING.length], flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, color: "#1E293B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontFamily: tokens.fontMono, color: "#64748B", fontSize: 11.5 }}>{formatMoney(entry.value)}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                          {entry.perc.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* CARD CENTRAL: CONVERSIÓN USD Y RATIO DE COBERTURA */}
+              {/* CARD CENTRAL: CONVERSIÓN USD Y RATIO DE COBERTURA (FONDO CLARO) */}
               <div style={{
-                background: "#0F172A",
-                borderRadius: 10,
-                border: "1px solid #1E293B",
+                background: "#FFFFFF",
+                borderRadius: 12,
+                border: "1px solid #E2E8F0",
                 padding: "20px 16px",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
                 alignItems: "center",
-                textAlign: "center"
+                textAlign: "center",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
               }}>
-                <span style={{ fontSize: 11, color: "#94A3B8", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>
+                <span style={{ fontSize: 11, color: "#64748B", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>
                   Cobertura de Caja Anual
                 </span>
-                <div style={{ fontSize: 26, fontWeight: 800, color: tokens.gold, fontFamily: tokens.fontMono, margin: "6px 0 2px 0" }}>
+                <div style={{ fontSize: 30, fontWeight: 800, color: tokens.gold, fontFamily: tokens.fontMono, margin: "6px 0 2px 0" }}>
                   {totalEgSim > 0 ? `${((totalIngSim / totalEgSim) * 100).toFixed(1)}%` : "-"}
                 </div>
-                <span style={{ fontSize: 11, color: "#94A3B8", marginBottom: 14 }}>
-                  Los ingresos cubren {totalEgSim > 0 ? ((totalIngSim / totalEgSim) * 100).toFixed(0) : 0}% de los egresos
+                <span style={{ fontSize: 11.5, color: "#64748B", marginBottom: 18 }}>
+                  Los ingresos cubren el {totalEgSim > 0 ? ((totalIngSim / totalEgSim) * 100).toFixed(0) : 0}% de los egresos proyectados
                 </span>
 
-                <div style={{ width: "100%", borderTop: "1px solid #1E293B", paddingTop: 12 }}>
-                  <div style={{ fontSize: 10.5, color: "#94A3B8", textTransform: "uppercase", fontWeight: 600 }}>
-                    Déficit en Dólares
+                <div style={{ width: "100%", borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
+                  <div style={{ fontSize: 11, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
+                    {totalNetoSim >= 0 ? "Superávit Proyectado en USD" : "Déficit Anual Proyectado en USD"}
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#F87171", fontFamily: tokens.fontMono, marginTop: 2 }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: totalNetoSim >= 0 ? "#166534" : "#DC2626", fontFamily: tokens.fontMono, marginTop: 4 }}>
                     {formatUSD(totalNetoSim)}
                   </div>
-                  <div style={{ fontSize: 10, color: "#64748B", marginTop: 4 }}>
-                    TC: ${fmt(ultimoDolar)}
+                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
+                    TC oficial de cálculo: ${fmt(ultimoDolar)}
+                  </div>
+                </div>
+
+                <div style={{ width: "100%", borderTop: "1px solid #F1F5F9", marginTop: 16, paddingTop: 14, fontSize: 11, color: "#64748B" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span>Total Ingresos:</span>
+                    <strong style={{ color: "#166534", fontFamily: tokens.fontMono }}>{formatMoney(totalIngSim)}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Total Egresos:</span>
+                    <strong style={{ color: "#991B1B", fontFamily: tokens.fontMono }}>{formatMoney(totalEgSim)}</strong>
                   </div>
                 </div>
               </div>
 
-              {/* DONA EGRESOS */}
-              <div style={{ background: "#0F172A", borderRadius: 10, border: "1px solid #1E293B", padding: 18 }}>
-                <h4 style={{ margin: "0 0 12px 0", color: "#fff", fontSize: 14, fontWeight: 700, textAlign: "center" }}>
+              {/* DONA EGRESOS (FONDO CLARO) */}
+              <div style={{ background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                <h4 style={{ margin: "0 0 4px 0", color: "#0F172A", fontSize: 14.5, fontWeight: 700, textAlign: "center" }}>
                   Distribución de Egresos {selectedYear}
                 </h4>
-                <div style={{ height: 220 }}>
+                <div style={{ fontSize: 11.5, color: "#64748B", textAlign: "center", marginBottom: 10 }}>
+                  Participación porcentual de cada concepto sobre el Total de Egresos
+                </div>
+
+                <div style={{ height: 210 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -1999,9 +2191,9 @@ export default function PresupuestoAnualTab({
                         cx="50%"
                         cy="50%"
                         innerRadius={50}
-                        outerRadius={80}
+                        outerRadius={78}
                         dataKey="value"
-                        stroke="#0F172A"
+                        stroke="#FFFFFF"
                         strokeWidth={2}
                       >
                         {pieEgresos.map((entry, index) => (
@@ -2009,43 +2201,57 @@ export default function PresupuestoAnualTab({
                         ))}
                       </Pie>
                       <Tooltip
-                        contentStyle={{ background: "#0B1120", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                        formatter={(val) => [formatMoney(val), "Monto Anual"]}
-                      />
-                      <Legend
-                        layout="vertical"
-                        verticalAlign="middle"
-                        align="right"
-                        iconType="circle"
-                        wrapperStyle={{ fontSize: 11, color: "#94A3B8" }}
+                        contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0F172A", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                        formatter={(val, name, item) => {
+                          const p = item?.payload?.perc || 0;
+                          return [`${formatMoney(val)} (${p.toFixed(1)}%)`, "Monto Anual"];
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
+                </div>
+
+                {/* LISTA DETALLADA CON PORCENTAJE AL LADO DE CADA CONCEPTO */}
+                <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {pieEgresos.map((entry, index) => (
+                    <div key={index} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "6px 10px", background: "#F8FAFC", borderRadius: 6, border: "1px solid #F1F5F9" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS_EG[index % COLORS_EG.length], flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, color: "#1E293B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontFamily: tokens.fontMono, color: "#64748B", fontSize: 11.5 }}>{formatMoney(entry.value)}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, background: "#EFF6FF", color: "#1E40AF", border: "1px solid #BFDBFE", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                          {entry.perc.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
             </div>
           )}
 
-          {/* ── RANKING DE PROYECTOS POR DESEMBOLSO ANUAL ── */}
-          <div style={{ background: "#0F172A", borderRadius: 10, border: "1px solid #1E293B", padding: 20 }}>
+          {/* ── RANKING DE PROYECTOS POR DESEMBOLSO ANUAL (FONDO CLARO) ── */}
+          <div style={{ background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", padding: 22, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
               <div>
-                <h4 style={{ margin: 0, color: "#fff", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-                  <HardHat size={16} color={tokens.gold} />
+                <h4 style={{ margin: 0, color: "#0F172A", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                  <HardHat size={17} color={tokens.gold} />
                   Ranking de Inversión por Proyecto {selectedYear}
                 </h4>
-                <span style={{ fontSize: 12, color: "#94A3B8" }}>
-                  Visualiza rápidamente qué obras concentran el mayor flujo de desembolsos anuales.
+                <span style={{ fontSize: 12, color: "#64748B" }}>
+                  Visualiza qué obras concentran el mayor flujo de desembolsos anuales y su peso porcentual.
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{
                   fontSize: 11,
                   fontWeight: 700,
-                  color: tokens.gold,
-                  background: "rgba(217, 119, 6, 0.15)",
-                  border: "1px solid rgba(217, 119, 6, 0.35)",
+                  color: "#B45309",
+                  background: "#FEF3C7",
+                  border: "1px solid #FDE68A",
                   padding: "4px 10px",
                   borderRadius: 6,
                   letterSpacing: "0.2px"
@@ -2056,10 +2262,11 @@ export default function PresupuestoAnualTab({
             </div>
 
             {(() => {
-              const ranking = PLAN_PROJECT_CATS
+              const ranking = PLAN_PROJECT_CATS_2027
                 .map(c => ({
                   key: c.key,
                   name: c.label,
+                  tag: c.tag,
                   value: enMillones ? calcularTotalFila("egreso", c.key) / 1_000_000 : calcularTotalFila("egreso", c.key),
                   rawVal: calcularTotalFila("egreso", c.key),
                   activo: isProyectoActivo(c.key)
@@ -2074,47 +2281,74 @@ export default function PresupuestoAnualTab({
               }
 
               return (
-                <div style={{ height: Math.max(ranking.length * 36, 120) }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={ranking} layout="vertical" margin={{ top: 0, right: 110, left: 20, bottom: 0 }}>
-                      <XAxis type="number" hide />
-                      <YAxis type="category" dataKey="name" width={160} tick={{ fill: "#CBD5E1", fontSize: 12 }} axisLine={false} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{ background: "#0B1120", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                        formatter={(val, name, item) => {
-                          const raw = item?.payload?.rawVal || 0;
-                          const pct = totalObras > 0 ? ((raw / totalObras) * 100).toFixed(1) : 0;
-                          return [
-                            `${formatMoney(raw, true)} (${pct}%) · ${formatUSD(raw)}`,
-                            "Desembolso Anual"
-                          ];
-                        }}
-                      />
-                      <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20}>
-                        {ranking.map((d) => (
-                          <Cell
-                            key={d.key}
-                            fill={simulacionActiva && !d.activo ? "#334155" : tokens.gold}
-                            fillOpacity={simulacionActiva && !d.activo ? 0.4 : 1}
-                          />
-                        ))}
-                        <LabelList
-                          dataKey="value"
-                          position="right"
-                          formatter={(v) => {
-                            const num = Number(v);
-                            if (isNaN(num)) return "";
-                            if (enMillones) {
-                              return `$ ${num.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} M`;
-                            }
-                            return `$ ${Math.round(num).toLocaleString("es-AR")}`;
+                <>
+                  <div style={{ height: Math.max(ranking.length * 38, 140) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={ranking} layout="vertical" margin={{ top: 0, right: 120, left: 30, bottom: 0 }}>
+                        <XAxis type="number" hide />
+                        <YAxis type="category" dataKey="name" width={170} tick={{ fill: "#1E293B", fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0F172A", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                          formatter={(val, name, item) => {
+                            const raw = item?.payload?.rawVal || 0;
+                            const pctObra = totalObras > 0 ? ((raw / totalObras) * 100).toFixed(1) : 0;
+                            const pctEg = totalEgSim > 0 ? ((raw / totalEgSim) * 100).toFixed(1) : 0;
+                            return [
+                              `${formatMoney(raw, true)} (${pctObra}% de obras · ${pctEg}% egresos)`,
+                              "Desembolso Anual"
+                            ];
                           }}
-                          style={{ fill: "#F1F5F9", fontSize: 11, fontFamily: tokens.fontMono, fontWeight: 600 }}
                         />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                        <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20}>
+                          {ranking.map((d) => (
+                            <Cell
+                              key={d.key}
+                              fill={simulacionActiva && !d.activo ? "#94A3B8" : tokens.gold}
+                              fillOpacity={simulacionActiva && !d.activo ? 0.4 : 1}
+                            />
+                          ))}
+                          <LabelList
+                            dataKey="value"
+                            position="right"
+                            formatter={(v) => {
+                              const num = Number(v);
+                              if (isNaN(num)) return "";
+                              if (enMillones) {
+                                return `$ ${num.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} M`;
+                              }
+                              return `$ ${Math.round(num).toLocaleString("es-AR")}`;
+                            }}
+                            style={{ fill: "#0F172A", fontSize: 11, fontFamily: tokens.fontMono, fontWeight: 700 }}
+                          />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* GRILLA DE CONCEPTOS CON PORCENTAJE SOBRE EL TOTAL */}
+                  <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid #F1F5F9", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
+                    {ranking.map(item => {
+                      const pctObra = totalObras > 0 ? ((item.rawVal / totalObras) * 100) : 0;
+                      const pctEg = totalEgSim > 0 ? ((item.rawVal / totalEgSim) * 100) : 0;
+                      return (
+                        <div key={item.key} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 12, color: "#0F172A" }}>{item.name}</div>
+                            <div style={{ fontSize: 11, color: "#64748B", fontFamily: tokens.fontMono, marginTop: 2 }}>{formatMoney(item.rawVal)}</div>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, background: "#FEF3C7", color: "#B45309", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                              {pctObra.toFixed(1)}% obras
+                            </span>
+                            <span style={{ fontSize: 9.5, fontWeight: 600, background: "#EFF6FF", color: "#1E40AF", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                              {pctEg.toFixed(1)}% egreso
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               );
             })()}
           </div>

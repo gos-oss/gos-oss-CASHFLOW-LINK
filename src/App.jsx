@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import PresupuestoAnualTab from "./PresupuestoAnualTab";
+import StockDisponibleTab from "./StockDisponibleTab";
 import {
   PLAN_INCOME_CATS,
   PLAN_PROJECT_CATS,
@@ -238,6 +239,7 @@ const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
   { id: "motor", label: "Motor Financiero", icon: Cpu },
   { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
+  { id: "stock", label: "Stock Disponible", icon: Building2 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
   { id: "monitor", label: "Monitor Financiero", icon: Activity },
   { id: "conceptos", label: "Conceptos", icon: Tag },
@@ -363,8 +365,9 @@ export default function App() {
 
       const necesitaMigracion2027 = !planesTemporales["2027"]
         || !planesTemporales["2027"].egreso
-        || !planesTemporales["2027"].egreso["proy_neuquen"]
-        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-cdo"]?.["01"] || 0) < 400000000;
+        || !planesTemporales["2027"].egreso["proy_mas-duo"]
+        || !planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]
+        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 200000000;
       if (necesitaMigracion2027) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
         await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
@@ -979,6 +982,10 @@ export default function App() {
             fmt={fmt} planesFondos={planesFondos} mappingGuardado={mapping}
             onGuardarPlan={guardarPlanDeFondos} onGuardarMapeo={guardarMapeo} tcList={tcList} 
           />
+        )}
+
+        {tab === "stock" && (
+          <StockDisponibleTab tcList={tcList} fmt={fmt} />
         )}
 
         {tab === "movimientos" && (

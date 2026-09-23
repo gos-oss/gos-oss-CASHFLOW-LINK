@@ -1417,39 +1417,40 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
                       const d = payload[0].payload;
                       return (
                         <div style={{
-                          background: "#0F172A",
-                          color: "#FFFFFF",
+                          background: "#FFFFFF",
+                          color: "#0F172A",
                           padding: "10px 14px",
                           borderRadius: 8,
-                          boxShadow: "0 6px 18px rgba(0,0,0,0.3)",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
                           fontSize: 12,
                           minWidth: 190
                         }}>
-                          <div style={{ fontWeight: 700, borderBottom: "1px solid #334155", paddingBottom: 4, marginBottom: 6, color: tokens.gold }}>
+                          <div style={{ fontWeight: 700, borderBottom: "1px solid #E2E8F0", paddingBottom: 4, marginBottom: 6, color: "#B45309" }}>
                             {d.etiqueta || d.id_mes}
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                            <span style={{ color: "#94A3B8" }}>Índice Link:</span>
-                            <strong style={{ color: tokens.gold }}>{fmtNum(d.indice, 3)} pts ({d.variacion_indice >= 0 ? "+" : ""}{fmtNum(d.variacion_indice, 1)}%)</strong>
+                            <span style={{ color: "#64748B" }}>Índice Link:</span>
+                            <strong style={{ color: "#B45309" }}>{fmtNum(d.indice, 3)} pts ({d.variacion_indice >= 0 ? "+" : ""}{fmtNum(d.variacion_indice, 1)}%)</strong>
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                            <span style={{ color: "#94A3B8" }}>Valor Absoluto:</span>
-                            <strong style={{ color: "#A5B4FC" }}>{fmtPesos(d.valor_absoluto)}</strong>
+                            <span style={{ color: "#64748B" }}>Valor Absoluto:</span>
+                            <strong style={{ color: "#4F46E5" }}>{fmtPesos(d.valor_absoluto)}</strong>
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                            <span style={{ color: "#94A3B8" }}>Var. Absoluta:</span>
-                            <strong style={{ color: d.variacion_absoluto >= 0 ? "#4ADE80" : "#F87171" }}>
+                            <span style={{ color: "#64748B" }}>Var. Absoluta:</span>
+                            <strong style={{ color: d.variacion_absoluto >= 0 ? "#166534" : "#DC2626" }}>
                               {d.variacion_absoluto >= 0 ? "+" : ""}{fmtNum(d.variacion_absoluto, 1)}%
                             </strong>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #334155" }}>
-                            <span style={{ color: "#94A3B8" }}>Equivalente USD:</span>
-                            <span style={{ fontFamily: tokens.fontMono, color: "#FFFFFF" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #E2E8F0" }}>
+                            <span style={{ color: "#64748B" }}>Equivalente USD:</span>
+                            <span style={{ fontFamily: tokens.fontMono, color: "#0F172A", fontWeight: 600 }}>
                               USD ~{fmtNum(Math.round(d.valor_absoluto / (dolarMep || dolarBlue || 1350)), 0)}
                             </span>
                           </div>
                           {d.observaciones && (
-                            <div style={{ marginTop: 5, fontSize: 10.5, color: "#CBD5E1", fontStyle: "italic" }}>
+                            <div style={{ marginTop: 5, fontSize: 10.5, color: "#64748B", fontStyle: "italic" }}>
                               Nota: {d.observaciones}
                             </div>
                           )}
