@@ -5,7 +5,6 @@ import CargarMovimiento from "./CargarMovimiento";
 import CategoryManager from "./CategoryManager";
 import IndicadoresFinancierosTab from "./IndicadoresFinancierosTab";
 import MonitorFinancieroTab from "./MonitorFinancieroTab";
-import MotorFinancieroTab from "./MotorFinancieroTab";
 import ImportadorMatrizExcel from "./ImportadorMatrizExcel";
 import ImportadorPresupuestoExcel from "./ImportadorPresupuestoExcel";
 import { tokens, fontImport } from "./tokens";
@@ -238,7 +237,6 @@ const DEFAULT_REAL_WEEKS = [
 // NAVEGACIÓN
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
-  { id: "motor", label: "Motor Financiero", icon: Cpu },
   { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
   { id: "stock", label: "Stock Disponible", icon: Building2 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
@@ -924,21 +922,9 @@ export default function App() {
               setMostrarImportadorMatriz(true);
             }}
             onIrAConfig={() => setTab("configuracion")}
-            onIrAMotor={() => setTab("motor")}
+            onIrAMonitor={() => setTab("monitor")}
             onIrAPresupuesto={() => setTab("presupuesto")}
             onCargarDemo={handleRestaurarDatosImagen}
-          />
-        )}
-
-        {/* MÓDULO: MOTOR FINANCIERO (EMPRESA · PROYECTOS · SOCIOS) */}
-        {tab === "motor" && (
-          <MotorFinancieroTab
-            weeks={weeks}
-            planesFondos={planesFondos}
-            tcList={tcList}
-            kpis={kpis}
-            fmt={fmt}
-            onNavigateToTab={(target) => setTab(target)}
           />
         )}
         
@@ -1553,7 +1539,7 @@ function ResumenTab({
   onNuevoMovimiento,
   onAbrirImportadorMatriz,
   onIrAConfig,
-  onIrAMotor,
+  onIrAMonitor,
   onIrAPresupuesto,
   onCargarDemo
 }) {
@@ -2477,7 +2463,7 @@ function ResumenTab({
 
       </div>
 
-      {/* 5. BANNER DE ARTICULACIÓN: EMPRESA · PROYECTOS · SOCIOS */}
+      {/* 5. BANNER: MONITOR FINANCIERO LINK */}
       <div style={{
         background: `linear-gradient(135deg, ${tokens.ink} 0%, #1A243B 100%)`,
         borderRadius: 12,
@@ -2492,27 +2478,27 @@ function ResumenTab({
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ width: 46, height: 46, borderRadius: 10, background: tokens.gold, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 8px rgba(184, 134, 42, 0.4)" }}>
-            <Cpu size={26} color="#fff" />
+            <Activity size={26} color="#fff" />
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: tokens.gold }}>
-                Motor Financiero Link
+                Monitor Financiero Link
               </span>
-              <span style={{ fontSize: 11, color: "#94A3B8" }}>· Arquitectura Multivariable</span>
+              <span style={{ fontSize: 11, color: "#94A3B8" }}>· Tablero Ejecutivo Consolidado</span>
             </div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>
-              Empresa (Tesorería) · Proyectos (Costos & Ventas) · Socios (Capital & Retiros)
+              Situación Actual · Ingresos y Egresos · Necesidad de Caja · Valuación de Stock
             </div>
             <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 3 }}>
-              Simula escenarios dinámicos modificando cobranzas, velocidad de obra y asignación de dividendos.
+              Control de tesorería, análisis de déficit mensual de fondos, inventario de unidades e indicadores de mercado.
             </div>
           </div>
         </div>
 
-        {onIrAMotor && (
+        {onIrAMonitor && (
           <button
-            onClick={onIrAMotor}
+            onClick={onIrAMonitor}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -2529,7 +2515,7 @@ function ResumenTab({
               transition: "transform 0.1s ease"
             }}
           >
-            Abrir Motor & Simulador <ChevronRight size={15} />
+            Abrir Monitor Financiero <ChevronRight size={15} />
           </button>
         )}
       </div>
