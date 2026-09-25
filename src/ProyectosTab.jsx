@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
-const LOCAL_STORAGE_KEY = "cf_link_proyectos_curvas_v1";
+const LOCAL_STORAGE_KEY = "cf_link_obras_curvas_v2";
 
 export default function ProyectosTab({
   tcList = [],
@@ -40,13 +40,18 @@ export default function ProyectosTab({
   const [moneda, setMoneda] = useState("ARS"); // "ARS" | "USD"
   const [selectedProyId, setSelectedProyId] = useState("todos"); // "todos" o id
   const [viewTab, setViewTab] = useState("curva-s"); // "curva-s" | "mensual" | "comparativa" | "matriz" | "fichas"
-  const [filtroAnio, setFiltroAnio] = useState("todos"); // "todos" | "2027" | "2026"
+  const [filtroAnio, setFiltroAnio] = useState("todos"); // "todos" | "2025" | "2026" | "2027" | "2028-2029"
 
   // Estado de proyectos persistible en localStorage
   const [proyectos, setProyectos] = useState(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(p => p.id === "duo")) {
+          return parsed;
+        }
+      }
     } catch (e) {
       console.error("Error reading proyectos from localStorage:", e);
     }
@@ -70,7 +75,7 @@ export default function ProyectosTab({
   };
 
   const handleRestaurar = () => {
-    if (window.confirm("¿Deseas restaurar los proyectos y curvas a los valores oficiales iniciales?")) {
+    if (window.confirm("¿Deseas restaurar todas las obras y curvas a los valores oficiales de Link Inversiones?")) {
       guardarProyectos(PROYECTOS_INICIALES);
     }
   };
@@ -101,14 +106,31 @@ export default function ProyectosTab({
 
   // Lista de meses filtrados según selector de año
   const mesesFiltrados = useMemo(() => {
-    if (filtroAnio === "2027") {
-      return MESES_HORIZONTE.filter(m => m.startsWith("2027"));
-    }
-    if (filtroAnio === "2026") {
-      return MESES_HORIZONTE.filter(m => m.startsWith("2026"));
-    }
+    if (filtroAnio === "2025") return MESES_HORIZONTE.filter(m => m.startsWith("2025"));
+    if (filtroAnio === "2026") return MESES_HORIZONTE.filter(m => m.startsWith("2026"));
+    if (filtroAnio === "2027") return MESES_HORIZONTE.filter(m => m.startsWith("2027"));
+    if (filtroAnio === "2028-2029") return MESES_HORIZONTE.filter(m => m.startsWith("2028") || m.startsWith("2029"));
     return MESES_HORIZONTE;
   }, [filtroAnio]);
+
+  // Resumen global de obras (valores oficiales de la cartera)
+  const resumenCartera = useMemo(() => {
+    let presupTotal = 0;
+    let ejecutadoTotal = 0;
+    let saldoTotal = 0;
+    proyectos.forEach(p => {
+      presupTotal += Number(p.presupuesto_total || 0);
+      ejecutadoTotal += Number(p.ejecutado || 0);
+      saldoTotal += Number(p.saldo_presupuesto || 0);
+    });
+    const avanceGlobalPct = presupTotal > 0 ? (ejecutadoTotal / presupTotal) * 100 : 0;
+    return {
+      presupuestoTotal: presupTotal,
+      ejecutadoTotal,
+      saldoTotal,
+      avanceGlobalPct: Number(avanceGlobalPct.toFixed(1))
+    };
+  }, [proyectos]);
 
   // Proyecto activo seleccionado
   const proyectoActivo = useMemo(() => {
@@ -237,41 +259,56 @@ export default function ProyectosTab({
     try {
       const wb = XLSX.utils.book_new();
 
-      // Hoja 1: Resumen de Proyectos
+      // Hoja 1: Resumen Oficial de Obras
       const resumenRows = proyectos.map(p => {
-        let sumaArs = 0;
+        let sumaPeriodoArs = 0;
         mesesFiltrados.forEach(m => {
-          sumaArs += Number(p.costos_mensuales?.[m] || 0);
+          sumaPeriodoArs += Number(p.costos_mensuales?.[m] || 0);
         });
         return {
-          "Proyecto": p.nombre,
+          "Obra": p.nombre,
           "Tipología": p.tipologia,
           "Estado": p.estado,
-          "Fecha Inicio": p.fecha_inicio,
-          "Fecha Entrega": p.fecha_entrega,
+          "% Avance": (p.avance_pct || 0) + "%",
+          "Presupuesto Total (ARS)": p.presupuesto_total,
+          "Ejecutado (ARS)": p.ejecutado,
+          "Saldo Presupuesto (ARS)": p.saldo_presupuesto,
+          "Fecha Inicio": p.fecha_inicio_label || p.fecha_inicio,
+          "Fecha Entrega": p.fecha_fin_label || p.fecha_entrega,
           "Duración (Meses)": p.duracion_meses,
-          "m2 Totales": p.m2_totales,
-          "Unidades": p.unidades_totales,
-          "Presupuesto Total (ARS)": sumaArs,
-          "Presupuesto Total (USD)": sumaArs / (tcReferencia || 1550),
-          "Promedio Mensual (ARS)": sumaArs / (mesesFiltrados.length || 1),
-          "Promedio Mensual (USD)": (sumaArs / (tcReferencia || 1550)) / (mesesFiltrados.length || 1)
+          "Desembolso Período Filtrado (ARS)": sumaPeriodoArs,
+          "Desembolso Período Filtrado (USD)": sumaPeriodoArs / (tcReferencia || 1550)
         };
       });
       const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
-      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen Proyectos");
+      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen Obras Link");
 
       // Hoja 2: Curva Mensual Detallada
-      const mesesHeaders = mesesFiltrados.map(m => formatearMes(m));
       const matrizRows = proyectos.map(p => {
-        const row = { "Proyecto": p.nombre };
+        let sumaPeriodo = 0;
+        mesesFiltrados.forEach(m => sumaPeriodo += Number(p.costos_mensuales?.[m] || 0));
+        const row = {
+          "Obra": p.nombre,
+          "% Avance": (p.avance_pct || 0) + "%",
+          "Presupuesto Total": p.presupuesto_total,
+          "Ejecutado": p.ejecutado,
+          "Saldo Presupuesto": p.saldo_presupuesto,
+          "Total Período": sumaPeriodo
+        };
         mesesFiltrados.forEach(m => {
           row[formatearMes(m)] = Number(p.costos_mensuales?.[m] || 0);
         });
         return row;
       });
       // Fila Total Consolidado
-      const rowTotal = { "Proyecto": "TOTAL CONSOLIDADO OBRAS" };
+      const rowTotal = {
+        "Obra": "TOTAL CONSOLIDADO OBRAS",
+        "% Avance": resumenCartera.avanceGlobalPct + "%",
+        "Presupuesto Total": resumenCartera.presupuestoTotal,
+        "Ejecutado": resumenCartera.ejecutadoTotal,
+        "Saldo Presupuesto": resumenCartera.saldoTotal,
+        "Total Período": metricas.totalInversionArs
+      };
       mesesFiltrados.forEach(m => {
         let sum = 0;
         proyectos.forEach(p => sum += Number(p.costos_mensuales?.[m] || 0));
@@ -279,7 +316,7 @@ export default function ProyectosTab({
       });
       matrizRows.push(rowTotal);
       const wsMatriz = XLSX.utils.json_to_sheet(matrizRows);
-      XLSX.utils.book_append_sheet(wb, wsMatriz, "Costos Mensuales ARS");
+      XLSX.utils.book_append_sheet(wb, wsMatriz, "Costos Mensuales Obras");
 
       // Hoja 3: Curva S Acumulada
       const sCurveRows = metricas.datosCurva.map(d => ({
@@ -355,7 +392,7 @@ export default function ProyectosTab({
                 <HardHat size={14} /> LINK INVERSIONES · OBRAS
               </span>
               <span style={{ fontSize: 13, color: tokens.textMuted }}>
-                Horizonte 2026 - 2027
+                Costos de Desarrollo de Obras (Sin Cupos) · Horizonte Dic 2024 - Nov 2029
               </span>
             </div>
             <h1 style={{
@@ -366,10 +403,10 @@ export default function ProyectosTab({
               color: tokens.text,
               letterSpacing: "-0.02em"
             }}>
-              Curvas de Proyectos & Ejecución de Costos
+              Curvas de Ejecución de Obras & Costos de Desarrollo
             </h1>
             <p style={{ margin: "4px 0 0 0", fontSize: 13.5, color: tokens.textMuted }}>
-              Análisis dinámico de costos mensuales, Curva S de avance acumulado e hitos clave desde el inicio de obra hasta la entrega.
+              Seguimiento financiero exclusivo del costo de desarrollo y construcción de las obras (desembolsos mensuales, avance acumulado y Curva S desde inicio hasta entrega).
             </p>
           </div>
 
@@ -415,7 +452,7 @@ export default function ProyectosTab({
                 cursor: "pointer"
               }}
             >
-              <Plus size={15} /> Nuevo Proyecto
+              <Plus size={15} /> Nueva Obra
             </button>
 
             <button
@@ -435,7 +472,7 @@ export default function ProyectosTab({
               }}
               title="Restaurar a datos originales de la planilla oficial Link"
             >
-              <RefreshCw size={14} /> Restaurar
+              <RefreshCw size={14} /> Restaurar Obras Oficiales
             </button>
           </div>
         </div>
@@ -450,10 +487,10 @@ export default function ProyectosTab({
           paddingTop: 14,
           borderTop: `1px solid ${tokens.ruleSoft}`
         }}>
-          {/* Selector de Proyecto */}
+          {/* Selector de Obra */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: tokens.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-              <Building2 size={15} /> Proyecto:
+              <Building2 size={15} /> Obra:
             </span>
             <select
               value={selectedProyId}
@@ -471,20 +508,22 @@ export default function ProyectosTab({
                 outline: "none"
               }}
             >
-              <option value="todos">🌐 Todos los Proyectos (Cartera Consolidada)</option>
+              <option value="todos">🌐 Todas las Obras (Cartera Consolidada)</option>
               {proyectos.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.nombre} ({p.tag})
+                  {p.nombre} — {p.avance_pct}% ejecutado ({p.tag})
                 </option>
               ))}
             </select>
 
             {/* Selector de Horizonte */}
-            <div style={{ display: "inline-flex", background: "#F1F5F9", padding: 3, borderRadius: 8 }}>
+            <div style={{ display: "inline-flex", background: "#F1F5F9", padding: 3, borderRadius: 8, flexWrap: "wrap", gap: 2 }}>
               {[
-                { id: "todos", label: "2026-2027 (Completo)" },
-                { id: "2027", label: "Solo 2027 (Oficial)" },
-                { id: "2026", label: "Solo 2026 (Histórico)" }
+                { id: "todos", label: "Horizonte Completo (2024-2029)" },
+                { id: "2025", label: "2025" },
+                { id: "2026", label: "2026" },
+                { id: "2027", label: "2027" },
+                { id: "2028-2029", label: "2028-2029" }
               ].map(opt => (
                 <button
                   key={opt.id}
@@ -570,8 +609,8 @@ export default function ProyectosTab({
             { id: "curva-s", label: "Curva S & Avance Acumulado", icon: TrendingUp },
             { id: "mensual", label: "Desembolsos Mensuales", icon: BarChart3 },
             { id: "comparativa", label: "Comparativa Multiproyecto", icon: Layers },
-            { id: "matriz", label: "Matriz Numérica Detallada", icon: FileSpreadsheet },
-            { id: "fichas", label: "Fichas & Hitos de Obra", icon: HardHat }
+            { id: "matriz", label: "Matriz Numérica Oficial", icon: FileSpreadsheet },
+            { id: "fichas", label: "Fichas & Estado de Obras", icon: HardHat }
           ].map(t => {
             const Icon = t.icon;
             const active = viewTab === t.id;
@@ -606,10 +645,10 @@ export default function ProyectosTab({
       {/* ── TARJETAS DE INDICADORES CLAVE (KPIS) ── */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
         gap: 14
       }}>
-        {/* KPI 1: Inversión Total */}
+        {/* KPI 1: Presupuesto Total */}
         <div style={{
           background: tokens.surface,
           borderRadius: 10,
@@ -618,20 +657,88 @@ export default function ProyectosTab({
           boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              Inversión Presupuestada
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Presupuesto Total de Obra
             </span>
-            <DollarSign size={16} color={tokens.positive} />
+            <Building2 size={16} color="#3B82F6" />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 700, color: tokens.text }}>
+          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
+            {formatoMonto(proyectoActivo ? proyectoActivo.presupuesto_total : resumenCartera.presupuestoTotal)}
+          </div>
+          <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
+            {proyectoActivo ? `${proyectoActivo.m2_totales || "—"} m² construidos` : `${proyectos.length} obras en cartera`}
+          </div>
+        </div>
+
+        {/* KPI 2: Ejecutado a la Fecha */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 10,
+          border: `1px solid ${tokens.rule}`,
+          padding: "16px 18px",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Ejecutado Acumulado
+            </span>
+            <CheckCircle2 size={16} color={tokens.positive} />
+          </div>
+          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.positive }}>
+            {formatoMonto(proyectoActivo ? proyectoActivo.ejecutado : resumenCartera.ejecutadoTotal)}
+          </div>
+          <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
+            {proyectoActivo
+              ? `${proyectoActivo.avance_pct}% de avance físico/financiero`
+              : `${resumenCartera.avanceGlobalPct}% avance global consolidado`}
+          </div>
+        </div>
+
+        {/* KPI 3: Saldo por Desembolsar */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 10,
+          border: `1px solid ${tokens.rule}`,
+          padding: "16px 18px",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Saldo por Invertir
+            </span>
+            <DollarSign size={16} color={tokens.ink} />
+          </div>
+          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.ink }}>
+            {formatoMonto(proyectoActivo ? proyectoActivo.saldo_presupuesto : resumenCartera.saldoTotal)}
+          </div>
+          <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
+            Compromiso de obra restante
+          </div>
+        </div>
+
+        {/* KPI 4: Desembolso Período Filtrado */}
+        <div style={{
+          background: tokens.surface,
+          borderRadius: 10,
+          border: `1px solid ${tokens.rule}`,
+          padding: "16px 18px",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Período Seleccionado
+            </span>
+            <Calendar size={16} color="#8B5CF6" />
+          </div>
+          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
             {formatoMonto(metricas.totalInversionArs)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
-            {proyectoActivo ? `${proyectoActivo.m2_totales || "—"} m² construidos` : `${proyectos.length} proyectos en cartera`}
+            En {metricas.cantMeses} meses ({filtroAnio === "todos" ? "2024-2029" : filtroAnio})
           </div>
         </div>
 
-        {/* KPI 2: Costo Promedio Mensual */}
+        {/* KPI 5: Promedio Mensual */}
         <div style={{
           background: tokens.surface,
           borderRadius: 10,
@@ -640,20 +747,20 @@ export default function ProyectosTab({
           boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              Desembolso Promedio / Mes
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Desembolso Promedio
             </span>
-            <ActivityIcon size={16} color="#3B82F6" />
+            <TrendingUp size={16} color="#3B82F6" />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 700, color: tokens.text }}>
+          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
             {formatoMonto(metricas.promedioMensualArs)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
-            En base a {metricas.cantMeses} meses proyectados
+            Carga mensual proyectada
           </div>
         </div>
 
-        {/* KPI 3: Mes Pico de Fondos */}
+        {/* KPI 6: Mes Pico */}
         <div style={{
           background: tokens.surface,
           borderRadius: 10,
@@ -662,38 +769,16 @@ export default function ProyectosTab({
           boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
               Mes Pico (Peak Burn)
             </span>
             <ArrowUpRight size={16} color="#D97706" />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 700, color: "#D97706" }}>
+          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: "#D97706" }}>
             {metricas.maxMes ? formatearMes(metricas.maxMes) : "—"}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
-            Exigencia máxima: {formatoMonto(metricas.maxMontoArs, true)}
-          </div>
-        </div>
-
-        {/* KPI 4: Plazo / Fecha de Entrega */}
-        <div style={{
-          background: tokens.surface,
-          borderRadius: 10,
-          border: `1px solid ${tokens.rule}`,
-          padding: "16px 18px",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              Horizonte / Entrega
-            </span>
-            <Calendar size={16} color="#8B5CF6" />
-          </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 20, fontWeight: 700, color: tokens.text }}>
-            {proyectoActivo ? formatearMes(proyectoActivo.fecha_entrega) : "Dic 2027 / Nov 2029"}
-          </div>
-          <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
-            {proyectoActivo ? `${proyectoActivo.duracion_meses} meses de obra programada` : "Cartera plurianual Link"}
+            Pico: {formatoMonto(metricas.maxMontoArs, true)}
           </div>
         </div>
       </div>
@@ -1020,7 +1105,7 @@ export default function ProyectosTab({
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
                         <span style={{ fontWeight: 600, color: tokens.text, display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ width: 10, height: 10, borderRadius: "50%", background: r.color }}></span>
-                          {r.label}
+                          {r.nombre || r.label}
                         </span>
                         <span style={{ fontWeight: 700, color: tokens.text }}>
                           {formatoMonto(montoRubroArs)} <span style={{ color: tokens.textMuted, fontWeight: 500 }}>({r.pct}%)</span>
@@ -1115,7 +1200,7 @@ export default function ProyectosTab({
                   Solapamiento de Curvas Multiproyecto (Área Apilada)
                 </h3>
                 <p style={{ margin: "4px 0 0 0", fontSize: 13, color: tokens.textMuted }}>
-                  Compara la demanda simultánea de fondos de todos los proyectos activos (Torre Green, + DUO, Auria, Cupos).
+                  Compara la demanda simultánea de fondos para el desarrollo de todas las obras activas y programadas de Link Inversiones.
                 </p>
               </div>
 
@@ -1294,11 +1379,26 @@ export default function ProyectosTab({
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, textAlign: "right", fontFamily: tokens.fontBody }}>
               <thead>
                 <tr style={{ background: "#F8FAFC", borderBottom: `2px solid ${tokens.rule}` }}>
-                  <th style={{ textAlign: "left", padding: "12px 14px", fontWeight: 700, color: tokens.text, position: "sticky", left: 0, background: "#F8FAFC", zIndex: 2, minWidth: 200 }}>
-                    Proyecto / Mes
+                  <th style={{ textAlign: "left", padding: "12px 14px", fontWeight: 700, color: tokens.text, position: "sticky", left: 0, background: "#F8FAFC", zIndex: 3, minWidth: 170 }}>
+                    Obra
                   </th>
-                  <th style={{ textAlign: "right", padding: "12px 14px", fontWeight: 700, color: tokens.text, minWidth: 120 }}>
-                    Total ({moneda})
+                  <th style={{ textAlign: "center", padding: "12px 10px", fontWeight: 700, color: tokens.text, minWidth: 80 }}>
+                    % Avance
+                  </th>
+                  <th style={{ textAlign: "right", padding: "12px 10px", fontWeight: 700, color: tokens.text, minWidth: 125 }}>
+                    Presupuesto Total
+                  </th>
+                  <th style={{ textAlign: "right", padding: "12px 10px", fontWeight: 700, color: tokens.positive, minWidth: 115 }}>
+                    Ejecutado
+                  </th>
+                  <th style={{ textAlign: "right", padding: "12px 10px", fontWeight: 700, color: tokens.ink, minWidth: 125 }}>
+                    Saldo Presupuesto
+                  </th>
+                  <th style={{ textAlign: "center", padding: "12px 10px", fontWeight: 700, color: tokens.textMuted, minWidth: 105 }}>
+                    Plazo
+                  </th>
+                  <th style={{ textAlign: "right", padding: "12px 12px", fontWeight: 700, color: "#4338CA", background: "#EEF2FF", minWidth: 125 }}>
+                    Total Período ({moneda})
                   </th>
                   {mesesFiltrados.map(m => (
                     <th key={m} style={{ padding: "12px 10px", fontWeight: 700, color: tokens.textMuted, minWidth: 100 }}>
@@ -1325,7 +1425,7 @@ export default function ProyectosTab({
                         position: "sticky",
                         left: 0,
                         background: "#fff",
-                        zIndex: 1,
+                        zIndex: 2,
                         borderRight: `1px solid ${tokens.rule}`
                       }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1333,7 +1433,32 @@ export default function ProyectosTab({
                           <span style={{ whiteSpace: "nowrap" }}>{p.nombre}</span>
                         </div>
                       </td>
-                      <td style={{ padding: "10px 14px", fontWeight: 700, color: tokens.text, background: "#F8FAFC" }}>
+                      <td style={{ textAlign: "center", padding: "10px 8px" }}>
+                        <span style={{
+                          display: "inline-block",
+                          padding: "2px 7px",
+                          borderRadius: 12,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          background: p.avance_pct >= 80 ? "#ECFDF5" : p.avance_pct > 0 ? "#EFF6FF" : "#F1F5F9",
+                          color: p.avance_pct >= 80 ? "#047857" : p.avance_pct > 0 ? "#1D4ED8" : "#64748B"
+                        }}>
+                          {p.avance_pct || 0}%
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 10px", fontWeight: 600, color: tokens.text }}>
+                        {formatoMonto(p.presupuesto_total)}
+                      </td>
+                      <td style={{ padding: "10px 10px", color: p.ejecutado > 0 ? tokens.positive : tokens.textMuted, fontWeight: 600 }}>
+                        {p.ejecutado > 0 ? formatoMonto(p.ejecutado) : "—"}
+                      </td>
+                      <td style={{ padding: "10px 10px", color: tokens.ink, fontWeight: 600 }}>
+                        {formatoMonto(p.saldo_presupuesto)}
+                      </td>
+                      <td style={{ textAlign: "center", padding: "10px 8px", fontSize: 11.5, color: tokens.textMuted }}>
+                        {p.fecha_inicio_label} - {p.fecha_fin_label}
+                      </td>
+                      <td style={{ padding: "10px 12px", fontWeight: 700, color: "#4338CA", background: "#F5F3FF" }}>
                         {formatoMonto(sumaTotalArs)}
                       </td>
                       {mesesFiltrados.map(m => {
@@ -1377,12 +1502,27 @@ export default function ProyectosTab({
                     position: "sticky",
                     left: 0,
                     background: "#EEF2FF",
-                    zIndex: 1,
+                    zIndex: 2,
                     borderRight: `1px solid ${tokens.rule}`
                   }}>
                     TOTAL CONSOLIDADO
                   </td>
-                  <td style={{ padding: "12px 14px", color: "#4338CA" }}>
+                  <td style={{ textAlign: "center", padding: "12px 8px", color: tokens.ink }}>
+                    {resumenCartera.avanceGlobalPct}%
+                  </td>
+                  <td style={{ padding: "12px 10px", color: tokens.text }}>
+                    {formatoMonto(resumenCartera.presupuestoTotal)}
+                  </td>
+                  <td style={{ padding: "12px 10px", color: tokens.positive }}>
+                    {formatoMonto(resumenCartera.ejecutadoTotal)}
+                  </td>
+                  <td style={{ padding: "12px 10px", color: tokens.ink }}>
+                    {formatoMonto(resumenCartera.saldoTotal)}
+                  </td>
+                  <td style={{ textAlign: "center", padding: "12px 8px", fontSize: 11.5, color: tokens.textMuted }}>
+                    60 meses
+                  </td>
+                  <td style={{ padding: "12px 14px", color: "#4338CA", background: "#E0E7FF" }}>
                     {formatoMonto(metricas.totalInversionArs)}
                   </td>
                   {mesesFiltrados.map(m => {
@@ -1453,23 +1593,38 @@ export default function ProyectosTab({
                     {p.descripcion}
                   </p>
 
+                  {/* Barra de avance físico/financiero */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 12 }}>
+                      <span style={{ fontWeight: 600, color: tokens.textMuted }}>Avance Ejecutado:</span>
+                      <span style={{ fontWeight: 700, color: p.avance_pct >= 80 ? tokens.positive : p.avance_pct > 0 ? tokens.ink : tokens.textMuted }}>
+                        {p.avance_pct || 0}%
+                      </span>
+                    </div>
+                    <div style={{ height: 8, width: "100%", background: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${Math.min(100, p.avance_pct || 0)}%`, height: "100%", background: p.color, borderRadius: 4, transition: "width 0.3s ease" }} />
+                    </div>
+                  </div>
+
                   {/* Métricas clave de la ficha */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
                     <div style={{ background: "#F8FAFC", padding: "10px 12px", borderRadius: 8 }}>
-                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Presupuesto</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: tokens.text }}>{formatoMonto(totalArs, true)}</div>
+                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Presupuesto Total</div>
+                      <div style={{ fontSize: 14.5, fontWeight: 700, color: tokens.text }}>{formatoMonto(p.presupuesto_total, true)}</div>
                     </div>
                     <div style={{ background: "#F8FAFC", padding: "10px 12px", borderRadius: 8 }}>
-                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Entrega Prevista</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: tokens.text }}>{formatearMes(p.fecha_entrega)}</div>
+                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Ejecutado a la Fecha</div>
+                      <div style={{ fontSize: 14.5, fontWeight: 700, color: p.ejecutado > 0 ? tokens.positive : tokens.textMuted }}>
+                        {p.ejecutado > 0 ? formatoMonto(p.ejecutado, true) : "—"}
+                      </div>
                     </div>
                     <div style={{ background: "#F8FAFC", padding: "10px 12px", borderRadius: 8 }}>
-                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Superficie</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: tokens.text }}>{p.m2_totales ? `${p.m2_totales} m²` : "—"}</div>
+                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Saldo por Invertir</div>
+                      <div style={{ fontSize: 14.5, fontWeight: 700, color: tokens.ink }}>{formatoMonto(p.saldo_presupuesto, true)}</div>
                     </div>
                     <div style={{ background: "#F8FAFC", padding: "10px 12px", borderRadius: 8 }}>
-                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Unidades</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: tokens.text }}>{p.unidades_totales ? `${p.unidades_totales} un.` : "—"}</div>
+                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Plazo Oficial</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: tokens.text }}>{p.fecha_inicio_label} a {p.fecha_fin_label}</div>
                     </div>
                   </div>
                 </div>
