@@ -25,6 +25,7 @@ import {
 
 import PresupuestoAnualTab from "./PresupuestoAnualTab";
 import StockDisponibleTab from "./StockDisponibleTab";
+import ProyectosTab from "./ProyectosTab";
 import {
   PLAN_INCOME_CATS,
   PLAN_PROJECT_CATS,
@@ -238,6 +239,7 @@ const DEFAULT_REAL_WEEKS = [
 const NAV = [
   { id: "resumen", label: "Resumen", icon: Compass },
   { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
+  { id: "proyectos", label: "Proyectos", icon: HardHat },
   { id: "stock", label: "Stock Disponible", icon: Building2 },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
   { id: "monitor", label: "Monitor Financiero", icon: Activity },
@@ -1017,6 +1019,10 @@ export default function App() {
             fmt={fmt} planesFondos={planesFondos} mappingGuardado={mapping}
             onGuardarPlan={guardarPlanDeFondos} onGuardarMapeo={guardarMapeo} tcList={tcList} 
           />
+        )}
+
+        {tab === "proyectos" && (
+          <ProyectosTab tcList={tcList} fmt={fmt} />
         )}
 
         {tab === "stock" && (
