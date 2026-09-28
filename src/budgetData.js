@@ -13,6 +13,7 @@ export const PLAN_INCOME_CATS_2026 = [
 // 2. Honorarios Proyectos
 // 3. Comercializacion
 // 4. Cuenta corriente Clientes
+// 5. SIGMA
 export const PLAN_INCOME_GROUPS_2027 = [
   {
     id: "comercial",
@@ -45,6 +46,14 @@ export const PLAN_INCOME_GROUPS_2027 = [
     badge: "Cobranzas",
     isGroup: false,
     keys: ["custom_cuotas-mensuales"]
+  },
+  {
+    id: "sigma",
+    label: "SIGMA",
+    sublabel: "Ingresos / Fondos Sigma",
+    badge: "Sigma",
+    isGroup: false,
+    keys: ["custom_sigma"]
   }
 ];
 
@@ -61,7 +70,10 @@ export const PLAN_INCOME_CATS_2027 = [
   { key: "custom_comercializacion", label: "Comercializacion", sublabel: "Comisiones y comercialización de obras", type: "comercializacion", group: "comercializacion", groupLabel: "Comercializacion", pctTotal: 0 },
   
   // 4. Cuenta corriente Clientes
-  { key: "custom_cuotas-mensuales", label: "Cuenta corriente Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "Cuenta corriente Clientes", pctTotal: 15.34 }
+  { key: "custom_cuotas-mensuales", label: "Cuenta corriente Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "Cuenta corriente Clientes", pctTotal: 15.34 },
+
+  // 5. SIGMA
+  { key: "custom_sigma", label: "SIGMA", sublabel: "Ingresos / Fondos Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 0 }
 ];
 
 export const PLAN_INCOME_CATS = PLAN_INCOME_CATS_2027;
@@ -194,6 +206,13 @@ export const DEFAULT_PLAN_2027 = {
       "01": 113295831.00, "02": 109548122.00, "03": 105735735.00, "04": 105735735.00,
       "05": 105735735.00, "06": 102862746.00, "07": 97833898.00, "08": 97833898.00,
       "09": 93118900.00, "10": 92547465.00, "11": 90134803.00, "12": 78152291.00
+    },
+
+    // 5. SIGMA
+    "custom_sigma": {
+      "01": 0.00, "02": 0.00, "03": 0.00, "04": 0.00,
+      "05": 0.00, "06": 0.00, "07": 0.00, "08": 0.00,
+      "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
     },
 
     // Llaves anteriores para retrocompatibilidad

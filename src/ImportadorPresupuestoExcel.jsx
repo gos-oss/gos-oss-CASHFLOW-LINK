@@ -60,6 +60,8 @@ const SINONIMOS_PRESUPUESTO = {
   "honorarios": "custom_honorarios-proyectos",
   "comercializacion": "custom_comercializacion",
   "comisiones": "custom_comercializacion",
+  "sigma": "custom_sigma",
+  "ingresossigma": "custom_sigma",
 
   // PROYECTOS
   "torreblue": "proy_torre-blue",
