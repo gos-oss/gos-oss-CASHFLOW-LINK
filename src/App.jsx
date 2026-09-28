@@ -372,6 +372,11 @@ export default function App() {
       if (necesitaMigracion2027) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
         await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
+      } else if (planesTemporales["2027"]?.ingreso && !planesTemporales["2027"].ingreso["custom_comercializacion"]) {
+        planesTemporales["2027"].ingreso["custom_comercializacion"] = {
+          "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
+          "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
+        };
       }
 
       setPlanesFondos(planesTemporales);

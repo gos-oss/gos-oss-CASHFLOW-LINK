@@ -38,6 +38,9 @@ const SINONIMOS_PRESUPUESTO = {
   "cuotasmensuales": "custom_cuotas-mensuales",
   "cuotas": "custom_cuotas-mensuales",
   "cobranzas": "custom_cuotas-mensuales",
+  "cuentacorrienteclientes": "custom_cuotas-mensuales",
+  "ccclientes": "custom_cuotas-mensuales",
+  "cuentacorriente": "custom_cuotas-mensuales",
   "ventascdo": "custom_ventas-cdo",
   "ventas": "custom_ventas-cdo",
   "ventascontado": "custom_ventas-cdo",
@@ -45,6 +48,18 @@ const SINONIMOS_PRESUPUESTO = {
   "pesa": "custom_pesa",
   "aportes": "custom_aportes",
   "aportescapital": "custom_aportes",
+
+  // INGRESOS 2027
+  "ventasmostrador": "custom_ventas-mostrador",
+  "mostrador": "custom_ventas-mostrador",
+  "ventascanjes": "custom_ventas-canjes",
+  "canjes": "custom_ventas-canjes",
+  "ventaspaquetes": "custom_ventas-paquetes",
+  "paquetes": "custom_ventas-paquetes",
+  "honorariosproyectos": "custom_honorarios-proyectos",
+  "honorarios": "custom_honorarios-proyectos",
+  "comercializacion": "custom_comercializacion",
+  "comisiones": "custom_comercializacion",
 
   // PROYECTOS
   "torreblue": "proy_torre-blue",

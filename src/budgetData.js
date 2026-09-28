@@ -8,12 +8,60 @@ export const PLAN_INCOME_CATS_2026 = [
 ];
 
 // CATÁLOGO OFICIAL 2027 - PROYECCIÓN LINK INVERSIONES (EXCEL OFICIAL)
+// Agrupación requerida:
+// 1. Ingresos Comercial (Ventas mostrador, Canjes, Paquetes)
+// 2. Honorarios Proyectos
+// 3. Comercializacion
+// 4. Cuenta corriente Clientes
+export const PLAN_INCOME_GROUPS_2027 = [
+  {
+    id: "comercial",
+    label: "Ingresos Comercial",
+    sublabel: "Ventas mostrador, Canjes y Paquetes",
+    badge: "3 Conceptos",
+    isGroup: true,
+    keys: ["custom_ventas-mostrador", "custom_ventas-canjes", "custom_ventas-paquetes"]
+  },
+  {
+    id: "honorarios",
+    label: "Honorarios Proyectos",
+    sublabel: "Honorarios gerenciamiento de obras",
+    badge: "Gerenciamiento",
+    isGroup: false,
+    keys: ["custom_honorarios-proyectos"]
+  },
+  {
+    id: "comercializacion",
+    label: "Comercializacion",
+    sublabel: "Comisiones y comercialización de obras",
+    badge: "Comercial",
+    isGroup: false,
+    keys: ["custom_comercializacion"]
+  },
+  {
+    id: "clientes",
+    label: "Cuenta corriente Clientes",
+    sublabel: "Cobranzas cuentas corrientes cuotas",
+    badge: "Cobranzas",
+    isGroup: false,
+    keys: ["custom_cuotas-mensuales"]
+  }
+];
+
 export const PLAN_INCOME_CATS_2027 = [
-  { key: "custom_ventas-mostrador", label: "Ventas Mostrador", sublabel: "Venta directa de unidades en pozo", type: "ventas", pctTotal: 40.88 },
-  { key: "custom_ventas-paquetes", label: "Ventas Paquetes", sublabel: "Venta mayorista de paquetes", type: "ventas", pctTotal: 33.96 },
-  { key: "custom_cuotas-mensuales", label: "CC Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", pctTotal: 15.34 },
-  { key: "custom_honorarios-proyectos", label: "Honorarios Proyectos", sublabel: "Honorarios gerenciamiento", type: "honorarios", pctTotal: 8.40 },
-  { key: "custom_ventas-canjes", label: "Ventas Canjes", sublabel: "Canjes comerciales de unidades", type: "canjes", pctTotal: 1.43 }
+  // 1. Grupo: Ingresos Comercial
+  { key: "custom_ventas-mostrador", label: "Ventas Mostrador", sublabel: "Venta directa de unidades en pozo", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 40.88 },
+  { key: "custom_ventas-canjes", label: "Canjes", sublabel: "Canjes comerciales de unidades", type: "canjes", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 1.43 },
+  { key: "custom_ventas-paquetes", label: "Paquetes", sublabel: "Venta mayorista de paquetes", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 33.96 },
+  
+  // 2. Honorarios Proyectos
+  { key: "custom_honorarios-proyectos", label: "Honorarios Proyectos", sublabel: "Honorarios gerenciamiento de obras", type: "honorarios", group: "honorarios", groupLabel: "Honorarios Proyectos", pctTotal: 8.40 },
+  
+  // 3. Comercializacion
+  { key: "custom_comercializacion", label: "Comercializacion", sublabel: "Comisiones y comercialización de obras", type: "comercializacion", group: "comercializacion", groupLabel: "Comercializacion", pctTotal: 0 },
+  
+  // 4. Cuenta corriente Clientes
+  { key: "custom_cuotas-mensuales", label: "Cuenta corriente Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "Cuenta corriente Clientes", pctTotal: 15.34 }
 ];
 
 export const PLAN_INCOME_CATS = PLAN_INCOME_CATS_2027;
@@ -103,33 +151,51 @@ export const DEFAULT_PLAN_2026 = {
 };
 
 // DATOS EXACTOS OFICIALES 2027 SEGÚN PLANILLA "PROYECCION 2027 , PROYECTOS LINK"
+// Agrupados en:
+// 1. Ingresos Comercial (Ventas mostrador, Canjes, Paquetes)
+// 2. Honorarios Proyectos
+// 3. Comercializacion
+// 4. Cuenta corriente Clientes
 export const DEFAULT_PLAN_2027 = {
   "ingreso": {
+    // 1. INGRESOS COMERCIAL (Ventas mostrador, Canjes, Paquetes)
     "custom_ventas-mostrador": {
       "01": 264836789.29, "02": 264836789.29, "03": 264836789.29, "04": 264836789.29,
       "05": 264836789.29, "06": 264836789.29, "07": 264836789.29, "08": 264836789.29,
       "09": 264836789.29, "10": 264836789.29, "11": 264836789.29, "12": 264836789.29
-    },
-    "custom_ventas-paquetes": {
-      "01": 219983987.00, "02": 219983987.00, "03": 219983987.00, "04": 219983987.00,
-      "05": 219983987.00, "06": 219983987.00, "07": 219983987.00, "08": 219983987.00,
-      "09": 219983987.00, "10": 219983987.00, "11": 219983987.00, "12": 219983987.00
-    },
-    "custom_cuotas-mensuales": {
-      "01": 113295831.00, "02": 109548122.00, "03": 105735735.00, "04": 105735735.00,
-      "05": 105735735.00, "06": 102862746.00, "07": 97833898.00, "08": 97833898.00,
-      "09": 93118900.00, "10": 92547465.00, "11": 90134803.00, "12": 78152291.00
-    },
-    "custom_honorarios-proyectos": {
-      "01": 54405000.00, "02": 54405000.00, "03": 54405000.00, "04": 54405000.00,
-      "05": 54405000.00, "06": 54405000.00, "07": 54405000.00, "08": 54405000.00,
-      "09": 54405000.00, "10": 54405000.00, "11": 54405000.00, "12": 54405000.00
     },
     "custom_ventas-canjes": {
       "01": 9240000.29, "02": 9240000.29, "03": 9240000.29, "04": 9240000.29,
       "05": 9240000.29, "06": 9240000.29, "07": 9240000.29, "08": 9240000.29,
       "09": 9240000.29, "10": 9240000.29, "11": 9240000.29, "12": 9240000.29
     },
+    "custom_ventas-paquetes": {
+      "01": 219983987.00, "02": 219983987.00, "03": 219983987.00, "04": 219983987.00,
+      "05": 219983987.00, "06": 219983987.00, "07": 219983987.00, "08": 219983987.00,
+      "09": 219983987.00, "10": 219983987.00, "11": 219983987.00, "12": 219983987.00
+    },
+
+    // 2. HONORARIOS PROYECTOS
+    "custom_honorarios-proyectos": {
+      "01": 54405000.00, "02": 54405000.00, "03": 54405000.00, "04": 54405000.00,
+      "05": 54405000.00, "06": 54405000.00, "07": 54405000.00, "08": 54405000.00,
+      "09": 54405000.00, "10": 54405000.00, "11": 54405000.00, "12": 54405000.00
+    },
+
+    // 3. COMERCIALIZACION
+    "custom_comercializacion": {
+      "01": 0.00, "02": 0.00, "03": 0.00, "04": 0.00,
+      "05": 0.00, "06": 0.00, "07": 0.00, "08": 0.00,
+      "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
+    },
+
+    // 4. CUENTA CORRIENTE CLIENTES
+    "custom_cuotas-mensuales": {
+      "01": 113295831.00, "02": 109548122.00, "03": 105735735.00, "04": 105735735.00,
+      "05": 105735735.00, "06": 102862746.00, "07": 97833898.00, "08": 97833898.00,
+      "09": 93118900.00, "10": 92547465.00, "11": 90134803.00, "12": 78152291.00
+    },
+
     // Llaves anteriores para retrocompatibilidad
     "custom_ventas-cdo": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_cupos-socios": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },

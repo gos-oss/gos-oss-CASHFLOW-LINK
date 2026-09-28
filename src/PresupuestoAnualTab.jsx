@@ -3,6 +3,7 @@ import { tokens } from "./tokens";
 import {
   PLAN_INCOME_CATS_2026,
   PLAN_INCOME_CATS_2027,
+  PLAN_INCOME_GROUPS_2027,
   PLAN_INCOME_CATS,
   PLAN_PROJECT_CATS_2027,
   PLAN_PROJECT_CATS,
@@ -120,11 +121,29 @@ export default function PresupuestoAnualTab({
   const [proyectosExpanded, setProyectosExpanded] = useState(true);
   const [proyectosActivos, setProyectosActivos] = useState({});
 
+  // Estados de agrupación de ingresos 2027
+  const [comercialExpanded, setComercialExpanded] = useState(true);
+  const [pieIngresosAgrupado, setPieIngresosAgrupado] = useState(true);
+
   const projectKeys = useMemo(() => new Set(PLAN_PROJECT_CATS.map(p => p.key)), []);
   const isProyectoActivo = (key) => proyectosActivos[key] !== false;
 
   useEffect(() => {
-    setPlanDraft(planesFondos[selectedYear] || (selectedYear === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026));
+    const rawPlan = planesFondos[selectedYear] || (selectedYear === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026);
+    if (selectedYear === "2027" && rawPlan?.ingreso) {
+      const cloned = JSON.parse(JSON.stringify(rawPlan));
+      PLAN_INCOME_CATS_2027.forEach(cat => {
+        if (!cloned.ingreso[cat.key]) {
+          cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {
+            "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
+            "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
+          };
+        }
+      });
+      setPlanDraft(cloned);
+    } else {
+      setPlanDraft(rawPlan);
+    }
   }, [planesFondos, selectedYear, editMode, view]);
 
   useEffect(() => {
@@ -158,11 +177,17 @@ export default function PresupuestoAnualTab({
     if (tipo === "egreso" && projectKeys.has(conceptoKey) && !isProyectoActivo(conceptoKey)) return 0;
 
     const glob = tipo === 'ingreso' ? (simData.globalIng || 0) : (simData.globalEg || 0);
-    const cat = simData.cats[conceptoKey] || 0;
+    let cat = simData.cats[conceptoKey] || 0;
+    // Si se ajusta el grupo comercial completo, impacta en mostrador, canjes y paquetes
+    if (tipo === "ingreso" && ["custom_ventas-mostrador", "custom_ventas-canjes", "custom_ventas-paquetes"].includes(conceptoKey)) {
+      if (simData.cats?.["grupo_comercial"]) {
+        cat += simData.cats["grupo_comercial"];
+      }
+    }
     const mes = simData.meses[mesKey] || 0;
     
     const totalPct = glob + cat + mes;
-    return baseVal * (1 + totalPct / 100);
+    return Math.max(0, baseVal * (1 + totalPct / 100));
   };
 
   const getBaseVal = (tipo, conceptoKey, mesKey) => planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
@@ -210,6 +235,50 @@ export default function PresupuestoAnualTab({
   const totalIngBase = activeIncomeCats.reduce((acc, c) => acc + calcularTotalFilaBase("ingreso", c.key), 0);
   const totalEgBase = activeExpenseCats.reduce((acc, c) => acc + calcularTotalFilaBase("egreso", c.key), 0);
   const totalNetoBase = totalIngBase - totalEgBase;
+
+  // Clasificación oficial de ingresos 2027:
+  // 1. Ingresos Comercial (Ventas mostrador, Canjes, Paquetes)
+  // 2. Honorarios Proyectos
+  // 3. Comercializacion
+  // 4. Cuenta corriente Clientes
+  const comercialCats = useMemo(() => {
+    return activeIncomeCats.filter(c => c.group === "comercial" || ["custom_ventas-mostrador", "custom_ventas-canjes", "custom_ventas-paquetes"].includes(c.key));
+  }, [activeIncomeCats]);
+
+  const honorariosCat = useMemo(() => {
+    return activeIncomeCats.find(c => c.key === "custom_honorarios-proyectos") || {
+      key: "custom_honorarios-proyectos",
+      label: "Honorarios Proyectos",
+      sublabel: "Honorarios gerenciamiento de obras",
+      pctTotal: 8.40
+    };
+  }, [activeIncomeCats]);
+
+  const comercializacionCat = useMemo(() => {
+    return activeIncomeCats.find(c => c.key === "custom_comercializacion") || {
+      key: "custom_comercializacion",
+      label: "Comercializacion",
+      sublabel: "Comisiones y comercialización de obras",
+      pctTotal: 0
+    };
+  }, [activeIncomeCats]);
+
+  const ccClientesCat = useMemo(() => {
+    return activeIncomeCats.find(c => c.key === "custom_cuotas-mensuales") || {
+      key: "custom_cuotas-mensuales",
+      label: "Cuenta corriente Clientes",
+      sublabel: "Cobranzas cuentas corrientes cuotas",
+      pctTotal: 15.34
+    };
+  }, [activeIncomeCats]);
+
+  const calcularTotalComercialMes = (mesKey) => {
+    return comercialCats.reduce((acc, c) => acc + getSimVal("ingreso", c.key, mesKey), 0);
+  };
+
+  const totalComercialSim = useMemo(() => {
+    return comercialCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
+  }, [comercialCats, planDraft, simData, simulacionActiva]);
 
   // Clasificación de egresos para subtotales y análisis
   const cuposCats = useMemo(() => {
@@ -334,7 +403,9 @@ export default function PresupuestoAnualTab({
       setSimData({
         globalIng: 0,
         globalEg: 0,
-        cats: { "custom_ventas-cdo": 20 },
+        cats: selectedYear === "2027" 
+          ? { "grupo_comercial": 20 }
+          : { "custom_ventas-cdo": 20 },
         meses: {}
       });
       setProyectosActivos(Object.fromEntries(PLAN_PROJECT_CATS.map(p => [p.key, true])));
@@ -343,7 +414,9 @@ export default function PresupuestoAnualTab({
       setSimData({
         globalIng: 0,
         globalEg: 0,
-        cats: { "custom_ventas-cdo": -15 },
+        cats: selectedYear === "2027" 
+          ? { "grupo_comercial": -15 }
+          : { "custom_ventas-cdo": -15 },
         meses: {}
       });
       setProyectosActivos(Object.fromEntries(PLAN_PROJECT_CATS.map(p => [p.key, true])));
@@ -368,7 +441,9 @@ export default function PresupuestoAnualTab({
       setSimData({
         globalIng: 0,
         globalEg: 0,
-        cats: { "custom_rrhh": -10, "custom_administracion": -10 },
+        cats: selectedYear === "2027"
+          ? { "est_sueldos": -10, "est_gastos-admin": -10 }
+          : { "custom_rrhh": -10, "custom_administracion": -10 },
         meses: {}
       });
       setProyectosActivos(Object.fromEntries(PLAN_PROJECT_CATS.map(p => [p.key, true])));
@@ -377,11 +452,17 @@ export default function PresupuestoAnualTab({
       setSimData({
         globalIng: 0,
         globalEg: 0,
-        cats: {
-          "custom_ventas-cdo": 15,
-          "custom_administracion": -10,
-          "custom_rrhh": -5
-        },
+        cats: selectedYear === "2027"
+          ? {
+              "grupo_comercial": 15,
+              "est_gastos-admin": -10,
+              "est_sueldos": -5
+            }
+          : {
+              "custom_ventas-cdo": 15,
+              "custom_administracion": -10,
+              "custom_rrhh": -5
+            },
         meses: {}
       });
       setProyectosActivos({
@@ -429,11 +510,59 @@ export default function PresupuestoAnualTab({
 
   // Distribución de Ingresos y Egresos para las donas
   const pieIngresos = useMemo(() => {
+    if (selectedYear === "2027" && pieIngresosAgrupado) {
+      // 4 Pilares agrupados según requerimiento 2027:
+      // 1. Ingresos Comercial (Ventas mostrador, Canjes, Paquetes)
+      // 2. Honorarios Proyectos
+      // 3. Comercializacion
+      // 4. Cuenta corriente Clientes
+      const valCC = calcularTotalFila("ingreso", "custom_cuotas-mensuales");
+      const valHon = calcularTotalFila("ingreso", "custom_honorarios-proyectos");
+      const valComerc = calcularTotalFila("ingreso", "custom_comercializacion");
+
+      const items = [
+        {
+          name: "Ingresos Comercial",
+          value: totalComercialSim,
+          sublabel: "Mostrador, Canjes y Paquetes",
+          color: "#10B981"
+        },
+        {
+          name: "Cuenta corriente Clientes",
+          value: valCC,
+          sublabel: "Cobranzas de cuotas",
+          color: "#0284C7"
+        },
+        {
+          name: "Honorarios Proyectos",
+          value: valHon,
+          sublabel: "Gerenciamiento de obras",
+          color: "#8B5CF6"
+        },
+        {
+          name: "Comercializacion",
+          value: valComerc,
+          sublabel: "Comisiones y comercialización",
+          color: "#F59E0B"
+        }
+      ];
+
+      return items.map(it => ({
+        ...it,
+        perc: totalIngSim > 0 ? (it.value / totalIngSim) * 100 : 0
+      })).filter(d => d.value > 0 || d.name === "Comercializacion").sort((a, b) => b.value - a.value);
+    }
+
     return activeIncomeCats.map(c => {
       const val = calcularTotalFila("ingreso", c.key);
-      return { name: c.label, value: val, perc: totalIngSim > 0 ? (val / totalIngSim) * 100 : 0 };
-    }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
-  }, [activeIncomeCats, planDraft, simData, simulacionActiva, totalIngSim]);
+      return {
+        name: c.label,
+        value: val,
+        sublabel: c.sublabel,
+        perc: totalIngSim > 0 ? (val / totalIngSim) * 100 : 0
+      };
+    }).filter(d => d.value > 0 || d.name === "Comercializacion").sort((a, b) => b.value - a.value);
+  }, [selectedYear, pieIngresosAgrupado, activeIncomeCats, totalComercialSim, planDraft, simData, simulacionActiva, totalIngSim]);
 
   const pieEgresos = useMemo(() => {
     const invVal = selectedYear === "2027"
@@ -452,7 +581,7 @@ export default function PresupuestoAnualTab({
     ].map(d => ({ ...d, perc: totalEgSim > 0 ? (d.value / totalEgSim) * 100 : 0 })).filter(d => d.value > 0);
   }, [totalObrasSim, totalEstructuraSim, totalEgSim, selectedYear, planDraft, simData, simulacionActiva]);
 
-  const COLORS_ING = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
+  const COLORS_ING = ['#10B981', '#0284C7', '#8B5CF6', '#F59E0B', '#059669', '#3B82F6', '#EC4899', '#6366F1'];
   const COLORS_EG = ['#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#64748B'];
 
   const guardarTodo = () => {
@@ -1531,15 +1660,214 @@ export default function PresupuestoAnualTab({
                         letterSpacing: "0.5px"
                       }}
                     >
-                      🟢 1. INGRESOS OPERATIVOS Y COBRANZAS
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                        <span>🟢 1. INGRESOS OPERATIVOS {selectedYear === "2027" ? "LINK INVERSIONES (4 PILARES AGRUPADOS)" : "Y COBRANZAS"}</span>
+                        {selectedYear === "2027" && (
+                          <span style={{ fontSize: 10, fontWeight: 700, background: "#BBF7D0", color: "#14532D", padding: "2px 8px", borderRadius: 4, textTransform: "none", letterSpacing: 0 }}>
+                            Ingresos Comercial (Mostrador, Canjes, Paquetes) · Honorarios Proyectos · Comercializacion · Cuenta corriente Clientes
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
 
-                  {activeIncomeCats.map(c => {
-                    const rowTotal = calcularTotalFila("ingreso", c.key);
-                    const pctTotal = totalIngSim > 0 ? (rowTotal / totalIngSim) * 100 : 0;
-                    return (
-                      <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0" }}>
+                  {selectedYear === "2027" ? (
+                    <>
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      {/* PILAR 1: INGRESOS COMERCIAL (Ventas mostrador, Canjes, Paquetes) */}
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      <tr 
+                        onClick={() => setComercialExpanded(!comercialExpanded)}
+                        style={{ 
+                          background: "#F0FDF4", 
+                          borderTop: "1px solid #BBF7D0", 
+                          borderBottom: "1px solid #BBF7D0",
+                          cursor: "pointer" 
+                        }}
+                      >
+                        <td style={{
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 2,
+                          background: "#F0FDF4",
+                          padding: "10px 16px",
+                          borderRight: "2px solid #CBD5E1"
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setComercialExpanded(!comercialExpanded); }}
+                                style={{
+                                  border: "none",
+                                  background: "#DCFCE7",
+                                  color: "#166534",
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: 4,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  padding: 0
+                                }}
+                                title={comercialExpanded ? "Colapsar subconceptos comerciales" : "Expandir subconceptos comerciales"}
+                              >
+                                {comercialExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                              </button>
+                              <span style={{ fontWeight: 800, color: "#14532D", fontSize: 13.5 }}>
+                                Ingresos Comercial
+                              </span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4 }}>
+                                Ventas mostrador · Canjes · Paquetes
+                              </span>
+                              <span style={{ fontSize: 9.5, fontWeight: 800, background: "#BBF7D0", color: "#14532D", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((totalComercialSim / totalIngSim) * 100).toFixed(1) : "0"}% total
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10.5, color: "#166534", marginLeft: 29, opacity: 0.85 }}>
+                              {comercialExpanded ? "Haga clic para colapsar" : "Haga clic para ver detalle"} · 3 conceptos comerciales consolidados
+                            </span>
+
+                            {simulacionActiva && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginLeft: 29 }} onClick={e => e.stopPropagation()}>
+                                <span style={{ fontSize: 10, color: tokens.textMuted }}>Ajuste Grupo Comercial:</span>
+                                <input
+                                  type="range"
+                                  min="-50"
+                                  max="50"
+                                  step="5"
+                                  value={simData.cats?.["grupo_comercial"] || 0}
+                                  onChange={(e) => setSimData(prev => ({
+                                    ...prev,
+                                    cats: { ...prev.cats, grupo_comercial: Number(e.target.value) }
+                                  }))}
+                                  style={{ width: 75, accentColor: "#10B981" }}
+                                />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats?.["grupo_comercial"] ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats?.["grupo_comercial"] > 0 ? '+' : ''}{simData.cats?.["grupo_comercial"] || 0}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {meses.map(m => {
+                          const valMes = calcularTotalComercialMes(m.k);
+                          return (
+                            <td 
+                              key={m.k} 
+                              title={`Ingresos Comercial (${m.n}): $ ${Math.round(valMes).toLocaleString("es-AR")}`} 
+                              style={{ 
+                                padding: "10px 10px", 
+                                textAlign: "right", 
+                                fontFamily: tokens.fontMono, 
+                                fontWeight: 700, 
+                                color: "#166534",
+                                background: "#F0FDF4" 
+                              }}
+                            >
+                              {formatMoney(valMes)}
+                            </td>
+                          );
+                        })}
+
+                        <td 
+                          title={`Total Anual Ingresos Comercial: $ ${Math.round(totalComercialSim).toLocaleString("es-AR")}`} 
+                          style={{ 
+                            padding: "10px 16px", 
+                            textAlign: "right", 
+                            fontWeight: 900, 
+                            fontFamily: tokens.fontMono, 
+                            color: "#14532D", 
+                            background: "#DCFCE7",
+                            fontSize: 12.5
+                          }}
+                        >
+                          {formatMoney(totalComercialSim)}
+                        </td>
+                      </tr>
+
+                      {/* Subrenglones de Ingresos Comercial: Ventas Mostrador, Canjes, Paquetes */}
+                      {comercialExpanded && comercialCats.map(c => {
+                        const rowTotal = calcularTotalFila("ingreso", c.key);
+                        const pctTotal = totalIngSim > 0 ? (rowTotal / totalIngSim) * 100 : 0;
+                        const pctComercial = totalComercialSim > 0 ? (rowTotal / totalComercialSim) * 100 : 0;
+                        return (
+                          <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                            <td style={{
+                              position: "sticky",
+                              left: 0,
+                              zIndex: 2,
+                              background: "#FFFFFF",
+                              padding: "8px 16px 8px 36px",
+                              borderRight: "2px solid #CBD5E1",
+                              borderLeft: "3.5px solid #10B981"
+                            }}>
+                              <div style={{ display: "flex", flexDirection: "column" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <span style={{ color: "#10B981", fontWeight: 700, fontSize: 11 }}>↳</span>
+                                  <span style={{ fontWeight: 600, color: tokens.ink, fontSize: 12.5 }}>{c.label}</span>
+                                  <span style={{ fontSize: 9.5, fontWeight: 700, background: "#F1F5F9", color: "#334155", border: "1px solid #E2E8F0", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                    {pctComercial.toFixed(1)}% com.
+                                  </span>
+                                  <span style={{ fontSize: 9.5, fontWeight: 600, background: "#DCFCE7", color: "#166534", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                    {pctTotal.toFixed(1)}% total
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: 10.5, color: tokens.textMuted, marginLeft: 16 }}>{c.sublabel}</span>
+                                {simulacionActiva && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginLeft: 16 }}>
+                                    <input
+                                      type="range"
+                                      min="-50"
+                                      max="50"
+                                      step="5"
+                                      value={simData.cats[c.key] || 0}
+                                      onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [c.key]: Number(e.target.value) } }))}
+                                      style={{ width: 75, accentColor: "#10B981" }}
+                                    />
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                      {simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {meses.map(m => {
+                              const val = getSimVal("ingreso", c.key, m.k);
+                              const valExact = Math.round(val);
+                              return (
+                                <td key={m.k} title={`${c.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                                  {editMode ? (
+                                    <input
+                                      type="number"
+                                      className="plan-input"
+                                      value={planDraft?.ingreso?.[c.key]?.[m.k] ?? ""}
+                                      onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)}
+                                      placeholder="0"
+                                    />
+                                  ) : (
+                                    <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
+                                      {formatMoney(val)}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+
+                            <td title={`Total Anual ${c.label}: $ ${Math.round(rowTotal).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 600, fontFamily: tokens.fontMono, color: tokens.positive, background: "#F0FDF4" }}>
+                              {formatMoney(rowTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      {/* PILAR 2: HONORARIOS PROYECTOS                                  */}
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
                         <td style={{
                           position: "sticky",
                           left: 0,
@@ -1551,12 +1879,12 @@ export default function PresupuestoAnualTab({
                         }}>
                           <div style={{ display: "flex", flexDirection: "column" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 600, color: tokens.ink, fontSize: 13 }}>{c.label}</span>
-                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                {pctTotal.toFixed(1)}% total
+                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>{honorariosCat.label}</span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#EDE9FE", color: "#6D28D9", border: "1px solid #DDD6FE", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", honorariosCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
                               </span>
                             </div>
-                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{c.sublabel || "Ingreso"}</span>
+                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{honorariosCat.sublabel}</span>
                             {simulacionActiva && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                                 <input
@@ -1564,12 +1892,12 @@ export default function PresupuestoAnualTab({
                                   min="-50"
                                   max="50"
                                   step="5"
-                                  value={simData.cats[c.key] || 0}
-                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [c.key]: Number(e.target.value) } }))}
-                                  style={{ width: 75, accentColor: "#10B981" }}
+                                  value={simData.cats[honorariosCat.key] || 0}
+                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [honorariosCat.key]: Number(e.target.value) } }))}
+                                  style={{ width: 75, accentColor: "#8B5CF6" }}
                                 />
-                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted }}>
-                                  {simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[honorariosCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats[honorariosCat.key] > 0 ? '+' : ''}{simData.cats[honorariosCat.key] || 0}%
                                 </span>
                               </div>
                             )}
@@ -1577,16 +1905,16 @@ export default function PresupuestoAnualTab({
                         </td>
 
                         {meses.map(m => {
-                          const val = getSimVal("ingreso", c.key, m.k);
+                          const val = getSimVal("ingreso", honorariosCat.key, m.k);
                           const valExact = Math.round(val);
                           return (
-                            <td key={m.k} title={`${c.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                            <td key={m.k} title={`${honorariosCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
                               {editMode ? (
                                 <input
                                   type="number"
                                   className="plan-input"
-                                  value={planDraft?.ingreso?.[c.key]?.[m.k] || ""}
-                                  onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)}
+                                  value={planDraft?.ingreso?.[honorariosCat.key]?.[m.k] ?? ""}
+                                  onChange={(e) => handleInputChange("ingreso", honorariosCat.key, m.k, e.target.value)}
                                   placeholder="0"
                                 />
                               ) : (
@@ -1598,12 +1926,216 @@ export default function PresupuestoAnualTab({
                           );
                         })}
 
-                        <td title={`Total Anual ${c.label}: $ ${Math.round(rowTotal).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.positive, background: "#F0FDF4" }}>
-                          {formatMoney(rowTotal)}
+                        <td title={`Total Anual ${honorariosCat.label}: $ ${Math.round(calcularTotalFila("ingreso", honorariosCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#6D28D9", background: "#F5F3FF" }}>
+                          {formatMoney(calcularTotalFila("ingreso", honorariosCat.key))}
                         </td>
                       </tr>
-                    );
-                  })}
+
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      {/* PILAR 3: COMERCIALIZACION                                      */}
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                        <td style={{
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 2,
+                          background: "#FFFFFF",
+                          padding: "10px 16px",
+                          borderRight: "2px solid #CBD5E1",
+                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>{comercializacionCat.label}</span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", comercializacionCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{comercializacionCat.sublabel}</span>
+                            {simulacionActiva && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                <input
+                                  type="range"
+                                  min="-50"
+                                  max="50"
+                                  step="5"
+                                  value={simData.cats[comercializacionCat.key] || 0}
+                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [comercializacionCat.key]: Number(e.target.value) } }))}
+                                  style={{ width: 75, accentColor: "#F59E0B" }}
+                                />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[comercializacionCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats[comercializacionCat.key] > 0 ? '+' : ''}{simData.cats[comercializacionCat.key] || 0}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {meses.map(m => {
+                          const val = getSimVal("ingreso", comercializacionCat.key, m.k);
+                          const valExact = Math.round(val);
+                          return (
+                            <td key={m.k} title={`${comercializacionCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                              {editMode ? (
+                                <input
+                                  type="number"
+                                  className="plan-input"
+                                  value={planDraft?.ingreso?.[comercializacionCat.key]?.[m.k] ?? ""}
+                                  onChange={(e) => handleInputChange("ingreso", comercializacionCat.key, m.k, e.target.value)}
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
+                                  {formatMoney(val)}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                        <td title={`Total Anual ${comercializacionCat.label}: $ ${Math.round(calcularTotalFila("ingreso", comercializacionCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#92400E", background: "#FFFBEB" }}>
+                          {formatMoney(calcularTotalFila("ingreso", comercializacionCat.key))}
+                        </td>
+                      </tr>
+
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      {/* PILAR 4: CUENTA CORRIENTE CLIENTES                             */}
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                        <td style={{
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 2,
+                          background: "#FFFFFF",
+                          padding: "10px 16px",
+                          borderRight: "2px solid #CBD5E1",
+                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>{ccClientesCat.label}</span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#E0F2FE", color: "#0369A1", border: "1px solid #BAE6FD", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", ccClientesCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{ccClientesCat.sublabel}</span>
+                            {simulacionActiva && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                <input
+                                  type="range"
+                                  min="-50"
+                                  max="50"
+                                  step="5"
+                                  value={simData.cats[ccClientesCat.key] || 0}
+                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [ccClientesCat.key]: Number(e.target.value) } }))}
+                                  style={{ width: 75, accentColor: "#0284C7" }}
+                                />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[ccClientesCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats[ccClientesCat.key] > 0 ? '+' : ''}{simData.cats[ccClientesCat.key] || 0}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {meses.map(m => {
+                          const val = getSimVal("ingreso", ccClientesCat.key, m.k);
+                          const valExact = Math.round(val);
+                          return (
+                            <td key={m.k} title={`${ccClientesCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                              {editMode ? (
+                                <input
+                                  type="number"
+                                  className="plan-input"
+                                  value={planDraft?.ingreso?.[ccClientesCat.key]?.[m.k] ?? ""}
+                                  onChange={(e) => handleInputChange("ingreso", ccClientesCat.key, m.k, e.target.value)}
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
+                                  {formatMoney(val)}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                        <td title={`Total Anual ${ccClientesCat.label}: $ ${Math.round(calcularTotalFila("ingreso", ccClientesCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#0369A1", background: "#F0F9FF" }}>
+                          {formatMoney(calcularTotalFila("ingreso", ccClientesCat.key))}
+                        </td>
+                      </tr>
+                    </>
+                  ) : (
+                    activeIncomeCats.map(c => {
+                      const rowTotal = calcularTotalFila("ingreso", c.key);
+                      const pctTotal = totalIngSim > 0 ? (rowTotal / totalIngSim) * 100 : 0;
+                      return (
+                        <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0" }}>
+                          <td style={{
+                            position: "sticky",
+                            left: 0,
+                            zIndex: 2,
+                            background: "#FFFFFF",
+                            padding: "10px 16px",
+                            borderRight: "2px solid #CBD5E1",
+                            boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                          }}>
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                <span style={{ fontWeight: 600, color: tokens.ink, fontSize: 13 }}>{c.label}</span>
+                                <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                  {pctTotal.toFixed(1)}% total
+                                </span>
+                              </div>
+                              <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{c.sublabel || "Ingreso"}</span>
+                              {simulacionActiva && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                  <input
+                                    type="range"
+                                    min="-50"
+                                    max="50"
+                                    step="5"
+                                    value={simData.cats[c.key] || 0}
+                                    onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [c.key]: Number(e.target.value) } }))}
+                                    style={{ width: 75, accentColor: "#10B981" }}
+                                  />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                    {simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {meses.map(m => {
+                            const val = getSimVal("ingreso", c.key, m.k);
+                            const valExact = Math.round(val);
+                            return (
+                              <td key={m.k} title={`${c.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                                {editMode ? (
+                                  <input
+                                    type="number"
+                                    className="plan-input"
+                                    value={planDraft?.ingreso?.[c.key]?.[m.k] || ""}
+                                    onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)}
+                                    placeholder="0"
+                                  />
+                                ) : (
+                                  <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
+                                    {formatMoney(val)}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+
+                          <td title={`Total Anual ${c.label}: $ ${Math.round(rowTotal).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: tokens.positive, background: "#F0FDF4" }}>
+                            {formatMoney(rowTotal)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
 
                   {/* SUBTOTAL TOTAL INGRESOS */}
                   <tr style={{ background: "#DCFCE7", borderTop: "2px solid #86EFAC", borderBottom: "2px solid #10B981" }}>
@@ -2262,11 +2794,53 @@ export default function PresupuestoAnualTab({
               
               {/* DONA INGRESOS (FONDO CLARO) */}
               <div style={{ background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-                <h4 style={{ margin: "0 0 4px 0", color: "#0F172A", fontSize: 14.5, fontWeight: 700, textAlign: "center" }}>
-                  Composición de Ingresos {selectedYear}
-                </h4>
-                <div style={{ fontSize: 11.5, color: "#64748B", textAlign: "center", marginBottom: 10 }}>
-                  Participación porcentual de cada concepto sobre el Total de Ingresos
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
+                  <h4 style={{ margin: 0, color: "#0F172A", fontSize: 14.5, fontWeight: 700 }}>
+                    Composición de Ingresos {selectedYear}
+                  </h4>
+                  {selectedYear === "2027" && (
+                    <div style={{ display: "inline-flex", background: "#F1F5F9", borderRadius: 6, padding: 2, border: "1px solid #E2E8F0" }}>
+                      <button
+                        type="button"
+                        onClick={() => setPieIngresosAgrupado(true)}
+                        style={{
+                          border: "none",
+                          background: pieIngresosAgrupado ? "#FFFFFF" : "transparent",
+                          color: pieIngresosAgrupado ? "#0F172A" : "#64748B",
+                          padding: "2px 8px",
+                          borderRadius: 4,
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          boxShadow: pieIngresosAgrupado ? "0 1px 2px rgba(0,0,0,0.06)" : "none"
+                        }}
+                      >
+                        4 Grupos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPieIngresosAgrupado(false)}
+                        style={{
+                          border: "none",
+                          background: !pieIngresosAgrupado ? "#FFFFFF" : "transparent",
+                          color: !pieIngresosAgrupado ? "#0F172A" : "#64748B",
+                          padding: "2px 8px",
+                          borderRadius: 4,
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          boxShadow: !pieIngresosAgrupado ? "0 1px 2px rgba(0,0,0,0.06)" : "none"
+                        }}
+                      >
+                        Detallado
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: 11.5, color: "#64748B", marginBottom: 10 }}>
+                  {selectedYear === "2027" && pieIngresosAgrupado 
+                    ? "Participación por los 4 pilares: Ingresos Comercial, CC Clientes, Honorarios y Comercialización"
+                    : "Participación porcentual de cada concepto sobre el Total de Ingresos"}
                 </div>
 
                 <div style={{ height: 210 }}>
@@ -2283,7 +2857,7 @@ export default function PresupuestoAnualTab({
                         strokeWidth={2}
                       >
                         {pieIngresos.map((entry, index) => (
-                          <Cell key={index} fill={COLORS_ING[index % COLORS_ING.length]} />
+                          <Cell key={index} fill={entry.color || COLORS_ING[index % COLORS_ING.length]} />
                         ))}
                       </Pie>
                       <Tooltip
@@ -2302,8 +2876,13 @@ export default function PresupuestoAnualTab({
                   {pieIngresos.map((entry, index) => (
                     <div key={index} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "6px 10px", background: "#F8FAFC", borderRadius: 6, border: "1px solid #F1F5F9" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-                        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS_ING[index % COLORS_ING.length], flexShrink: 0 }} />
-                        <span style={{ fontWeight: 600, color: "#1E293B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</span>
+                        <span style={{ width: 9, height: 9, borderRadius: "50%", background: entry.color || COLORS_ING[index % COLORS_ING.length], flexShrink: 0 }} />
+                        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                          <span style={{ fontWeight: 600, color: "#1E293B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</span>
+                          {entry.sublabel && (
+                            <span style={{ fontSize: 10, color: "#64748B" }}>{entry.sublabel}</span>
+                          )}
+                        </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                         <span style={{ fontFamily: tokens.fontMono, color: "#64748B", fontSize: 11.5 }}>{formatMoney(entry.value)}</span>
