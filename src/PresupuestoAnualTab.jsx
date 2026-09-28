@@ -132,14 +132,21 @@ export default function PresupuestoAnualTab({
     const rawPlan = planesFondos[selectedYear] || (selectedYear === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026);
     if (selectedYear === "2027" && rawPlan?.ingreso) {
       const cloned = JSON.parse(JSON.stringify(rawPlan));
-      PLAN_INCOME_CATS_2027.forEach(cat => {
-        if (!cloned.ingreso[cat.key]) {
-          cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {
-            "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
-            "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
-          };
-        }
-      });
+      const desactualizado = Number(cloned.ingreso?.["custom_ventas-canjes"]?.["01"] || 0) < 40000000
+        || Number(cloned.ingreso?.["custom_sigma"]?.["01"] || 0) < 30000000
+        || Number(cloned.ingreso?.["custom_comercializacion"]?.["01"] || 0) < 15000000;
+      if (desactualizado) {
+        cloned.ingreso = { ...cloned.ingreso, ...DEFAULT_PLAN_2027.ingreso };
+      } else {
+        PLAN_INCOME_CATS_2027.forEach(cat => {
+          if (!cloned.ingreso[cat.key]) {
+            cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {
+              "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
+              "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
+            };
+          }
+        });
+      }
       setPlanDraft(cloned);
     } else {
       setPlanDraft(rawPlan);

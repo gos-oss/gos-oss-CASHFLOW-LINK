@@ -368,23 +368,13 @@ export default function App() {
         || !planesTemporales["2027"].egreso
         || !planesTemporales["2027"].egreso["proy_mas-duo"]
         || !planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]
-        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 200000000;
+        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 200000000
+        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-canjes"]?.["01"] || 0) < 40000000
+        || Number(planesTemporales["2027"].ingreso?.["custom_sigma"]?.["01"] || 0) < 30000000
+        || Number(planesTemporales["2027"].ingreso?.["custom_comercializacion"]?.["01"] || 0) < 15000000;
       if (necesitaMigracion2027) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
         await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
-      } else if (planesTemporales["2027"]?.ingreso) {
-        if (!planesTemporales["2027"].ingreso["custom_comercializacion"]) {
-          planesTemporales["2027"].ingreso["custom_comercializacion"] = {
-            "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
-            "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
-          };
-        }
-        if (!planesTemporales["2027"].ingreso["custom_sigma"]) {
-          planesTemporales["2027"].ingreso["custom_sigma"] = {
-            "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
-            "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
-          };
-        }
       }
 
       setPlanesFondos(planesTemporales);
