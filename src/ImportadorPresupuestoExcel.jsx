@@ -50,6 +50,8 @@ const SINONIMOS_PRESUPUESTO = {
   "aportescapital": "custom_aportes",
 
   // INGRESOS 2027
+  "gestioncomercial": "custom_gestion-comercial",
+  "ingresoscomercial": "custom_gestion-comercial",
   "ventasmostrador": "custom_ventas-mostrador",
   "mostrador": "custom_ventas-mostrador",
   "ventascanjes": "custom_ventas-canjes",

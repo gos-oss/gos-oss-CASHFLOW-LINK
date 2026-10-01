@@ -8,20 +8,20 @@ export const PLAN_INCOME_CATS_2026 = [
 ];
 
 // CATÁLOGO OFICIAL 2027 - PROYECCIÓN LINK INVERSIONES (EXCEL OFICIAL)
-// Agrupación requerida:
-// 1. Ingresos Comercial (Ventas mostrador, Canjes, Paquetes)
+// 1. Cuenta corriente Clientes
 // 2. Honorarios Proyectos
-// 3. Comercializacion
-// 4. Cuenta corriente Clientes
-// 5. SIGMA (Sigma Proy Propios, Sigma Proy Socios)
+// 3. SIGMA Proy Propios
+// 4. SIGMA Proy Socios
+// 5. Comercializacion
+// 6. Gestión Comercial (Ventas mostrador, Canjes, Paquetes)
 export const PLAN_INCOME_GROUPS_2027 = [
   {
-    id: "comercial",
-    label: "Ingresos Comercial",
-    sublabel: "Ventas mostrador, Canjes y Paquetes",
-    badge: "3 Conceptos",
-    isGroup: true,
-    keys: ["custom_ventas-mostrador", "custom_ventas-canjes", "custom_ventas-paquetes"]
+    id: "clientes",
+    label: "CC Clientes",
+    sublabel: "Cobranzas cuentas corrientes cuotas",
+    badge: "Cobranzas",
+    isGroup: false,
+    keys: ["custom_cuotas-mensuales"]
   },
   {
     id: "honorarios",
@@ -32,6 +32,22 @@ export const PLAN_INCOME_GROUPS_2027 = [
     keys: ["custom_honorarios-proyectos"]
   },
   {
+    id: "sigma-propios",
+    label: "Sigma Proy Propios",
+    sublabel: "Fondos proyectos propios Sigma",
+    badge: "Sigma",
+    isGroup: false,
+    keys: ["custom_sigma-propios"]
+  },
+  {
+    id: "sigma-socios",
+    label: "Sigma Proy Socios",
+    sublabel: "Fondos proyectos socios Sigma",
+    badge: "Sigma",
+    isGroup: false,
+    keys: ["custom_sigma-socios"]
+  },
+  {
     id: "comercializacion",
     label: "Comercializacion",
     sublabel: "Comisiones y comercialización de obras",
@@ -40,41 +56,39 @@ export const PLAN_INCOME_GROUPS_2027 = [
     keys: ["custom_comercializacion"]
   },
   {
-    id: "clientes",
-    label: "Cuenta corriente Clientes",
-    sublabel: "Cobranzas cuentas corrientes cuotas",
-    badge: "Cobranzas",
-    isGroup: false,
-    keys: ["custom_cuotas-mensuales"]
-  },
-  {
-    id: "sigma",
-    label: "SIGMA",
-    sublabel: "Fondos Sigma Proyectos Propios y Socios",
-    badge: "Sigma",
+    id: "comercial",
+    label: "Gestión Comercial",
+    sublabel: "Ventas mostrador, Canjes y Paquetes",
+    badge: "Comercial",
     isGroup: true,
-    keys: ["custom_sigma-propios", "custom_sigma-socios"]
+    keys: ["custom_gestion-comercial"]
   }
 ];
 
 export const PLAN_INCOME_CATS_2027 = [
-  // 1. Grupo: Ingresos Comercial / Gestión Comercial
-  { key: "custom_ventas-mostrador", label: "Ventas Mostrador", sublabel: "Venta directa de unidades en pozo", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 42.19 },
-  { key: "custom_ventas-canjes", label: "Canjes", sublabel: "Canjes comerciales de unidades", type: "canjes", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 11.61 },
-  { key: "custom_ventas-paquetes", label: "Paquetes", sublabel: "Venta mayorista de paquetes", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 22.78 },
+  // 1. Cuenta corriente Clientes
+  { key: "custom_cuotas-mensuales", label: "CC Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "CC Clientes", pctTotal: 12.06 },
   
   // 2. Honorarios Proyectos
   { key: "custom_honorarios-proyectos", label: "Honorarios Proyectos", sublabel: "Honorarios gerenciamiento de obras", type: "honorarios", group: "honorarios", groupLabel: "Honorarios Proyectos", pctTotal: 6.60 },
   
-  // 3. Comercializacion
-  { key: "custom_comercializacion", label: "Comercializacion", sublabel: "Comisiones y comercialización de obras", type: "comercializacion", group: "comercializacion", groupLabel: "Comercializacion", pctTotal: 2.68 },
-  
-  // 4. Cuenta corriente Clientes
-  { key: "custom_cuotas-mensuales", label: "Cuenta corriente Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "Cuenta corriente Clientes", pctTotal: 12.06 },
-
-  // 5. SIGMA
+  // 3. SIGMA Proy Propios
   { key: "custom_sigma-propios", label: "Sigma Proy Propios", sublabel: "Fondos proyectos propios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 2.59 },
-  { key: "custom_sigma-socios", label: "Sigma Proy Socios", sublabel: "Fondos proyectos socios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 2.17 }
+
+  // 4. SIGMA Proy Socios
+  { key: "custom_sigma-socios", label: "Sigma Proy Socios", sublabel: "Fondos proyectos socios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 2.17 },
+
+  // 5. Comercializacion
+  { key: "custom_comercializacion", label: "Comercializacion", sublabel: "Comisiones y comercialización de obras", type: "comercializacion", group: "comercializacion", groupLabel: "Comercializacion", pctTotal: 2.68 },
+
+  // 6. Gestión Comercial
+  { key: "custom_gestion-comercial", label: "Gestión Comercial", sublabel: "Ventas mostrador, Canjes y Paquetes", type: "ventas", group: "comercial", groupLabel: "Gestión Comercial", pctTotal: 73.90 }
+];
+
+export const PLAN_INCOME_SUB_CATS_2027 = [
+  { key: "custom_ventas-paquetes", label: "Ventas Paquetes", sublabel: "Venta mayorista de paquetes ($187,76M/mes)", parentKey: "custom_gestion-comercial", pctTotal: 22.78 },
+  { key: "custom_ventas-canjes", label: "Ventas Canjes", sublabel: "Canjes comerciales de unidades ($95,67M/mes)", parentKey: "custom_gestion-comercial", pctTotal: 11.61 },
+  { key: "custom_ventas-mostrador", label: "Ventas Mostrador", sublabel: "Venta directa en pozo ($354,54M/mes, dic $272,56M)", parentKey: "custom_gestion-comercial", pctTotal: 42.19 }
 ];
 
 export const PLAN_INCOME_CATS = PLAN_INCOME_CATS_2027;
@@ -171,29 +185,23 @@ export const DEFAULT_PLAN_2026 = {
 };
 
 // DATOS EXACTOS OFICIALES 2027 SEGÚN PLANILLA "PROYECCION 2027 , PROYECTOS LINK"
-// Agrupados en:
-// 1. Ingresos Comercial (Ventas mostrador, Canjes, Paquetes)
-// 2. Honorarios Proyectos
-// 3. Comercializacion
-// 4. Cuenta corriente Clientes
-// 5. SIGMA
+// 1. Cuenta corriente Clientes ($1.192.535.159,00)
+// 2. Honorarios Proyectos ($652.860.000,00)
+// 3. SIGMA Proy Propios ($256.133.494,00)
+// 4. SIGMA Proy Socios ($215.088.221,60)
+// 5. Comercializacion ($265.076.388,76)
+// 6. Gestión Comercial ($7.308.534.718,75)
+//    - Ventas Paquetes ($2.253.086.150,40)
+//    - Ventas Canjes ($1.147.995.381,14)
+//    - Ventas Mostrador ($4.172.529.575,97)
+// TOTAL INGRESOS: $9.890.227.982,11 | TOTAL EGRESOS: $9.695.380.569,73 | POSICION NETA: $194.847.412,38 (125.708,01 USD)
 export const DEFAULT_PLAN_2027 = {
   "ingreso": {
-    // 1. INGRESOS COMERCIAL (Ventas mostrador, Canjes, Paquetes)
-    "custom_ventas-mostrador": {
-      "01": 354542650.08, "02": 354542650.08, "03": 354542650.08, "04": 354542650.08,
-      "05": 354542650.08, "06": 354542650.08, "07": 354542650.08, "08": 354542650.08,
-      "09": 354542650.08, "10": 354542650.08, "11": 354542650.08, "12": 272560425.09
-    },
-    "custom_ventas-canjes": {
-      "01": 95666281.76, "02": 95666281.76, "03": 95666281.76, "04": 95666281.76,
-      "05": 95666281.76, "06": 95666281.76, "07": 95666281.76, "08": 95666281.76,
-      "09": 95666281.76, "10": 95666281.76, "11": 95666281.76, "12": 95666281.76
-    },
-    "custom_ventas-paquetes": {
-      "01": 187757179.20, "02": 187757179.20, "03": 187757179.20, "04": 187757179.20,
-      "05": 187757179.20, "06": 187757179.20, "07": 187757179.20, "08": 187757179.20,
-      "09": 187757179.20, "10": 187757179.20, "11": 187757179.20, "12": 187757179.20
+    // 1. CC CLIENTES
+    "custom_cuotas-mensuales": {
+      "01": 113295831.00, "02": 109548122.00, "03": 105735735.00, "04": 105735735.00,
+      "05": 105735735.00, "06": 102862746.00, "07": 97833898.00, "08": 97833898.00,
+      "09": 93118900.00, "10": 92547465.00, "11": 90134803.00, "12": 78152291.00
     },
 
     // 2. HONORARIOS PROYECTOS
@@ -203,38 +211,53 @@ export const DEFAULT_PLAN_2027 = {
       "09": 54405000.00, "10": 54405000.00, "11": 54405000.00, "12": 54405000.00
     },
 
-    // 3. COMERCIALIZACION
+    // 3. SIGMA PROY PROPIOS
+    "custom_sigma-propios": {
+      "01": 8871983.80, "02": 10422572.40, "03": 12132390.00, "04": 13977725.10,
+      "05": 15920550.10, "06": 20885174.30, "07": 23150559.00, "08": 25666563.50,
+      "09": 28104777.40, "10": 30387159.40, "11": 32436007.60, "12": 34178031.40
+    },
+
+    // 4. SIGMA PROY SOCIOS
+    "custom_sigma-socios": {
+      "01": 16998334.80, "02": 17643958.20, "03": 20024414.20, "04": 20252842.00,
+      "05": 20266145.30, "06": 19865001.30, "07": 19109616.50, "08": 18122663.40,
+      "09": 17051978.30, "10": 16029550.70, "11": 15142621.40, "12": 14581095.50
+    },
+
+    // 5. COMERCIALIZACION
     "custom_comercializacion": {
       "01": 22328813.89, "02": 22328813.89, "03": 22328813.89, "04": 22328813.89,
       "05": 22328813.89, "06": 22328813.89, "07": 22328813.89, "08": 22328813.89,
       "09": 22328813.89, "10": 22328813.89, "11": 22328813.89, "12": 19459436.01
     },
 
-    // 4. CUENTA CORRIENTE CLIENTES
-    "custom_cuotas-mensuales": {
-      "01": 113295831.00, "02": 109548122.00, "03": 105735735.00, "04": 105735735.00,
-      "05": 105735735.00, "06": 102862746.00, "07": 97833898.00, "08": 97833898.00,
-      "09": 93118900.00, "10": 92547465.00, "11": 90134803.00, "12": 78152291.00
+    // 6. GESTION COMERCIAL
+    "custom_gestion-comercial": {
+      "01": 615637297.16, "02": 615637297.16, "03": 615637297.16, "04": 615637297.16,
+      "05": 615637297.16, "06": 615637297.16, "07": 615637297.16, "08": 615637297.16,
+      "09": 615637297.16, "10": 615637297.16, "11": 615637297.16, "12": 536524450.04
     },
 
-    // 5. SIGMA
-    "custom_sigma-propios": {
-      "01": 8871983.80, "02": 10422572.40, "03": 12132390.00, "04": 13977725.10,
-      "05": 15920550.10, "06": 20885174.30, "07": 23150559.00, "08": 25666563.50,
-      "09": 28104777.40, "10": 30387159.40, "11": 32436007.60, "12": 34178031.40
+    // Subdesglose de Gestión Comercial (Paquetes, Canjes, Mostrador)
+    "custom_ventas-paquetes": {
+      "01": 187757179.20, "02": 187757179.20, "03": 187757179.20, "04": 187757179.20,
+      "05": 187757179.20, "06": 187757179.20, "07": 187757179.20, "08": 187757179.20,
+      "09": 187757179.20, "10": 187757179.20, "11": 187757179.20, "12": 187757179.20
     },
-    "custom_sigma-socios": {
-      "01": 16998334.80, "02": 17643958.20, "03": 20024414.20, "04": 20252842.00,
-      "05": 20266145.30, "06": 19865001.30, "07": 19109616.50, "08": 18122663.40,
-      "09": 17051978.30, "10": 16029550.70, "11": 15142621.40, "12": 14581095.50
+    "custom_ventas-canjes": {
+      "01": 95666281.76, "02": 95666281.76, "03": 95666281.76, "04": 95666281.76,
+      "05": 95666281.76, "06": 95666281.76, "07": 95666281.76, "08": 95666281.76,
+      "09": 95666281.76, "10": 95666281.76, "11": 95666281.76, "12": 95666281.76
     },
-    "custom_sigma": {
-      "01": 25870318.60, "02": 28066530.60, "03": 32156804.20, "04": 34230567.10,
-      "05": 36186695.40, "06": 40750175.60, "07": 42260175.50, "08": 43789226.90,
-      "09": 45156755.70, "10": 46416710.10, "11": 47578629.00, "12": 48759126.90
+    "custom_ventas-mostrador": {
+      "01": 354542650.08, "02": 354542650.08, "03": 354542650.08, "04": 354542650.08,
+      "05": 354542650.08, "06": 354542650.08, "07": 354542650.08, "08": 354542650.08,
+      "09": 354542650.08, "10": 354542650.08, "11": 354542650.08, "12": 272560425.09
     },
 
-    // Llaves anteriores para retrocompatibilidad
+    // Llaves anteriores inicializadas en 0 para retrocompatibilidad
+    "custom_sigma": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_ventas-cdo": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_cupos-socios": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_pesa": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
@@ -280,7 +303,7 @@ export const DEFAULT_PLAN_2027 = {
     "proy_auria": {
       "01": 0.00, "02": 0.00, "03": 0.00, "04": 0.00, "05": 0.00,
       "06": 66154138.13, "07": 72791701.56, "08": 87154943.93,
-      "09": 103763361.39, "10": 122708132.46, "11": 143963234.60, "12": 167335420.92
+      "09": 103763361.39, "10": 122708132.46, "11": 143963234.92, "12": 167335420.92
     },
     "proy_gastos-admin-auria": {
       "01": 1492494.50, "02": 2139408.64, "03": 1492494.50, "04": 2151700.05,
@@ -379,10 +402,10 @@ export const DEFAULT_PLAN_2027 = {
       "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
     },
 
-    // Retrocompatibilidad con llaves genéricas anteriores
-    "est_sueldos": { "01": 105874291.42, "02": 105874291.42, "03": 105874291.42, "04": 105874291.42, "05": 105874291.42, "06": 105874291.42, "07": 105874291.42, "08": 105874291.42, "09": 105874291.42, "10": 105874291.42, "11": 105874291.42, "12": 105874291.42 },
-    "est_cargas-sociales": { "01": 12789967.64, "02": 12789967.64, "03": 12789967.64, "04": 12789967.64, "05": 12789967.64, "06": 12789967.64, "07": 12789967.64, "08": 12789967.64, "09": 12789967.64, "10": 12789967.64, "11": 12789967.64, "12": 12789967.64 },
-    "est_gastos-admin": { "01": 24314741.66, "02": 30241931.50, "03": 25238373.75, "04": 24006886.44, "05": 29203153.24, "06": 24890832.28, "07": 24567033.99, "08": 25990750.22, "09": 26885826.06, "10": 26962796.19, "11": 26481419.58, "12": 27991984.51 },
+    // Llaves anteriores inicializadas en 0 para retrocompatibilidad (sin duplicar sueldos)
+    "est_sueldos": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "est_cargas-sociales": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "est_gastos-admin": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_rrhh": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_administracion": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_inversiones": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },

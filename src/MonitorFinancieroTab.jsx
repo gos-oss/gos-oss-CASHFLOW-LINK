@@ -2,7 +2,15 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import { tokens } from "./tokens";
 import { DEFAULT_STOCK_UNITS, PROYECTOS_STOCK } from "./stockData";
-import { DEFAULT_PLAN_2026, DEFAULT_PLAN_2027, PLAN_PROJECT_CATS_2027 } from "./budgetData";
+import {
+  DEFAULT_PLAN_2026,
+  DEFAULT_PLAN_2027,
+  PLAN_PROJECT_CATS_2027,
+  PLAN_INCOME_CATS_2027,
+  PLAN_INCOME_CATS_2026,
+  PLAN_EXPENSE_CATS_2027,
+  PLAN_EXPENSE_CATS
+} from "./budgetData";
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip,
   CartesianGrid, Legend, Cell, BarChart
@@ -112,17 +120,20 @@ export default function MonitorFinancieroTab({
     const ingData = planActual.ingreso || {};
     const egData = planActual.egreso || {};
 
+    const activeIncomeCats = ejercicio === "2027" ? PLAN_INCOME_CATS_2027 : PLAN_INCOME_CATS_2026;
+    const activeExpenseCats = ejercicio === "2027" ? PLAN_EXPENSE_CATS_2027 : (PLAN_EXPENSE_CATS || []);
+
     let saldoAcumulado = situacionActual.liquidezARS;
 
     return MESES.map((m) => {
       let totIng = 0;
-      Object.values(ingData).forEach((row) => {
-        totIng += Number(row?.[m.id] || 0);
+      activeIncomeCats.forEach((c) => {
+        totIng += Number(ingData[c.key]?.[m.id] || 0);
       });
 
       let totEg = 0;
-      Object.values(egData).forEach((row) => {
-        totEg += Number(row?.[m.id] || 0);
+      activeExpenseCats.forEach((c) => {
+        totEg += Number(egData[c.key]?.[m.id] || 0);
       });
 
       const flujoNeto = totIng - totEg;

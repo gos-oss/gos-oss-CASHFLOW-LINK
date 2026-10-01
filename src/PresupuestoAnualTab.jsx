@@ -4,6 +4,7 @@ import {
   PLAN_INCOME_CATS_2026,
   PLAN_INCOME_CATS_2027,
   PLAN_INCOME_GROUPS_2027,
+  PLAN_INCOME_SUB_CATS_2027,
   PLAN_INCOME_CATS,
   PLAN_PROJECT_CATS_2027,
   PLAN_PROJECT_CATS,
@@ -138,7 +139,9 @@ export default function PresupuestoAnualTab({
         || !cloned.ingreso?.["custom_sigma-propios"]
         || !cloned.egreso?.["proy_gastos-admin-green"]
         || !cloned.egreso?.["est_sueldos-azlepi"]
-        || !cloned.egreso?.["pas_baja-sposito"];
+        || !cloned.egreso?.["pas_baja-sposito"]
+        || Number(cloned.egreso?.["proy_gastos-admin-auria"]?.["12"] || 0) === 0
+        || Number(cloned.egreso?.["proy_gastos-admin-auria"]?.["07"] || 0) > 2000000;
       if (desactualizado) {
         cloned.ingreso = { ...cloned.ingreso, ...DEFAULT_PLAN_2027.ingreso };
         cloned.egreso = { ...cloned.egreso, ...DEFAULT_PLAN_2027.egreso };
@@ -256,13 +259,23 @@ export default function PresupuestoAnualTab({
   const totalEgBase = activeExpenseCats.reduce((acc, c) => acc + calcularTotalFilaBase("egreso", c.key), 0);
   const totalNetoBase = totalIngBase - totalEgBase;
 
-  // Clasificación oficial de ingresos 2027:
-  // 1. Ingresos Comercial (Ventas mostrador, Canjes, Paquetes)
-  // 2. Honorarios Proyectos
-  // 3. Comercializacion
-  // 4. Cuenta corriente Clientes
-  const comercialCats = useMemo(() => {
-    return activeIncomeCats.filter(c => c.group === "comercial" || ["custom_ventas-mostrador", "custom_ventas-canjes", "custom_ventas-paquetes"].includes(c.key));
+  // Clasificación oficial de ingresos 2027 según planilla oficial:
+  // 1. Cuenta corriente Clientes ($1.192.535.159,00)
+  // 2. Honorarios Proyectos ($652.860.000,00)
+  // 3. SIGMA Proy Propios ($256.133.494,00)
+  // 4. SIGMA Proy Socios ($215.088.221,60)
+  // 5. Comercializacion ($265.076.388,76)
+  // 6. Gestión Comercial ($7.308.534.718,75)
+  //    - Ventas Paquetes ($2.253.086.150,40)
+  //    - Ventas Canjes ($1.147.995.381,14)
+  //    - Ventas Mostrador ($4.172.529.575,97)
+  const ccClientesCat = useMemo(() => {
+    return activeIncomeCats.find(c => c.key === "custom_cuotas-mensuales") || {
+      key: "custom_cuotas-mensuales",
+      label: "CC Clientes",
+      sublabel: "Cobranzas cuentas corrientes cuotas",
+      pctTotal: 12.06
+    };
   }, [activeIncomeCats]);
 
   const honorariosCat = useMemo(() => {
@@ -270,7 +283,25 @@ export default function PresupuestoAnualTab({
       key: "custom_honorarios-proyectos",
       label: "Honorarios Proyectos",
       sublabel: "Honorarios gerenciamiento de obras",
-      pctTotal: 8.40
+      pctTotal: 6.60
+    };
+  }, [activeIncomeCats]);
+
+  const sigmaPropiosCat = useMemo(() => {
+    return activeIncomeCats.find(c => c.key === "custom_sigma-propios") || {
+      key: "custom_sigma-propios",
+      label: "Sigma Proy Propios",
+      sublabel: "Fondos proyectos propios Sigma",
+      pctTotal: 2.59
+    };
+  }, [activeIncomeCats]);
+
+  const sigmaSociosCat = useMemo(() => {
+    return activeIncomeCats.find(c => c.key === "custom_sigma-socios") || {
+      key: "custom_sigma-socios",
+      label: "Sigma Proy Socios",
+      sublabel: "Fondos proyectos socios Sigma",
+      pctTotal: 2.17
     };
   }, [activeIncomeCats]);
 
@@ -279,18 +310,22 @@ export default function PresupuestoAnualTab({
       key: "custom_comercializacion",
       label: "Comercializacion",
       sublabel: "Comisiones y comercialización de obras",
-      pctTotal: 0
+      pctTotal: 2.68
     };
   }, [activeIncomeCats]);
 
-  const ccClientesCat = useMemo(() => {
-    return activeIncomeCats.find(c => c.key === "custom_cuotas-mensuales") || {
-      key: "custom_cuotas-mensuales",
-      label: "Cuenta corriente Clientes",
-      sublabel: "Cobranzas cuentas corrientes cuotas",
-      pctTotal: 15.34
+  const gestionComercialCat = useMemo(() => {
+    return activeIncomeCats.find(c => c.key === "custom_gestion-comercial") || {
+      key: "custom_gestion-comercial",
+      label: "Gestión Comercial",
+      sublabel: "Ventas mostrador, Canjes y Paquetes",
+      pctTotal: 73.90
     };
   }, [activeIncomeCats]);
+
+  const comercialSubCats = useMemo(() => {
+    return PLAN_INCOME_SUB_CATS_2027;
+  }, []);
 
   const sigmaCats = useMemo(() => {
     return activeIncomeCats.filter(c => c.group === "sigma" && c.key !== "custom_sigma");
@@ -301,7 +336,7 @@ export default function PresupuestoAnualTab({
       key: "custom_sigma",
       label: "SIGMA",
       sublabel: "Ingresos / Fondos Sigma",
-      pctTotal: 5.52
+      pctTotal: 4.76
     };
   }, [activeIncomeCats]);
 
@@ -319,13 +354,9 @@ export default function PresupuestoAnualTab({
     return calcularTotalFila("ingreso", "custom_sigma");
   }, [sigmaCats, planDraft, simData, simulacionActiva]);
 
-  const calcularTotalComercialMes = (mesKey) => {
-    return comercialCats.reduce((acc, c) => acc + getSimVal("ingreso", c.key, mesKey), 0);
-  };
-
   const totalComercialSim = useMemo(() => {
-    return comercialCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
-  }, [comercialCats, planDraft, simData, simulacionActiva]);
+    return calcularTotalFila("ingreso", "custom_gestion-comercial");
+  }, [planDraft, simData, simulacionActiva]);
 
   // Clasificación de egresos para subtotales y análisis
   const cuposCats = useMemo(() => {
@@ -1728,198 +1759,7 @@ export default function PresupuestoAnualTab({
                   {selectedYear === "2027" ? (
                     <>
                       {/* ══════════════════════════════════════════════════════════════ */}
-                      {/* PILAR 1: INGRESOS COMERCIAL (Ventas mostrador, Canjes, Paquetes) */}
-                      {/* ══════════════════════════════════════════════════════════════ */}
-                      <tr 
-                        onClick={() => setComercialExpanded(!comercialExpanded)}
-                        style={{ 
-                          background: "#F0FDF4", 
-                          borderTop: "1px solid #BBF7D0", 
-                          borderBottom: "1px solid #BBF7D0",
-                          cursor: "pointer" 
-                        }}
-                      >
-                        <td style={{
-                          position: "sticky",
-                          left: 0,
-                          zIndex: 2,
-                          background: "#F0FDF4",
-                          padding: "10px 16px",
-                          borderRight: "2px solid #CBD5E1"
-                        }}>
-                          <div style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setComercialExpanded(!comercialExpanded); }}
-                                style={{
-                                  border: "none",
-                                  background: "#DCFCE7",
-                                  color: "#166534",
-                                  width: 22,
-                                  height: 22,
-                                  borderRadius: 4,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  cursor: "pointer",
-                                  padding: 0
-                                }}
-                                title={comercialExpanded ? "Colapsar subconceptos comerciales" : "Expandir subconceptos comerciales"}
-                              >
-                                {comercialExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                              </button>
-                              <span style={{ fontWeight: 800, color: "#14532D", fontSize: 13.5 }}>
-                                Ingresos Comercial
-                              </span>
-                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4 }}>
-                                Ventas mostrador · Canjes · Paquetes
-                              </span>
-                              <span style={{ fontSize: 9.5, fontWeight: 800, background: "#BBF7D0", color: "#14532D", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                {totalIngSim > 0 ? ((totalComercialSim / totalIngSim) * 100).toFixed(1) : "0"}% total
-                              </span>
-                            </div>
-                            <span style={{ fontSize: 10.5, color: "#166534", marginLeft: 29, opacity: 0.85 }}>
-                              {comercialExpanded ? "Haga clic para colapsar" : "Haga clic para ver detalle"} · 3 conceptos comerciales consolidados
-                            </span>
-
-                            {simulacionActiva && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginLeft: 29 }} onClick={e => e.stopPropagation()}>
-                                <span style={{ fontSize: 10, color: tokens.textMuted }}>Ajuste Grupo Comercial:</span>
-                                <input
-                                  type="range"
-                                  min="-50"
-                                  max="50"
-                                  step="5"
-                                  value={simData.cats?.["grupo_comercial"] || 0}
-                                  onChange={(e) => setSimData(prev => ({
-                                    ...prev,
-                                    cats: { ...prev.cats, grupo_comercial: Number(e.target.value) }
-                                  }))}
-                                  style={{ width: 75, accentColor: "#10B981" }}
-                                />
-                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats?.["grupo_comercial"] ? tokens.gold : tokens.textMuted }}>
-                                  {simData.cats?.["grupo_comercial"] > 0 ? '+' : ''}{simData.cats?.["grupo_comercial"] || 0}%
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {meses.map(m => {
-                          const valMes = calcularTotalComercialMes(m.k);
-                          return (
-                            <td 
-                              key={m.k} 
-                              title={`Ingresos Comercial (${m.n}): $ ${Math.round(valMes).toLocaleString("es-AR")}`} 
-                              style={{ 
-                                padding: "10px 10px", 
-                                textAlign: "right", 
-                                fontFamily: tokens.fontMono, 
-                                fontWeight: 700, 
-                                color: "#166534",
-                                background: "#F0FDF4" 
-                              }}
-                            >
-                              {formatMoney(valMes)}
-                            </td>
-                          );
-                        })}
-
-                        <td 
-                          title={`Total Anual Ingresos Comercial: $ ${Math.round(totalComercialSim).toLocaleString("es-AR")}`} 
-                          style={{ 
-                            padding: "10px 16px", 
-                            textAlign: "right", 
-                            fontWeight: 900, 
-                            fontFamily: tokens.fontMono, 
-                            color: "#14532D", 
-                            background: "#DCFCE7",
-                            fontSize: 12.5
-                          }}
-                        >
-                          {formatMoney(totalComercialSim)}
-                        </td>
-                      </tr>
-
-                      {/* Subrenglones de Ingresos Comercial: Ventas Mostrador, Canjes, Paquetes */}
-                      {comercialExpanded && comercialCats.map(c => {
-                        const rowTotal = calcularTotalFila("ingreso", c.key);
-                        const pctTotal = totalIngSim > 0 ? (rowTotal / totalIngSim) * 100 : 0;
-                        const pctComercial = totalComercialSim > 0 ? (rowTotal / totalComercialSim) * 100 : 0;
-                        return (
-                          <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
-                            <td style={{
-                              position: "sticky",
-                              left: 0,
-                              zIndex: 2,
-                              background: "#FFFFFF",
-                              padding: "8px 16px 8px 36px",
-                              borderRight: "2px solid #CBD5E1",
-                              borderLeft: "3.5px solid #10B981"
-                            }}>
-                              <div style={{ display: "flex", flexDirection: "column" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                  <span style={{ color: "#10B981", fontWeight: 700, fontSize: 11 }}>↳</span>
-                                  <span style={{ fontWeight: 600, color: tokens.ink, fontSize: 12.5 }}>{c.label}</span>
-                                  <span style={{ fontSize: 9.5, fontWeight: 700, background: "#F1F5F9", color: "#334155", border: "1px solid #E2E8F0", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                    {pctComercial.toFixed(1)}% com.
-                                  </span>
-                                  <span style={{ fontSize: 9.5, fontWeight: 600, background: "#DCFCE7", color: "#166534", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                    {pctTotal.toFixed(1)}% total
-                                  </span>
-                                </div>
-                                <span style={{ fontSize: 10.5, color: tokens.textMuted, marginLeft: 16 }}>{c.sublabel}</span>
-                                {simulacionActiva && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginLeft: 16 }}>
-                                    <input
-                                      type="range"
-                                      min="-50"
-                                      max="50"
-                                      step="5"
-                                      value={simData.cats[c.key] || 0}
-                                      onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [c.key]: Number(e.target.value) } }))}
-                                      style={{ width: 75, accentColor: "#10B981" }}
-                                    />
-                                    <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted }}>
-                                      {simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-
-                            {meses.map(m => {
-                              const val = getSimVal("ingreso", c.key, m.k);
-                              const valExact = Math.round(val);
-                              return (
-                                <td key={m.k} title={`${c.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
-                                  {editMode ? (
-                                    <input
-                                      type="number"
-                                      className="plan-input"
-                                      value={planDraft?.ingreso?.[c.key]?.[m.k] ?? ""}
-                                      onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)}
-                                      placeholder="0"
-                                    />
-                                  ) : (
-                                    <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
-                                      {formatMoney(val)}
-                                    </span>
-                                  )}
-                                </td>
-                              );
-                            })}
-
-                            <td title={`Total Anual ${c.label}: $ ${Math.round(rowTotal).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 600, fontFamily: tokens.fontMono, color: tokens.positive, background: "#F0FDF4" }}>
-                              {formatMoney(rowTotal)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-                      {/* ══════════════════════════════════════════════════════════════ */}
-                      {/* PILAR 2: HONORARIOS PROYECTOS                                  */}
+                      {/* 1. CC CLIENTES                                                */}
                       {/* ══════════════════════════════════════════════════════════════ */}
                       <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
                         <td style={{
@@ -1933,141 +1773,7 @@ export default function PresupuestoAnualTab({
                         }}>
                           <div style={{ display: "flex", flexDirection: "column" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>{honorariosCat.label}</span>
-                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#EDE9FE", color: "#6D28D9", border: "1px solid #DDD6FE", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", honorariosCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
-                              </span>
-                            </div>
-                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{honorariosCat.sublabel}</span>
-                            {simulacionActiva && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                                <input
-                                  type="range"
-                                  min="-50"
-                                  max="50"
-                                  step="5"
-                                  value={simData.cats[honorariosCat.key] || 0}
-                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [honorariosCat.key]: Number(e.target.value) } }))}
-                                  style={{ width: 75, accentColor: "#8B5CF6" }}
-                                />
-                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[honorariosCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
-                                  {simData.cats[honorariosCat.key] > 0 ? '+' : ''}{simData.cats[honorariosCat.key] || 0}%
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {meses.map(m => {
-                          const val = getSimVal("ingreso", honorariosCat.key, m.k);
-                          const valExact = Math.round(val);
-                          return (
-                            <td key={m.k} title={`${honorariosCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
-                              {editMode ? (
-                                <input
-                                  type="number"
-                                  className="plan-input"
-                                  value={planDraft?.ingreso?.[honorariosCat.key]?.[m.k] ?? ""}
-                                  onChange={(e) => handleInputChange("ingreso", honorariosCat.key, m.k, e.target.value)}
-                                  placeholder="0"
-                                />
-                              ) : (
-                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
-                                  {formatMoney(val)}
-                                </span>
-                              )}
-                            </td>
-                          );
-                        })}
-
-                        <td title={`Total Anual ${honorariosCat.label}: $ ${Math.round(calcularTotalFila("ingreso", honorariosCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#6D28D9", background: "#F5F3FF" }}>
-                          {formatMoney(calcularTotalFila("ingreso", honorariosCat.key))}
-                        </td>
-                      </tr>
-
-                      {/* ══════════════════════════════════════════════════════════════ */}
-                      {/* PILAR 3: COMERCIALIZACION                                      */}
-                      {/* ══════════════════════════════════════════════════════════════ */}
-                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
-                        <td style={{
-                          position: "sticky",
-                          left: 0,
-                          zIndex: 2,
-                          background: "#FFFFFF",
-                          padding: "10px 16px",
-                          borderRight: "2px solid #CBD5E1",
-                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
-                        }}>
-                          <div style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>{comercializacionCat.label}</span>
-                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", comercializacionCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
-                              </span>
-                            </div>
-                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{comercializacionCat.sublabel}</span>
-                            {simulacionActiva && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                                <input
-                                  type="range"
-                                  min="-50"
-                                  max="50"
-                                  step="5"
-                                  value={simData.cats[comercializacionCat.key] || 0}
-                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [comercializacionCat.key]: Number(e.target.value) } }))}
-                                  style={{ width: 75, accentColor: "#F59E0B" }}
-                                />
-                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[comercializacionCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
-                                  {simData.cats[comercializacionCat.key] > 0 ? '+' : ''}{simData.cats[comercializacionCat.key] || 0}%
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {meses.map(m => {
-                          const val = getSimVal("ingreso", comercializacionCat.key, m.k);
-                          const valExact = Math.round(val);
-                          return (
-                            <td key={m.k} title={`${comercializacionCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
-                              {editMode ? (
-                                <input
-                                  type="number"
-                                  className="plan-input"
-                                  value={planDraft?.ingreso?.[comercializacionCat.key]?.[m.k] ?? ""}
-                                  onChange={(e) => handleInputChange("ingreso", comercializacionCat.key, m.k, e.target.value)}
-                                  placeholder="0"
-                                />
-                              ) : (
-                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
-                                  {formatMoney(val)}
-                                </span>
-                              )}
-                            </td>
-                          );
-                        })}
-
-                        <td title={`Total Anual ${comercializacionCat.label}: $ ${Math.round(calcularTotalFila("ingreso", comercializacionCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#92400E", background: "#FFFBEB" }}>
-                          {formatMoney(calcularTotalFila("ingreso", comercializacionCat.key))}
-                        </td>
-                      </tr>
-
-                      {/* ══════════════════════════════════════════════════════════════ */}
-                      {/* PILAR 4: CUENTA CORRIENTE CLIENTES                             */}
-                      {/* ══════════════════════════════════════════════════════════════ */}
-                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
-                        <td style={{
-                          position: "sticky",
-                          left: 0,
-                          zIndex: 2,
-                          background: "#FFFFFF",
-                          padding: "10px 16px",
-                          borderRight: "2px solid #CBD5E1",
-                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
-                        }}>
-                          <div style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>{ccClientesCat.label}</span>
+                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>CC CLIENTES</span>
                               <span style={{ fontSize: 9.5, fontWeight: 700, background: "#E0F2FE", color: "#0369A1", border: "1px solid #BAE6FD", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
                                 {totalIngSim > 0 ? ((calcularTotalFila("ingreso", ccClientesCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
                               </span>
@@ -2120,14 +1826,282 @@ export default function PresupuestoAnualTab({
                       </tr>
 
                       {/* ══════════════════════════════════════════════════════════════ */}
-                      {/* PILAR 5: SIGMA (Sigma Proy Propios, Sigma Proy Socios)          */}
+                      {/* 2. HONORARIOS PROYECTOS                                        */}
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                        <td style={{
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 2,
+                          background: "#FFFFFF",
+                          padding: "10px 16px",
+                          borderRight: "2px solid #CBD5E1",
+                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>HONORARIOS PROYECTOS</span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#EDE9FE", color: "#6D28D9", border: "1px solid #DDD6FE", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", honorariosCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{honorariosCat.sublabel}</span>
+                            {simulacionActiva && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                <input
+                                  type="range"
+                                  min="-50"
+                                  max="50"
+                                  step="5"
+                                  value={simData.cats[honorariosCat.key] || 0}
+                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [honorariosCat.key]: Number(e.target.value) } }))}
+                                  style={{ width: 75, accentColor: "#8B5CF6" }}
+                                />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[honorariosCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats[honorariosCat.key] > 0 ? '+' : ''}{simData.cats[honorariosCat.key] || 0}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {meses.map(m => {
+                          const val = getSimVal("ingreso", honorariosCat.key, m.k);
+                          const valExact = Math.round(val);
+                          return (
+                            <td key={m.k} title={`${honorariosCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                              {editMode ? (
+                                <input
+                                  type="number"
+                                  className="plan-input"
+                                  value={planDraft?.ingreso?.[honorariosCat.key]?.[m.k] ?? ""}
+                                  onChange={(e) => handleInputChange("ingreso", honorariosCat.key, m.k, e.target.value)}
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
+                                  {formatMoney(val)}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                        <td title={`Total Anual ${honorariosCat.label}: $ ${Math.round(calcularTotalFila("ingreso", honorariosCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#6D28D9", background: "#F5F3FF" }}>
+                          {formatMoney(calcularTotalFila("ingreso", honorariosCat.key))}
+                        </td>
+                      </tr>
+
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      {/* 3. SIGMA PROY PROPIOS                                          */}
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                        <td style={{
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 2,
+                          background: "#FFFFFF",
+                          padding: "10px 16px",
+                          borderRight: "2px solid #CBD5E1",
+                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>SIGMA PROY PROPIOS</span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", sigmaPropiosCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{sigmaPropiosCat.sublabel}</span>
+                            {simulacionActiva && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                <input
+                                  type="range"
+                                  min="-50"
+                                  max="50"
+                                  step="5"
+                                  value={simData.cats[sigmaPropiosCat.key] || 0}
+                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [sigmaPropiosCat.key]: Number(e.target.value) } }))}
+                                  style={{ width: 75, accentColor: "#059669" }}
+                                />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[sigmaPropiosCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats[sigmaPropiosCat.key] > 0 ? '+' : ''}{simData.cats[sigmaPropiosCat.key] || 0}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {meses.map(m => {
+                          const val = getSimVal("ingreso", sigmaPropiosCat.key, m.k);
+                          const valExact = Math.round(val);
+                          return (
+                            <td key={m.k} title={`${sigmaPropiosCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                              {editMode ? (
+                                <input
+                                  type="number"
+                                  className="plan-input"
+                                  value={planDraft?.ingreso?.[sigmaPropiosCat.key]?.[m.k] ?? ""}
+                                  onChange={(e) => handleInputChange("ingreso", sigmaPropiosCat.key, m.k, e.target.value)}
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
+                                  {formatMoney(val)}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                        <td title={`Total Anual ${sigmaPropiosCat.label}: $ ${Math.round(calcularTotalFila("ingreso", sigmaPropiosCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#166534", background: "#F0FDF4" }}>
+                          {formatMoney(calcularTotalFila("ingreso", sigmaPropiosCat.key))}
+                        </td>
+                      </tr>
+
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      {/* 4. SIGMA PROY SOCIOS                                           */}
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                        <td style={{
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 2,
+                          background: "#FFFFFF",
+                          padding: "10px 16px",
+                          borderRight: "2px solid #CBD5E1",
+                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>SIGMA PROY SOCIOS</span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", sigmaSociosCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{sigmaSociosCat.sublabel}</span>
+                            {simulacionActiva && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                <input
+                                  type="range"
+                                  min="-50"
+                                  max="50"
+                                  step="5"
+                                  value={simData.cats[sigmaSociosCat.key] || 0}
+                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [sigmaSociosCat.key]: Number(e.target.value) } }))}
+                                  style={{ width: 75, accentColor: "#059669" }}
+                                />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[sigmaSociosCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats[sigmaSociosCat.key] > 0 ? '+' : ''}{simData.cats[sigmaSociosCat.key] || 0}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {meses.map(m => {
+                          const val = getSimVal("ingreso", sigmaSociosCat.key, m.k);
+                          const valExact = Math.round(val);
+                          return (
+                            <td key={m.k} title={`${sigmaSociosCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                              {editMode ? (
+                                <input
+                                  type="number"
+                                  className="plan-input"
+                                  value={planDraft?.ingreso?.[sigmaSociosCat.key]?.[m.k] ?? ""}
+                                  onChange={(e) => handleInputChange("ingreso", sigmaSociosCat.key, m.k, e.target.value)}
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
+                                  {formatMoney(val)}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                        <td title={`Total Anual ${sigmaSociosCat.label}: $ ${Math.round(calcularTotalFila("ingreso", sigmaSociosCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#166534", background: "#F0FDF4" }}>
+                          {formatMoney(calcularTotalFila("ingreso", sigmaSociosCat.key))}
+                        </td>
+                      </tr>
+
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      {/* 5. COMERCIALIZACION                                            */}
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                        <td style={{
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 2,
+                          background: "#FFFFFF",
+                          padding: "10px 16px",
+                          borderRight: "2px solid #CBD5E1",
+                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>COMERCIALIZACION</span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", comercializacionCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{comercializacionCat.sublabel}</span>
+                            {simulacionActiva && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                <input
+                                  type="range"
+                                  min="-50"
+                                  max="50"
+                                  step="5"
+                                  value={simData.cats[comercializacionCat.key] || 0}
+                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [comercializacionCat.key]: Number(e.target.value) } }))}
+                                  style={{ width: 75, accentColor: "#F59E0B" }}
+                                />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[comercializacionCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats[comercializacionCat.key] > 0 ? '+' : ''}{simData.cats[comercializacionCat.key] || 0}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {meses.map(m => {
+                          const val = getSimVal("ingreso", comercializacionCat.key, m.k);
+                          const valExact = Math.round(val);
+                          return (
+                            <td key={m.k} title={`${comercializacionCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                              {editMode ? (
+                                <input
+                                  type="number"
+                                  className="plan-input"
+                                  value={planDraft?.ingreso?.[comercializacionCat.key]?.[m.k] ?? ""}
+                                  onChange={(e) => handleInputChange("ingreso", comercializacionCat.key, m.k, e.target.value)}
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
+                                  {formatMoney(val)}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                        <td title={`Total Anual ${comercializacionCat.label}: $ ${Math.round(calcularTotalFila("ingreso", comercializacionCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#92400E", background: "#FFFBEB" }}>
+                          {formatMoney(calcularTotalFila("ingreso", comercializacionCat.key))}
+                        </td>
+                      </tr>
+
+                      {/* ══════════════════════════════════════════════════════════════ */}
+                      {/* 6. GESTION COMERCIAL (Ventas paquetes, canjes, mostrador)       */}
                       {/* ══════════════════════════════════════════════════════════════ */}
                       <tr 
-                        onClick={() => setSigmaExpanded(!sigmaExpanded)}
+                        onClick={() => setComercialExpanded(!comercialExpanded)}
                         style={{ 
-                          background: "#F0FDF4", 
-                          borderTop: "1px solid #BBF7D0", 
-                          borderBottom: "1px solid #BBF7D0",
+                          background: "#E0F2FE", 
+                          borderTop: "1px solid #7DD3FC", 
+                          borderBottom: "1px solid #7DD3FC",
                           cursor: "pointer" 
                         }}
                       >
@@ -2135,7 +2109,7 @@ export default function PresupuestoAnualTab({
                           position: "sticky",
                           left: 0,
                           zIndex: 2,
-                          background: "#F0FDF4",
+                          background: "#E0F2FE",
                           padding: "10px 16px",
                           borderRight: "2px solid #CBD5E1"
                         }}>
@@ -2143,11 +2117,11 @@ export default function PresupuestoAnualTab({
                             <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); setSigmaExpanded(!sigmaExpanded); }}
+                                onClick={(e) => { e.stopPropagation(); setComercialExpanded(!comercialExpanded); }}
                                 style={{
                                   border: "none",
-                                  background: "#DCFCE7",
-                                  color: "#166534",
+                                  background: "#BAE6FD",
+                                  color: "#0369A1",
                                   width: 22,
                                   height: 22,
                                   borderRadius: 4,
@@ -2157,48 +2131,41 @@ export default function PresupuestoAnualTab({
                                   cursor: "pointer",
                                   padding: 0
                                 }}
-                                title={sigmaExpanded ? "Colapsar subconceptos Sigma" : "Expandir subconceptos Sigma"}
+                                title={comercialExpanded ? "Colapsar subconceptos ventas" : "Expandir subconceptos ventas"}
                               >
-                                {sigmaExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                {comercialExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                               </button>
-                              <span style={{ fontWeight: 800, color: "#14532D", fontSize: 13.5 }}>
-                                SIGMA
+                              <span style={{ fontWeight: 800, color: "#0369A1", fontSize: 13.5 }}>
+                                GESTION COMERCIAL
                               </span>
-                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4 }}>
-                                Proy Propios · Proy Socios
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#BAE6FD", color: "#075985", border: "1px solid #7DD3FC", padding: "1px 6px", borderRadius: 4 }}>
+                                Paquetes · Canjes · Mostrador
                               </span>
-                              <span style={{ fontSize: 9.5, fontWeight: 800, background: "#BBF7D0", color: "#14532D", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                {totalIngSim > 0 ? ((totalSigmaSim / totalIngSim) * 100).toFixed(1) : "0"}% total
+                              <span style={{ fontSize: 9.5, fontWeight: 800, background: "#7DD3FC", color: "#0C4A6E", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((totalComercialSim / totalIngSim) * 100).toFixed(1) : "0"}% total
                               </span>
                             </div>
-                            <span style={{ fontSize: 10.5, color: "#166534", marginLeft: 29, opacity: 0.85 }}>
-                              {sigmaExpanded ? "Haga clic para colapsar" : "Haga clic para ver detalle"} · Fondos Proyectos Propios y Socios
+                            <span style={{ fontSize: 10.5, color: "#0369A1", marginLeft: 29, opacity: 0.9 }}>
+                              {comercialExpanded ? "Haga clic para colapsar" : "Haga clic para ver desglose"} · Ventas Paquetes, Canjes y Mostrador
                             </span>
+
                             {simulacionActiva && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginLeft: 29 }} onClick={e => e.stopPropagation()}>
-                                <span style={{ fontSize: 10, color: tokens.textMuted }}>Ajuste Grupo Sigma:</span>
+                                <span style={{ fontSize: 10, color: tokens.textMuted }}>Ajuste Grupo Comercial:</span>
                                 <input
                                   type="range"
                                   min="-50"
                                   max="50"
                                   step="5"
-                                  value={simData.cats["custom_sigma"] || 0}
-                                  onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    setSimData(prev => ({
-                                      ...prev,
-                                      cats: {
-                                        ...prev.cats,
-                                        "custom_sigma": val,
-                                        "custom_sigma-propios": val,
-                                        "custom_sigma-socios": val
-                                      }
-                                    }));
-                                  }}
-                                  style={{ width: 75, accentColor: "#059669" }}
+                                  value={simData.cats?.["grupo_comercial"] || 0}
+                                  onChange={(e) => setSimData(prev => ({
+                                    ...prev,
+                                    cats: { ...prev.cats, grupo_comercial: Number(e.target.value) }
+                                  }))}
+                                  style={{ width: 75, accentColor: "#0284C7" }}
                                 />
-                                <span style={{ fontSize: 10, fontWeight: 700, color: (simData.cats["custom_sigma"] || 0) !== 0 ? tokens.gold : tokens.textMuted }}>
-                                  {(simData.cats["custom_sigma"] || 0) > 0 ? '+' : ''}{simData.cats["custom_sigma"] || 0}%
+                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats?.["grupo_comercial"] ? tokens.gold : tokens.textMuted }}>
+                                  {simData.cats?.["grupo_comercial"] > 0 ? '+' : ''}{simData.cats?.["grupo_comercial"] || 0}%
                                 </span>
                               </div>
                             )}
@@ -2206,24 +2173,46 @@ export default function PresupuestoAnualTab({
                         </td>
 
                         {meses.map(m => {
-                          const val = calcularTotalSigmaMes(m.k);
+                          const valMes = getSimVal("ingreso", "custom_gestion-comercial", m.k);
                           return (
-                            <td key={m.k} title={`Subtotal SIGMA (${m.n}): $ ${Math.round(val).toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 800, color: "#14532D", background: "#F0FDF4" }}>
-                              {formatMoney(val)}
+                            <td 
+                              key={m.k} 
+                              title={`Gestión Comercial (${m.n}): $ ${Math.round(valMes).toLocaleString("es-AR")}`} 
+                              style={{ 
+                                padding: "10px 10px", 
+                                textAlign: "right", 
+                                fontFamily: tokens.fontMono, 
+                                fontWeight: 800, 
+                                color: "#0369A1",
+                                background: "#F0F9FF" 
+                              }}
+                            >
+                              {formatMoney(valMes)}
                             </td>
                           );
                         })}
 
-                        <td title={`Total Anual SIGMA: $ ${Math.round(totalSigmaSim).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 800, fontFamily: tokens.fontMono, color: "#14532D", background: "#BBF7D0" }}>
-                          {formatMoney(totalSigmaSim)}
+                        <td 
+                          title={`Total Anual Gestión Comercial: $ ${Math.round(totalComercialSim).toLocaleString("es-AR")}`} 
+                          style={{ 
+                            padding: "10px 16px", 
+                            textAlign: "right", 
+                            fontWeight: 900, 
+                            fontFamily: tokens.fontMono, 
+                            color: "#0C4A6E", 
+                            background: "#BAE6FD",
+                            fontSize: 12.5
+                          }}
+                        >
+                          {formatMoney(totalComercialSim)}
                         </td>
                       </tr>
 
-                      {/* Subconceptos SIGMA (si está expandido) */}
-                      {sigmaExpanded && (sigmaCats.length > 0 ? sigmaCats : [sigmaCat]).map(c => {
+                      {/* Subrenglones de Gestión Comercial: Ventas Paquetes, Canjes, Mostrador */}
+                      {comercialExpanded && comercialSubCats.map(c => {
                         const rowTotal = calcularTotalFila("ingreso", c.key);
                         const pctTotal = totalIngSim > 0 ? (rowTotal / totalIngSim) * 100 : 0;
-                        const pctSigma = totalSigmaSim > 0 ? (rowTotal / totalSigmaSim) * 100 : 0;
+                        const pctComercial = totalComercialSim > 0 ? (rowTotal / totalComercialSim) * 100 : 0;
                         return (
                           <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
                             <td style={{
@@ -2233,21 +2222,22 @@ export default function PresupuestoAnualTab({
                               background: "#FFFFFF",
                               padding: "8px 16px 8px 36px",
                               borderRight: "2px solid #CBD5E1",
-                              boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                              borderLeft: "3.5px solid #0284C7"
                             }}>
                               <div style={{ display: "flex", flexDirection: "column" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <span style={{ color: "#0284C7", fontWeight: 700, fontSize: 11 }}>↳</span>
                                   <span style={{ fontWeight: 600, color: tokens.ink, fontSize: 12.5 }}>{c.label}</span>
-                                  <span style={{ fontSize: 9, fontWeight: 700, background: "#F1F5F9", color: "#475569", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                    {pctSigma.toFixed(1)}% sigma
+                                  <span style={{ fontSize: 9.5, fontWeight: 700, background: "#F1F5F9", color: "#334155", border: "1px solid #E2E8F0", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                    {pctComercial.toFixed(1)}% com.
                                   </span>
-                                  <span style={{ fontSize: 9, fontWeight: 600, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
-                                    ({pctTotal.toFixed(1)}% total)
+                                  <span style={{ fontSize: 9.5, fontWeight: 600, background: "#E0F2FE", color: "#0369A1", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                    {pctTotal.toFixed(1)}% total
                                   </span>
                                 </div>
-                                <span style={{ fontSize: 10, color: tokens.textMuted }}>{c.sublabel}</span>
+                                <span style={{ fontSize: 10.5, color: tokens.textMuted, marginLeft: 16 }}>{c.sublabel}</span>
                                 {simulacionActiva && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginLeft: 16 }}>
                                     <input
                                       type="range"
                                       min="-50"
@@ -2255,9 +2245,9 @@ export default function PresupuestoAnualTab({
                                       step="5"
                                       value={simData.cats[c.key] || 0}
                                       onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [c.key]: Number(e.target.value) } }))}
-                                      style={{ width: 70, accentColor: "#059669" }}
+                                      style={{ width: 75, accentColor: "#0284C7" }}
                                     />
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted }}>
                                       {simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%
                                     </span>
                                   </div>
@@ -2267,8 +2257,9 @@ export default function PresupuestoAnualTab({
 
                             {meses.map(m => {
                               const val = getSimVal("ingreso", c.key, m.k);
+                              const valExact = Math.round(val);
                               return (
-                                <td key={m.k} title={`${c.label} (${m.n}): $ ${Math.round(val).toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontSize: 12 }}>
+                                <td key={m.k} title={`${c.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
                                   {editMode ? (
                                     <input
                                       type="number"
@@ -2278,7 +2269,7 @@ export default function PresupuestoAnualTab({
                                       placeholder="0"
                                     />
                                   ) : (
-                                    <span style={{ color: val > 0 ? tokens.ink : "#94A3B8" }}>
+                                    <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
                                       {formatMoney(val)}
                                     </span>
                                   )}
@@ -2286,7 +2277,7 @@ export default function PresupuestoAnualTab({
                               );
                             })}
 
-                            <td title={`Total Anual ${c.label}: $ ${Math.round(rowTotal).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#166534", background: "#F0FDF4", fontSize: 12 }}>
+                            <td title={`Total Anual ${c.label}: $ ${Math.round(rowTotal).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 600, fontFamily: tokens.fontMono, color: "#0369A1", background: "#F0F9FF" }}>
                               {formatMoney(rowTotal)}
                             </td>
                           </tr>
