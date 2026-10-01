@@ -123,6 +123,7 @@ export default function PresupuestoAnualTab({
 
   // Estados de agrupación de ingresos 2027
   const [comercialExpanded, setComercialExpanded] = useState(true);
+  const [sigmaExpanded, setSigmaExpanded] = useState(true);
   const [pieIngresosAgrupado, setPieIngresosAgrupado] = useState(true);
 
   const projectKeys = useMemo(() => new Set(PLAN_PROJECT_CATS.map(p => p.key)), []);
@@ -132,15 +133,27 @@ export default function PresupuestoAnualTab({
     const rawPlan = planesFondos[selectedYear] || (selectedYear === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026);
     if (selectedYear === "2027" && rawPlan?.ingreso) {
       const cloned = JSON.parse(JSON.stringify(rawPlan));
-      const desactualizado = Number(cloned.ingreso?.["custom_ventas-canjes"]?.["01"] || 0) < 40000000
-        || Number(cloned.ingreso?.["custom_sigma"]?.["01"] || 0) < 30000000
-        || Number(cloned.ingreso?.["custom_comercializacion"]?.["01"] || 0) < 15000000;
+      const desactualizado = Number(cloned.ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 270000000
+        || Number(cloned.ingreso?.["custom_ventas-canjes"]?.["01"] || 0) < 90000000
+        || !cloned.ingreso?.["custom_sigma-propios"]
+        || !cloned.egreso?.["proy_gastos-admin-green"]
+        || !cloned.egreso?.["est_sueldos-azlepi"]
+        || !cloned.egreso?.["pas_baja-sposito"];
       if (desactualizado) {
         cloned.ingreso = { ...cloned.ingreso, ...DEFAULT_PLAN_2027.ingreso };
+        cloned.egreso = { ...cloned.egreso, ...DEFAULT_PLAN_2027.egreso };
       } else {
         PLAN_INCOME_CATS_2027.forEach(cat => {
           if (!cloned.ingreso[cat.key]) {
             cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {
+              "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
+              "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
+            };
+          }
+        });
+        PLAN_EXPENSE_CATS_2027.forEach(cat => {
+          if (!cloned.egreso[cat.key]) {
+            cloned.egreso[cat.key] = DEFAULT_PLAN_2027.egreso[cat.key] || {
               "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
               "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
             };
@@ -279,14 +292,32 @@ export default function PresupuestoAnualTab({
     };
   }, [activeIncomeCats]);
 
+  const sigmaCats = useMemo(() => {
+    return activeIncomeCats.filter(c => c.group === "sigma" && c.key !== "custom_sigma");
+  }, [activeIncomeCats]);
+
   const sigmaCat = useMemo(() => {
     return activeIncomeCats.find(c => c.key === "custom_sigma") || {
       key: "custom_sigma",
       label: "SIGMA",
       sublabel: "Ingresos / Fondos Sigma",
-      pctTotal: 0
+      pctTotal: 5.52
     };
   }, [activeIncomeCats]);
+
+  const calcularTotalSigmaMes = (mesKey) => {
+    if (sigmaCats.length > 0) {
+      return sigmaCats.reduce((acc, c) => acc + getSimVal("ingreso", c.key, mesKey), 0);
+    }
+    return getSimVal("ingreso", "custom_sigma", mesKey);
+  };
+
+  const totalSigmaSim = useMemo(() => {
+    if (sigmaCats.length > 0) {
+      return sigmaCats.reduce((acc, c) => acc + calcularTotalFila("ingreso", c.key), 0);
+    }
+    return calcularTotalFila("ingreso", "custom_sigma");
+  }, [sigmaCats, planDraft, simData, simulacionActiva]);
 
   const calcularTotalComercialMes = (mesKey) => {
     return comercialCats.reduce((acc, c) => acc + getSimVal("ingreso", c.key, mesKey), 0);
@@ -535,7 +566,7 @@ export default function PresupuestoAnualTab({
       const valCC = calcularTotalFila("ingreso", "custom_cuotas-mensuales");
       const valHon = calcularTotalFila("ingreso", "custom_honorarios-proyectos");
       const valComerc = calcularTotalFila("ingreso", "custom_comercializacion");
-      const valSigma = calcularTotalFila("ingreso", "custom_sigma");
+      const valSigma = totalSigmaSim;
 
       const items = [
         {
@@ -2089,39 +2120,85 @@ export default function PresupuestoAnualTab({
                       </tr>
 
                       {/* ══════════════════════════════════════════════════════════════ */}
-                      {/* PILAR 5: SIGMA                                                 */}
+                      {/* PILAR 5: SIGMA (Sigma Proy Propios, Sigma Proy Socios)          */}
                       {/* ══════════════════════════════════════════════════════════════ */}
-                      <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                      <tr 
+                        onClick={() => setSigmaExpanded(!sigmaExpanded)}
+                        style={{ 
+                          background: "#F0FDF4", 
+                          borderTop: "1px solid #BBF7D0", 
+                          borderBottom: "1px solid #BBF7D0",
+                          cursor: "pointer" 
+                        }}
+                      >
                         <td style={{
                           position: "sticky",
                           left: 0,
                           zIndex: 2,
-                          background: "#FFFFFF",
+                          background: "#F0FDF4",
                           padding: "10px 16px",
-                          borderRight: "2px solid #CBD5E1",
-                          boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                          borderRight: "2px solid #CBD5E1"
                         }}>
                           <div style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>{sigmaCat.label}</span>
-                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
-                                {totalIngSim > 0 ? ((calcularTotalFila("ingreso", sigmaCat.key) / totalIngSim) * 100).toFixed(1) : 0}% total
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setSigmaExpanded(!sigmaExpanded); }}
+                                style={{
+                                  border: "none",
+                                  background: "#DCFCE7",
+                                  color: "#166534",
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: 4,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  padding: 0
+                                }}
+                                title={sigmaExpanded ? "Colapsar subconceptos Sigma" : "Expandir subconceptos Sigma"}
+                              >
+                                {sigmaExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                              </button>
+                              <span style={{ fontWeight: 800, color: "#14532D", fontSize: 13.5 }}>
+                                SIGMA
+                              </span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0", padding: "1px 6px", borderRadius: 4 }}>
+                                Proy Propios · Proy Socios
+                              </span>
+                              <span style={{ fontSize: 9.5, fontWeight: 800, background: "#BBF7D0", color: "#14532D", padding: "1px 6px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                {totalIngSim > 0 ? ((totalSigmaSim / totalIngSim) * 100).toFixed(1) : "0"}% total
                               </span>
                             </div>
-                            <span style={{ fontSize: 10.5, color: tokens.textMuted }}>{sigmaCat.sublabel}</span>
+                            <span style={{ fontSize: 10.5, color: "#166534", marginLeft: 29, opacity: 0.85 }}>
+                              {sigmaExpanded ? "Haga clic para colapsar" : "Haga clic para ver detalle"} · Fondos Proyectos Propios y Socios
+                            </span>
                             {simulacionActiva && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginLeft: 29 }} onClick={e => e.stopPropagation()}>
+                                <span style={{ fontSize: 10, color: tokens.textMuted }}>Ajuste Grupo Sigma:</span>
                                 <input
                                   type="range"
                                   min="-50"
                                   max="50"
                                   step="5"
-                                  value={simData.cats[sigmaCat.key] || 0}
-                                  onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [sigmaCat.key]: Number(e.target.value) } }))}
+                                  value={simData.cats["custom_sigma"] || 0}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    setSimData(prev => ({
+                                      ...prev,
+                                      cats: {
+                                        ...prev.cats,
+                                        "custom_sigma": val,
+                                        "custom_sigma-propios": val,
+                                        "custom_sigma-socios": val
+                                      }
+                                    }));
+                                  }}
                                   style={{ width: 75, accentColor: "#059669" }}
                                 />
-                                <span style={{ fontSize: 10, fontWeight: 700, color: simData.cats[sigmaCat.key] !== 0 ? tokens.gold : tokens.textMuted }}>
-                                  {simData.cats[sigmaCat.key] > 0 ? '+' : ''}{simData.cats[sigmaCat.key] || 0}%
+                                <span style={{ fontSize: 10, fontWeight: 700, color: (simData.cats["custom_sigma"] || 0) !== 0 ? tokens.gold : tokens.textMuted }}>
+                                  {(simData.cats["custom_sigma"] || 0) > 0 ? '+' : ''}{simData.cats["custom_sigma"] || 0}%
                                 </span>
                               </div>
                             )}
@@ -2129,31 +2206,92 @@ export default function PresupuestoAnualTab({
                         </td>
 
                         {meses.map(m => {
-                          const val = getSimVal("ingreso", sigmaCat.key, m.k);
-                          const valExact = Math.round(val);
+                          const val = calcularTotalSigmaMes(m.k);
                           return (
-                            <td key={m.k} title={`${sigmaCat.label} (${m.n}): $ ${valExact.toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
-                              {editMode ? (
-                                <input
-                                  type="number"
-                                  className="plan-input"
-                                  value={planDraft?.ingreso?.[sigmaCat.key]?.[m.k] ?? ""}
-                                  onChange={(e) => handleInputChange("ingreso", sigmaCat.key, m.k, e.target.value)}
-                                  placeholder="0"
-                                />
-                              ) : (
-                                <span style={{ color: val > 0 ? tokens.ink : "#94A3B8", fontWeight: val > 0 ? 500 : 400 }}>
-                                  {formatMoney(val)}
-                                </span>
-                              )}
+                            <td key={m.k} title={`Subtotal SIGMA (${m.n}): $ ${Math.round(val).toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 800, color: "#14532D", background: "#F0FDF4" }}>
+                              {formatMoney(val)}
                             </td>
                           );
                         })}
 
-                        <td title={`Total Anual ${sigmaCat.label}: $ ${Math.round(calcularTotalFila("ingreso", sigmaCat.key)).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#166534", background: "#F0FDF4" }}>
-                          {formatMoney(calcularTotalFila("ingreso", sigmaCat.key))}
+                        <td title={`Total Anual SIGMA: $ ${Math.round(totalSigmaSim).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 800, fontFamily: tokens.fontMono, color: "#14532D", background: "#BBF7D0" }}>
+                          {formatMoney(totalSigmaSim)}
                         </td>
                       </tr>
+
+                      {/* Subconceptos SIGMA (si está expandido) */}
+                      {sigmaExpanded && (sigmaCats.length > 0 ? sigmaCats : [sigmaCat]).map(c => {
+                        const rowTotal = calcularTotalFila("ingreso", c.key);
+                        const pctTotal = totalIngSim > 0 ? (rowTotal / totalIngSim) * 100 : 0;
+                        const pctSigma = totalSigmaSim > 0 ? (rowTotal / totalSigmaSim) * 100 : 0;
+                        return (
+                          <tr key={c.key} style={{ borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
+                            <td style={{
+                              position: "sticky",
+                              left: 0,
+                              zIndex: 2,
+                              background: "#FFFFFF",
+                              padding: "8px 16px 8px 36px",
+                              borderRight: "2px solid #CBD5E1",
+                              boxShadow: "2px 0 5px rgba(0,0,0,0.02)"
+                            }}>
+                              <div style={{ display: "flex", flexDirection: "column" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <span style={{ fontWeight: 600, color: tokens.ink, fontSize: 12.5 }}>{c.label}</span>
+                                  <span style={{ fontSize: 9, fontWeight: 700, background: "#F1F5F9", color: "#475569", padding: "1px 5px", borderRadius: 4, fontFamily: tokens.fontMono }}>
+                                    {pctSigma.toFixed(1)}% sigma
+                                  </span>
+                                  <span style={{ fontSize: 9, fontWeight: 600, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                                    ({pctTotal.toFixed(1)}% total)
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: 10, color: tokens.textMuted }}>{c.sublabel}</span>
+                                {simulacionActiva && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                                    <input
+                                      type="range"
+                                      min="-50"
+                                      max="50"
+                                      step="5"
+                                      value={simData.cats[c.key] || 0}
+                                      onChange={(e) => setSimData(prev => ({ ...prev, cats: { ...prev.cats, [c.key]: Number(e.target.value) } }))}
+                                      style={{ width: 70, accentColor: "#059669" }}
+                                    />
+                                    <span style={{ fontSize: 9.5, fontWeight: 700, color: simData.cats[c.key] !== 0 ? tokens.gold : tokens.textMuted }}>
+                                      {simData.cats[c.key] > 0 ? '+' : ''}{simData.cats[c.key] || 0}%
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {meses.map(m => {
+                              const val = getSimVal("ingreso", c.key, m.k);
+                              return (
+                                <td key={m.k} title={`${c.label} (${m.n}): $ ${Math.round(val).toLocaleString("es-AR")}`} style={{ padding: "8px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontSize: 12 }}>
+                                  {editMode ? (
+                                    <input
+                                      type="number"
+                                      className="plan-input"
+                                      value={planDraft?.ingreso?.[c.key]?.[m.k] ?? ""}
+                                      onChange={(e) => handleInputChange("ingreso", c.key, m.k, e.target.value)}
+                                      placeholder="0"
+                                    />
+                                  ) : (
+                                    <span style={{ color: val > 0 ? tokens.ink : "#94A3B8" }}>
+                                      {formatMoney(val)}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+
+                            <td title={`Total Anual ${c.label}: $ ${Math.round(rowTotal).toLocaleString("es-AR")}`} style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#166534", background: "#F0FDF4", fontSize: 12 }}>
+                              {formatMoney(rowTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </>
                   ) : (
                     activeIncomeCats.map(c => {

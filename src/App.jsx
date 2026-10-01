@@ -366,12 +366,12 @@ export default function App() {
 
       const necesitaMigracion2027 = !planesTemporales["2027"]
         || !planesTemporales["2027"].egreso
-        || !planesTemporales["2027"].egreso["proy_mas-duo"]
-        || !planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]
-        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 200000000
-        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-canjes"]?.["01"] || 0) < 40000000
-        || Number(planesTemporales["2027"].ingreso?.["custom_sigma"]?.["01"] || 0) < 30000000
-        || Number(planesTemporales["2027"].ingreso?.["custom_comercializacion"]?.["01"] || 0) < 15000000;
+        || !planesTemporales["2027"].egreso["proy_gastos-admin-green"]
+        || !planesTemporales["2027"].egreso["est_sueldos-azlepi"]
+        || !planesTemporales["2027"].egreso["pas_baja-sposito"]
+        || !planesTemporales["2027"].ingreso?.["custom_sigma-propios"]
+        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 270000000
+        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-canjes"]?.["01"] || 0) < 90000000;
       if (necesitaMigracion2027) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
         await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });

@@ -13,7 +13,7 @@ export const PLAN_INCOME_CATS_2026 = [
 // 2. Honorarios Proyectos
 // 3. Comercializacion
 // 4. Cuenta corriente Clientes
-// 5. SIGMA
+// 5. SIGMA (Sigma Proy Propios, Sigma Proy Socios)
 export const PLAN_INCOME_GROUPS_2027 = [
   {
     id: "comercial",
@@ -50,30 +50,31 @@ export const PLAN_INCOME_GROUPS_2027 = [
   {
     id: "sigma",
     label: "SIGMA",
-    sublabel: "Ingresos / Fondos Sigma",
+    sublabel: "Fondos Sigma Proyectos Propios y Socios",
     badge: "Sigma",
-    isGroup: false,
-    keys: ["custom_sigma"]
+    isGroup: true,
+    keys: ["custom_sigma-propios", "custom_sigma-socios"]
   }
 ];
 
 export const PLAN_INCOME_CATS_2027 = [
   // 1. Grupo: Ingresos Comercial / Gestión Comercial
-  { key: "custom_ventas-mostrador", label: "Ventas Mostrador", sublabel: "Venta directa de unidades en pozo", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 34.69 },
-  { key: "custom_ventas-canjes", label: "Canjes", sublabel: "Canjes comerciales de unidades", type: "canjes", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 5.70 },
-  { key: "custom_ventas-paquetes", label: "Paquetes", sublabel: "Venta mayorista de paquetes", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 28.82 },
+  { key: "custom_ventas-mostrador", label: "Ventas Mostrador", sublabel: "Venta directa de unidades en pozo", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 38.35 },
+  { key: "custom_ventas-canjes", label: "Canjes", sublabel: "Canjes comerciales de unidades", type: "canjes", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 13.46 },
+  { key: "custom_ventas-paquetes", label: "Paquetes", sublabel: "Venta mayorista de paquetes", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 21.03 },
   
   // 2. Honorarios Proyectos
-  { key: "custom_honorarios-proyectos", label: "Honorarios Proyectos", sublabel: "Honorarios gerenciamiento de obras", type: "honorarios", group: "honorarios", groupLabel: "Honorarios Proyectos", pctTotal: 7.13 },
+  { key: "custom_honorarios-proyectos", label: "Honorarios Proyectos", sublabel: "Honorarios gerenciamiento de obras", type: "honorarios", group: "honorarios", groupLabel: "Honorarios Proyectos", pctTotal: 7.65 },
   
   // 3. Comercializacion
-  { key: "custom_comercializacion", label: "Comercializacion", sublabel: "Comisiones y comercialización de obras", type: "comercializacion", group: "comercializacion", groupLabel: "Comercializacion", pctTotal: 2.42 },
+  { key: "custom_comercializacion", label: "Comercializacion", sublabel: "Comisiones y comercialización de obras", type: "comercializacion", group: "comercializacion", groupLabel: "Comercializacion", pctTotal: 2.55 },
   
   // 4. Cuenta corriente Clientes
-  { key: "custom_cuotas-mensuales", label: "Cuenta corriente Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "Cuenta corriente Clientes", pctTotal: 13.02 },
+  { key: "custom_cuotas-mensuales", label: "Cuenta corriente Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "Cuenta corriente Clientes", pctTotal: 13.98 },
 
   // 5. SIGMA
-  { key: "custom_sigma", label: "SIGMA", sublabel: "Ingresos / Fondos Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 8.22 }
+  { key: "custom_sigma-propios", label: "Sigma Proy Propios", sublabel: "Fondos proyectos propios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 3.00 },
+  { key: "custom_sigma-socios", label: "Sigma Proy Socios", sublabel: "Fondos proyectos socios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 2.52 }
 ];
 
 export const PLAN_INCOME_CATS = PLAN_INCOME_CATS_2027;
@@ -81,15 +82,18 @@ export const PLAN_INCOME_CATS = PLAN_INCOME_CATS_2027;
 // PROYECTOS LINK 2027 (EGRESOS OBRAS Y CUPOS)
 export const PLAN_PROJECT_CATS_2027 = [
   // Cupos Fijos
-  { key: "proy_300", label: "Cupo Link # 300", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($53,97M)", group: "cupos", pctEgreso: 6.45, pctProy: 9.30 },
-  { key: "proy_boulevard", label: "Cupo Link Boulevard", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($49,31M)", group: "cupos", pctEgreso: 5.90, pctProy: 8.50 },
-  { key: "proy_neuquen", label: "Cupo Link Neuquén", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($30,80M)", group: "cupos", pctEgreso: 3.68, pctProy: 5.31 },
+  { key: "proy_300", label: "Cupo Link # 300", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($53,97M)", group: "cupos", pctEgreso: 6.68, pctProy: 9.22 },
+  { key: "proy_boulevard", label: "Cupo Link Boulevard", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($49,31M)", group: "cupos", pctEgreso: 6.10, pctProy: 8.42 },
+  { key: "proy_neuquen", label: "Cupo Link Neuquén", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($30,80M)", group: "cupos", pctEgreso: 3.81, pctProy: 5.26 },
 
-  // Curvas de Obras Activas
-  { key: "proy_torre-green", label: "Torre Green Proyecto", tag: "Curva S", sublabel: "Obra activa en ejecución", group: "obras", pctEgreso: 19.09, pctProy: 27.51 },
-  { key: "proy_mas-duo", label: "+ DUO Proyecto", tag: "Curva S", sublabel: "Obra activa en expansión", group: "obras", pctEgreso: 25.89, pctProy: 37.31 },
-  { key: "proy_auria", label: "Auria Proyecto", tag: "Nueva Obra", sublabel: "Inicio proyectado en junio", group: "obras", pctEgreso: 7.61, pctProy: 10.97 },
-  { key: "proy_tdys", label: "Tdys (ET)", tag: "Técnica", sublabel: "Gastos y ensayos técnicos", group: "obras", pctEgreso: 0.76, pctProy: 1.10 },
+  // Curvas de Obras Activas y Gastos Administrativos de Obra
+  { key: "proy_torre-green", label: "Torre Green Proyecto", tag: "Curva S", sublabel: "Obra activa en ejecución", group: "obras", pctEgreso: 19.76, pctProy: 27.27 },
+  { key: "proy_gastos-admin-green", label: "Gastos Admin Green", tag: "Admin Obra", sublabel: "Gastos administrativos Torre Green", group: "obras", pctEgreso: 0.28, pctProy: 0.39 },
+  { key: "proy_mas-duo", label: "+ DUO Proyecto", tag: "Curva S", sublabel: "Obra activa en expansión", group: "obras", pctEgreso: 26.80, pctProy: 36.99 },
+  { key: "proy_gastos-admin-duo", label: "Gastos Admin + DUO", tag: "Admin Obra", sublabel: "Gastos administrativos + DUO", group: "obras", pctEgreso: 0.12, pctProy: 0.17 },
+  { key: "proy_auria", label: "Auria Proyecto", tag: "Nueva Obra", sublabel: "Inicio proyectado en junio", group: "obras", pctEgreso: 7.88, pctProy: 10.87 },
+  { key: "proy_gastos-admin-auria", label: "Gastos Admin Auria", tag: "Admin Obra", sublabel: "Gastos administrativos Auria", group: "obras", pctEgreso: 0.23, pctProy: 0.31 },
+  { key: "proy_tdys", label: "Tdys (ET)", tag: "Técnica", sublabel: "Gastos y ensayos técnicos", group: "obras", pctEgreso: 0.79, pctProy: 1.09 },
 
   // Obras anteriores sin desembolso 2027
   { key: "proy_duo", label: "DUO", tag: "Cierre", sublabel: "Finalizada dic 2026", group: "obras", pctEgreso: 0, pctProy: 0 },
@@ -105,22 +109,26 @@ export const PLAN_PROJECT_CATS = PLAN_PROJECT_CATS_2027;
 
 // ESTRUCTURA 2027
 export const PLAN_ESTRUCTURA_CATS_2027 = [
-  { key: "est_sueldos", label: "Sueldos", sublabel: "Nómina fija + SAC en Jun y Dic", group: "estructura", pctEgreso: 16.68, pctEstructura: 60.37 },
-  { key: "est_impuestos", label: "Impuestos", sublabel: "Obligaciones impositivas mensuales", group: "estructura", pctEgreso: 4.36, pctEstructura: 15.77 },
-  { key: "est_gastos-admin", label: "Gastos Administrativos", sublabel: "Operación general, servicios y suministros", group: "estructura", pctEgreso: 3.36, pctEstructura: 12.16 },
-  { key: "est_cargas-sociales", label: "Cargas Sociales", sublabel: "Aportes patronales y seguridad social", group: "estructura", pctEgreso: 2.02, pctEstructura: 7.29 },
-  { key: "est_rrhh", label: "RRHH", sublabel: "Recursos humanos y capacitaciones", group: "estructura", pctEgreso: 1.04, pctEstructura: 3.77 },
-  { key: "est_post-venta", label: "Post Venta", sublabel: "Garantías y atención post entrega", group: "estructura", pctEgreso: 0.12, pctEstructura: 0.42 },
-  { key: "est_cx", label: "CX", sublabel: "Experiencia de clientes y fidelización", group: "estructura", pctEgreso: 0.05, pctEstructura: 0.17 },
-  { key: "est_renta-anticipada", label: "Renta Anticipada", sublabel: "Renta comprometida a inversores", group: "estructura", pctEgreso: 0.02, pctEstructura: 0.05 }
+  { key: "est_rrhh", label: "RRHH", sublabel: "Recursos humanos y capacitaciones", group: "estructura", pctEgreso: 1.04, pctEstructura: 4.37 },
+  { key: "est_sueldos-azlepi", label: "Sueldos Azlepi", sublabel: "Nómina fija Azlepi ($95,05M/mes)", group: "estructura", pctEgreso: 11.76, pctEstructura: 49.67 },
+  { key: "est_sueldos-comercial", label: "Sueldos Comercial", sublabel: "Nómina comercial ($10,83M/mes)", group: "estructura", pctEgreso: 1.34, pctEstructura: 5.66 },
+  { key: "est_cargas-sociales-azlepi", label: "Cargas Sociales Azlepi", sublabel: "Aportes patronales Azlepi ($11,48M/mes)", group: "estructura", pctEgreso: 1.42, pctEstructura: 6.00 },
+  { key: "est_cargas-sociales-comercial", label: "Cargas Sociales Comercial", sublabel: "Aportes patronales comercial ($1,31M/mes)", group: "estructura", pctEgreso: 0.16, pctEstructura: 0.68 },
+  { key: "est_impuestos", label: "Impuestos", sublabel: "Obligaciones impositivas mensuales ($36,44M/mes)", group: "estructura", pctEgreso: 4.51, pctEstructura: 19.04 },
+  { key: "est_gastos-admin-link", label: "Gastos Admin Link", sublabel: "Operación general y suministros Link", group: "estructura", pctEgreso: 2.18, pctEstructura: 9.19 },
+  { key: "est_gastos-admin-comercial", label: "Gastos Admin Comercial", sublabel: "Gastos comerciales operativos ($0)", group: "estructura", pctEgreso: 0.00, pctEstructura: 0.00 },
+  { key: "est_gastos-admin-otros", label: "Gastos Admin Otros", sublabel: "Otros gastos administrativos corrientes", group: "estructura", pctEgreso: 1.09, pctEstructura: 4.61 },
+  { key: "est_cx", label: "CX", sublabel: "Experiencia de clientes y fidelización ($0,39M/mes)", group: "estructura", pctEgreso: 0.05, pctEstructura: 0.20 },
+  { key: "est_post-venta", label: "Post Venta", sublabel: "Garantías y atención post entrega ($0,97M/mes)", group: "estructura", pctEgreso: 0.12, pctEstructura: 0.51 },
+  { key: "est_renta-anticipada", label: "Renta Anticipada", sublabel: "Renta comprometida a inversores (Enero)", group: "estructura", pctEgreso: 0.02, pctEstructura: 0.07 }
 ];
 
 // INVERSIONES Y PASIVOS FINANCIEROS 2027
 export const PLAN_FINANCIERO_CATS_2027 = [
-  { key: "inv_colonia", label: "Colonia (Inversión)", sublabel: "Inversión fija mensual ($7,19M)", group: "inversiones", pctEgreso: 0.86 },
-  { key: "pas_cudmani", label: "Cudmani (Pasivo)", sublabel: "Cuotas mensuales hasta Abril 2027", group: "pasivos", pctEgreso: 2.02 },
-  { key: "pas_otros-bancos", label: "Otros / Bancos", sublabel: "Vencimientos bancarios ene-mar", group: "pasivos", pctEgreso: 0.09 },
-  { key: "pas_baja-sposito", label: "Baja Sposito", sublabel: "Sin desembolsos proyectados", group: "pasivos", pctEgreso: 0.00 }
+  { key: "inv_colonia", label: "Colonia (Inversión)", sublabel: "Inversión fija mensual ($7,19M)", group: "inversiones", pctEgreso: 0.89 },
+  { key: "pas_cudmani", label: "Cudmani (Pasivo)", sublabel: "Cuotas mensuales ene-abr ($50,75M)", group: "pasivos", pctEgreso: 2.09 },
+  { key: "pas_otros-bancos", label: "Otros / Bancos", sublabel: "Vencimientos bancarios ene-mar ($8,77M)", group: "pasivos", pctEgreso: 0.09 },
+  { key: "pas_baja-sposito", label: "Baja Sposito", sublabel: "Cuotas mensuales ene-abr ($18,99M)", group: "pasivos", pctEgreso: 0.78 }
 ];
 
 // TOTAL DE EGRESOS PARA EL PLAN
@@ -173,19 +181,19 @@ export const DEFAULT_PLAN_2027 = {
   "ingreso": {
     // 1. INGRESOS COMERCIAL (Ventas mostrador, Canjes, Paquetes)
     "custom_ventas-mostrador": {
-      "01": 264836789.29, "02": 264836789.29, "03": 264836789.29, "04": 264836789.29,
-      "05": 264836789.29, "06": 264836789.29, "07": 264836789.29, "08": 264836789.29,
-      "09": 264836789.29, "10": 264836789.29, "11": 264836789.29, "12": 264836789.29
+      "01": 272560425.09, "02": 272560425.09, "03": 272560425.09, "04": 272560425.09,
+      "05": 272560425.09, "06": 272560425.09, "07": 272560425.09, "08": 272560425.09,
+      "09": 272560425.09, "10": 272560425.09, "11": 272560425.09, "12": 272560425.09
     },
     "custom_ventas-canjes": {
-      "01": 43501798.58, "02": 43501798.58, "03": 43501798.58, "04": 43501798.58,
-      "05": 43501798.58, "06": 43501798.58, "07": 43501798.58, "08": 43501798.58,
-      "09": 43501798.58, "10": 43501798.58, "11": 43501798.58, "12": 43501798.58
+      "01": 95666281.76, "02": 95666281.76, "03": 95666281.76, "04": 95666281.76,
+      "05": 95666281.76, "06": 95666281.76, "07": 95666281.76, "08": 95666281.76,
+      "09": 95666281.76, "10": 95666281.76, "11": 95666281.76, "12": 95666281.76
     },
     "custom_ventas-paquetes": {
-      "01": 219983987.00, "02": 219983987.00, "03": 219983987.00, "04": 219983987.00,
-      "05": 219983987.00, "06": 219983987.00, "07": 219983987.00, "08": 219983987.00,
-      "09": 219983987.00, "10": 219983987.00, "11": 219983987.00, "12": 219983987.00
+      "01": 149490403.48, "02": 149490403.48, "03": 149490403.48, "04": 149490403.48,
+      "05": 149490403.48, "06": 149490403.48, "07": 149490403.48, "08": 149490403.48,
+      "09": 149490403.48, "10": 149490403.48, "11": 149490403.48, "12": 149490403.48
     },
 
     // 2. HONORARIOS PROYECTOS
@@ -197,9 +205,9 @@ export const DEFAULT_PLAN_2027 = {
 
     // 3. COMERCIALIZACION
     "custom_comercializacion": {
-      "01": 18491290.12, "02": 18491290.12, "03": 18491290.12, "04": 18491290.12,
-      "05": 18491290.12, "06": 18491290.12, "07": 18491290.12, "08": 18491290.12,
-      "09": 18491290.12, "10": 18491290.12, "11": 18491290.12, "12": 18491290.12
+      "01": 18120098.86, "02": 18120098.86, "03": 18120098.86, "04": 18120098.86,
+      "05": 18120098.86, "06": 18120098.86, "07": 18120098.86, "08": 18120098.86,
+      "09": 18120098.86, "10": 18120098.86, "11": 18120098.86, "12": 18120098.86
     },
 
     // 4. CUENTA CORRIENTE CLIENTES
@@ -210,10 +218,20 @@ export const DEFAULT_PLAN_2027 = {
     },
 
     // 5. SIGMA
+    "custom_sigma-propios": {
+      "01": 8871983.80, "02": 10422572.40, "03": 12132390.00, "04": 13977725.10,
+      "05": 15920550.10, "06": 20885174.30, "07": 23150559.00, "08": 25666563.50,
+      "09": 28104777.40, "10": 30387159.40, "11": 32436007.60, "12": 34178031.40
+    },
+    "custom_sigma-socios": {
+      "01": 16998334.80, "02": 17643958.20, "03": 20024414.20, "04": 20252842.00,
+      "05": 20266145.30, "06": 19865001.30, "07": 19109616.50, "08": 18122663.40,
+      "09": 17051978.30, "10": 16029550.70, "11": 15142621.40, "12": 14581095.50
+    },
     "custom_sigma": {
-      "01": 36778993.00, "02": 42937439.00, "03": 53484568.00, "04": 59710724.00,
-      "05": 65831789.00, "06": 71293512.00, "07": 76087675.00, "08": 80308311.00,
-      "09": 84068029.00, "10": 87414.08, "11": 90280871.00, "12": 92432232.00
+      "01": 25870318.60, "02": 28066530.60, "03": 32156804.20, "04": 34230567.10,
+      "05": 36186695.40, "06": 40750175.60, "07": 42260175.50, "08": 43789226.90,
+      "09": 45156755.70, "10": 46416710.10, "11": 47578629.00, "12": 48759126.90
     },
 
     // Llaves anteriores para retrocompatibilidad
@@ -244,15 +262,30 @@ export const DEFAULT_PLAN_2027 = {
       "05": 159025595.17, "06": 171576771.39, "07": 181354016.76, "08": 187576482.62,
       "09": 189713411.30, "10": 187576482.62, "11": 181354016.76, "12": 171576771.39
     },
+    "proy_gastos-admin-green": {
+      "01": 1983147.66, "02": 2239573.25, "03": 2035546.26, "04": 2297531.48,
+      "05": 2090332.39, "06": 2358017.03, "07": 2151694.90, "08": 2425223.22,
+      "09": 2668805.60, "10": 2491126.45, "11": 2274265.25, "12": 2559932.30
+    },
     "proy_mas-duo": {
       "01": 98478146.69, "02": 117909832.71, "03": 140378962.23, "04": 166008888.51,
       "05": 194764406.26, "06": 226384076.41, "07": 208248916.65, "08": 236509321.43,
       "09": 264859069.16, "10": 291988474.40, "11": 316386332.73, "12": 336479693.97
     },
+    "proy_gastos-admin-duo": {
+      "01": 729546.91, "02": 971432.22, "03": 752715.22, "04": 999868.64,
+      "05": 777705.09, "06": 1030302.90, "07": 840349.42, "08": 1098582.55,
+      "09": 1326786.83, "10": 1133663.09, "11": 901309.19, "12": 1171455.88
+    },
     "proy_auria": {
       "01": 0.00, "02": 0.00, "03": 0.00, "04": 0.00, "05": 0.00,
       "06": 66154138.13, "07": 72791701.56, "08": 87154943.93,
       "09": 103763361.39, "10": 122708132.46, "11": 143963234.60, "12": 167335420.92
+    },
+    "proy_gastos-admin-auria": {
+      "01": 1492494.50, "02": 2139408.64, "03": 1492494.50, "04": 2151700.05,
+      "05": 1492494.50, "06": 2164224.99, "07": 1492494.50, "08": 2176987.91,
+      "09": 1492494.50, "10": 2189993.32, "11": 1492494.50, "12": 2203245.84
     },
     "proy_tdys": {
       "01": 8224937.50, "02": 7554063.63, "03": 38325000.00, "04": 0.00, "05": 0.00,
@@ -262,29 +295,49 @@ export const DEFAULT_PLAN_2027 = {
 
     // ESTRUCTURA
     "est_rrhh": {
-      "01": 8702355.97, "02": 8702355.97, "03": 8702355.97, "04": 8702355.97,
-      "05": 8702355.97, "06": 8702355.97, "07": 8702355.97, "08": 8702355.97,
-      "09": 8702355.97, "10": 8702355.97, "11": 8702355.97, "12": 8702355.97
+      "01": 8368943.51, "02": 8368943.51, "03": 8368943.51, "04": 8368943.51,
+      "05": 8368943.51, "06": 8368943.51, "07": 8368943.51, "08": 8368943.51,
+      "09": 8368943.51, "10": 8368943.51, "11": 8368943.51, "12": 8368943.51
     },
-    "est_sueldos": {
-      "01": 128796257.84, "02": 128796257.84, "03": 128796257.84, "04": 128796257.84,
-      "05": 128796257.84, "06": 193194386.77, "07": 128796257.84, "08": 128796257.84,
-      "09": 128796257.84, "10": 128796257.84, "11": 128796257.84, "12": 193194386.77
+    "est_sueldos-azlepi": {
+      "01": 95046765.21, "02": 95046765.21, "03": 95046765.21, "04": 95046765.21,
+      "05": 95046765.21, "06": 95046765.21, "07": 95046765.21, "08": 95046765.21,
+      "09": 95046765.21, "10": 95046765.21, "11": 95046765.21, "12": 95046765.21
     },
-    "est_cargas-sociales": {
-      "01": 15559017.66, "02": 15559017.66, "03": 15559017.66, "04": 15559017.66,
-      "05": 15559017.66, "06": 23338526.49, "07": 15559017.66, "08": 15559017.66,
-      "09": 15559017.66, "10": 15559017.66, "11": 15559017.66, "12": 23338526.49
+    "est_sueldos-comercial": {
+      "01": 10827526.21, "02": 10827526.21, "03": 10827526.21, "04": 10827526.21,
+      "05": 10827526.21, "06": 10827526.21, "07": 10827526.21, "08": 10827526.21,
+      "09": 10827526.21, "10": 10827526.21, "11": 10827526.21, "12": 10827526.21
+    },
+    "est_cargas-sociales-azlepi": {
+      "01": 11481966.35, "02": 11481966.35, "03": 11481966.35, "04": 11481966.35,
+      "05": 11481966.35, "06": 11481966.35, "07": 11481966.35, "08": 11481966.35,
+      "09": 11481966.35, "10": 11481966.35, "11": 11481966.35, "12": 11481966.35
+    },
+    "est_cargas-sociales-comercial": {
+      "01": 1308001.29, "02": 1308001.29, "03": 1308001.29, "04": 1308001.29,
+      "05": 1308001.29, "06": 1308001.29, "07": 1308001.29, "08": 1308001.29,
+      "09": 1308001.29, "10": 1308001.29, "11": 1308001.29, "12": 1308001.29
     },
     "est_impuestos": {
       "01": 36437033.58, "02": 36437033.58, "03": 36437033.58, "04": 36437033.58,
       "05": 36437033.58, "06": 36437033.58, "07": 36437033.58, "08": 36437033.58,
       "09": 36437033.58, "10": 36437033.58, "11": 36437033.58, "12": 36437033.58
     },
-    "est_gastos-admin": {
-      "01": 28284198.15, "02": 32389613.43, "03": 28806648.63, "04": 24539869.98,
-      "05": 27031930.98, "06": 25296381.62, "07": 27887914.19, "08": 26164293.89,
-      "09": 32400810.74, "10": 27001562.38, "11": 29623698.63, "12": 27882789.89
+    "est_gastos-admin-link": {
+      "01": 15069529.41, "02": 16021815.06, "03": 15622432.11, "04": 16599500.39,
+      "05": 21848062.79, "06": 17194810.85, "07": 16926983.93, "08": 17957386.22,
+      "09": 17558340.98, "10": 18607291.38, "11": 18218461.12, "12": 19296037.89
+    },
+    "est_gastos-admin-comercial": {
+      "01": 0.00, "02": 0.00, "03": 0.00, "04": 0.00,
+      "05": 0.00, "06": 0.00, "07": 0.00, "08": 0.00,
+      "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
+    },
+    "est_gastos-admin-otros": {
+      "01": 9245212.25, "02": 14220116.44, "03": 9615941.64, "04": 7407386.05,
+      "05": 7355090.45, "06": 7696021.43, "07": 7640050.06, "08": 8033364.00,
+      "09": 9327485.08, "10": 8355504.81, "11": 8262958.46, "12": 8695946.62
     },
     "est_cx": {
       "01": 385818.18, "02": 385818.18, "03": 385818.18, "04": 385818.18,
@@ -321,12 +374,15 @@ export const DEFAULT_PLAN_2027 = {
       "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
     },
     "pas_baja-sposito": {
-      "01": 0.00, "02": 0.00, "03": 0.00, "04": 0.00,
+      "01": 18992116.90, "02": 18992116.90, "03": 18992116.90, "04": 18992116.90,
       "05": 0.00, "06": 0.00, "07": 0.00, "08": 0.00,
       "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
     },
 
     // Retrocompatibilidad con llaves genéricas anteriores
+    "est_sueldos": { "01": 105874291.42, "02": 105874291.42, "03": 105874291.42, "04": 105874291.42, "05": 105874291.42, "06": 105874291.42, "07": 105874291.42, "08": 105874291.42, "09": 105874291.42, "10": 105874291.42, "11": 105874291.42, "12": 105874291.42 },
+    "est_cargas-sociales": { "01": 12789967.64, "02": 12789967.64, "03": 12789967.64, "04": 12789967.64, "05": 12789967.64, "06": 12789967.64, "07": 12789967.64, "08": 12789967.64, "09": 12789967.64, "10": 12789967.64, "11": 12789967.64, "12": 12789967.64 },
+    "est_gastos-admin": { "01": 24314741.66, "02": 30241931.50, "03": 25238373.75, "04": 24006886.44, "05": 29203153.24, "06": 24890832.28, "07": 24567033.99, "08": 25990750.22, "09": 26885826.06, "10": 26962796.19, "11": 26481419.58, "12": 27991984.51 },
     "custom_rrhh": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_administracion": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_inversiones": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
