@@ -133,8 +133,8 @@ export default function PresupuestoAnualTab({
     const rawPlan = planesFondos[selectedYear] || (selectedYear === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026);
     if (selectedYear === "2027" && rawPlan?.ingreso) {
       const cloned = JSON.parse(JSON.stringify(rawPlan));
-      const desactualizado = Number(cloned.ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 270000000
-        || Number(cloned.ingreso?.["custom_ventas-canjes"]?.["01"] || 0) < 90000000
+      const desactualizado = Number(cloned.ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 350000000
+        || Number(cloned.ingreso?.["custom_ventas-paquetes"]?.["01"] || 0) < 180000000
         || !cloned.ingreso?.["custom_sigma-propios"]
         || !cloned.egreso?.["proy_gastos-admin-green"]
         || !cloned.egreso?.["est_sueldos-azlepi"]

@@ -59,22 +59,22 @@ export const PLAN_INCOME_GROUPS_2027 = [
 
 export const PLAN_INCOME_CATS_2027 = [
   // 1. Grupo: Ingresos Comercial / Gestión Comercial
-  { key: "custom_ventas-mostrador", label: "Ventas Mostrador", sublabel: "Venta directa de unidades en pozo", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 38.35 },
-  { key: "custom_ventas-canjes", label: "Canjes", sublabel: "Canjes comerciales de unidades", type: "canjes", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 13.46 },
-  { key: "custom_ventas-paquetes", label: "Paquetes", sublabel: "Venta mayorista de paquetes", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 21.03 },
+  { key: "custom_ventas-mostrador", label: "Ventas Mostrador", sublabel: "Venta directa de unidades en pozo", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 42.19 },
+  { key: "custom_ventas-canjes", label: "Canjes", sublabel: "Canjes comerciales de unidades", type: "canjes", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 11.61 },
+  { key: "custom_ventas-paquetes", label: "Paquetes", sublabel: "Venta mayorista de paquetes", type: "ventas", group: "comercial", groupLabel: "Ingresos Comercial", pctTotal: 22.78 },
   
   // 2. Honorarios Proyectos
-  { key: "custom_honorarios-proyectos", label: "Honorarios Proyectos", sublabel: "Honorarios gerenciamiento de obras", type: "honorarios", group: "honorarios", groupLabel: "Honorarios Proyectos", pctTotal: 7.65 },
+  { key: "custom_honorarios-proyectos", label: "Honorarios Proyectos", sublabel: "Honorarios gerenciamiento de obras", type: "honorarios", group: "honorarios", groupLabel: "Honorarios Proyectos", pctTotal: 6.60 },
   
   // 3. Comercializacion
-  { key: "custom_comercializacion", label: "Comercializacion", sublabel: "Comisiones y comercialización de obras", type: "comercializacion", group: "comercializacion", groupLabel: "Comercializacion", pctTotal: 2.55 },
+  { key: "custom_comercializacion", label: "Comercializacion", sublabel: "Comisiones y comercialización de obras", type: "comercializacion", group: "comercializacion", groupLabel: "Comercializacion", pctTotal: 2.68 },
   
   // 4. Cuenta corriente Clientes
-  { key: "custom_cuotas-mensuales", label: "Cuenta corriente Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "Cuenta corriente Clientes", pctTotal: 13.98 },
+  { key: "custom_cuotas-mensuales", label: "Cuenta corriente Clientes", sublabel: "Cobranzas cuentas corrientes cuotas", type: "clientes", group: "clientes", groupLabel: "Cuenta corriente Clientes", pctTotal: 12.06 },
 
   // 5. SIGMA
-  { key: "custom_sigma-propios", label: "Sigma Proy Propios", sublabel: "Fondos proyectos propios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 3.00 },
-  { key: "custom_sigma-socios", label: "Sigma Proy Socios", sublabel: "Fondos proyectos socios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 2.52 }
+  { key: "custom_sigma-propios", label: "Sigma Proy Propios", sublabel: "Fondos proyectos propios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 2.59 },
+  { key: "custom_sigma-socios", label: "Sigma Proy Socios", sublabel: "Fondos proyectos socios Sigma", type: "sigma", group: "sigma", groupLabel: "SIGMA", pctTotal: 2.17 }
 ];
 
 export const PLAN_INCOME_CATS = PLAN_INCOME_CATS_2027;
@@ -181,9 +181,9 @@ export const DEFAULT_PLAN_2027 = {
   "ingreso": {
     // 1. INGRESOS COMERCIAL (Ventas mostrador, Canjes, Paquetes)
     "custom_ventas-mostrador": {
-      "01": 272560425.09, "02": 272560425.09, "03": 272560425.09, "04": 272560425.09,
-      "05": 272560425.09, "06": 272560425.09, "07": 272560425.09, "08": 272560425.09,
-      "09": 272560425.09, "10": 272560425.09, "11": 272560425.09, "12": 272560425.09
+      "01": 354542650.08, "02": 354542650.08, "03": 354542650.08, "04": 354542650.08,
+      "05": 354542650.08, "06": 354542650.08, "07": 354542650.08, "08": 354542650.08,
+      "09": 354542650.08, "10": 354542650.08, "11": 354542650.08, "12": 272560425.09
     },
     "custom_ventas-canjes": {
       "01": 95666281.76, "02": 95666281.76, "03": 95666281.76, "04": 95666281.76,
@@ -191,9 +191,9 @@ export const DEFAULT_PLAN_2027 = {
       "09": 95666281.76, "10": 95666281.76, "11": 95666281.76, "12": 95666281.76
     },
     "custom_ventas-paquetes": {
-      "01": 149490403.48, "02": 149490403.48, "03": 149490403.48, "04": 149490403.48,
-      "05": 149490403.48, "06": 149490403.48, "07": 149490403.48, "08": 149490403.48,
-      "09": 149490403.48, "10": 149490403.48, "11": 149490403.48, "12": 149490403.48
+      "01": 187757179.20, "02": 187757179.20, "03": 187757179.20, "04": 187757179.20,
+      "05": 187757179.20, "06": 187757179.20, "07": 187757179.20, "08": 187757179.20,
+      "09": 187757179.20, "10": 187757179.20, "11": 187757179.20, "12": 187757179.20
     },
 
     // 2. HONORARIOS PROYECTOS
@@ -205,9 +205,9 @@ export const DEFAULT_PLAN_2027 = {
 
     // 3. COMERCIALIZACION
     "custom_comercializacion": {
-      "01": 18120098.86, "02": 18120098.86, "03": 18120098.86, "04": 18120098.86,
-      "05": 18120098.86, "06": 18120098.86, "07": 18120098.86, "08": 18120098.86,
-      "09": 18120098.86, "10": 18120098.86, "11": 18120098.86, "12": 18120098.86
+      "01": 22328813.89, "02": 22328813.89, "03": 22328813.89, "04": 22328813.89,
+      "05": 22328813.89, "06": 22328813.89, "07": 22328813.89, "08": 22328813.89,
+      "09": 22328813.89, "10": 22328813.89, "11": 22328813.89, "12": 19459436.01
     },
 
     // 4. CUENTA CORRIENTE CLIENTES

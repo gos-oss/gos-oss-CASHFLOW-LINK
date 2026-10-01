@@ -370,8 +370,8 @@ export default function App() {
         || !planesTemporales["2027"].egreso["est_sueldos-azlepi"]
         || !planesTemporales["2027"].egreso["pas_baja-sposito"]
         || !planesTemporales["2027"].ingreso?.["custom_sigma-propios"]
-        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 270000000
-        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-canjes"]?.["01"] || 0) < 90000000;
+        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 350000000
+        || Number(planesTemporales["2027"].ingreso?.["custom_ventas-paquetes"]?.["01"] || 0) < 180000000;
       if (necesitaMigracion2027) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
         await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
