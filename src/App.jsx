@@ -20,8 +20,10 @@ import {
   ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
   CalendarDays, Calendar, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
   Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2, Clock,
-  ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Sparkles, Plus
+  ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Sparkles, Plus,
+  Menu, X, Smartphone
 } from "lucide-react";
+import { PWAInstallButton } from "./PWAInstallButton";
 
 import PresupuestoAnualTab from "./PresupuestoAnualTab";
 import StockDisponibleTab from "./StockDisponibleTab";
@@ -79,6 +81,106 @@ const globalStyles = `
   .custom-pie-tooltip {
     background: #fff; border: 1px solid ${colorLineaFuerte}; border-radius: 6px; 
     padding: 8px 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-family: ${tokens.fontBody};
+  }
+
+  /* --- ADAPTACIÓN RESPONSIVE CELULARES / SMARTPHONES --- */
+  @media (max-width: 768px) {
+    .desktop-sidebar {
+      position: fixed !important;
+      left: 0 !important;
+      top: 0 !important;
+      bottom: 0 !important;
+      z-index: 1000 !important;
+      box-shadow: 8px 0 28px rgba(0,0,0,0.5) !important;
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      width: 275px !important;
+      max-width: 85vw !important;
+    }
+    .desktop-sidebar.closed {
+      transform: translateX(-105%) !important;
+    }
+    .desktop-sidebar.open {
+      transform: translateX(0) !important;
+    }
+    .mobile-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(3px);
+      z-index: 999;
+    }
+    .mobile-topbar {
+      display: flex !important;
+    }
+    .mobile-bottomnav {
+      display: flex !important;
+    }
+    .mobile-bottomnav-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: transparent;
+      border: none;
+      padding: 6px 4px;
+      border-radius: 8px;
+      color: #94A3B8;
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex: 1;
+      max-width: 80px;
+    }
+    .mobile-bottomnav-btn.active {
+      color: #E2A03F !important;
+      background: rgba(226, 160, 63, 0.12) !important;
+      font-weight: 700 !important;
+    }
+    .main-canvas {
+      padding: 14px 12px 90px 12px !important;
+      width: 100% !important;
+      max-width: 100vw !important;
+      overflow-x: hidden !important;
+    }
+    .desktop-only {
+      display: none !important;
+    }
+    .table-container {
+      max-height: calc(100vh - 210px) !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+  }
+
+  @media (min-width: 769px) {
+    .desktop-sidebar {
+      transform: none !important;
+      position: sticky !important;
+      width: 232px !important;
+    }
+    .mobile-backdrop {
+      display: none !important;
+    }
+    .mobile-topbar {
+      display: none !important;
+    }
+    .mobile-bottomnav {
+      display: none !important;
+    }
+    .main-canvas {
+      padding: 32px 40px !important;
+    }
+    .mobile-only {
+      display: none !important;
+    }
+  }
+
+  /* Touch scrolling optimizado para tablas en celulares */
+  .table-container, .table-scroll, .flujo-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+    max-width: 100%;
   }
   
   .recharts-legend-item-text { color: #94A3B8 !important; }
@@ -267,9 +369,19 @@ export default function App() {
   const [fechaTC, setFechaTC] = useState(todayISO());
   const [valorTC, setValorTC] = useState("");
   const [vistaMonitor, setVistaMonitor] = useState("ejecutivo"); // "ejecutivo" | "indicadores" | "externo"
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [liveDolarQuotes, setLiveDolarQuotes] = useState([]);
   const [testSupabaseStatus, setTestSupabaseStatus] = useState(null);
   const [probandoSupabase, setProbandoSupabase] = useState(false);
+
+  const tcActual = useMemo(() => {
+    if (tcList && tcList.length > 0) {
+      const sorted = [...tcList].sort((a, b) => b.fecha_corte.localeCompare(a.fecha_corte));
+      const val = Number(sorted[0].saldo_efectivo);
+      if (val > 0) return val;
+    }
+    return 1550;
+  }, [tcList]);
 
   const getTC = useCallback((date) => {
     if (!tcList || tcList.length === 0) return 1;
@@ -869,12 +981,60 @@ export default function App() {
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: tokens.ink, color: "#fff", fontFamily: tokens.fontBody }}><style>{fontImport}</style>Iniciando entorno seguro…</div>;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: tokens.paper, fontFamily: tokens.fontBody, color: tokens.text, position: "relative" }}>
       <style>{globalStyles}</style>
 
-      {/* ---------- SIDEBAR ---------- */}
-      <aside style={{ width: 232, flexShrink: 0, background: tokens.ink, color: "#fff", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
-        <div style={{ borderBottom: `1px solid ${tokens.inkRule}` }}>
+      {/* Backdrop oscuro para celular cuando el menú está abierto */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-label="Cerrar menú lateral"
+        />
+      )}
+
+      {/* ---------- SIDEBAR (Drawer en celular / Barra lateral fija en desktop) ---------- */}
+      <aside
+        className={`desktop-sidebar ${mobileMenuOpen ? "open" : "closed"}`}
+        style={{
+          width: 232,
+          flexShrink: 0,
+          background: tokens.ink,
+          color: "#fff",
+          display: "flex",
+          flexDirection: "column",
+          position: "sticky",
+          top: 0,
+          height: "100vh",
+          zIndex: 1000
+        }}
+      >
+        <div style={{ borderBottom: `1px solid ${tokens.inkRule}`, position: "relative" }}>
+          {/* Botón cerrar para celulares */}
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="mobile-only"
+            style={{
+              position: "absolute",
+              top: 10,
+              right: 10,
+              background: "rgba(255,255,255,0.18)",
+              border: "none",
+              borderRadius: "50%",
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              cursor: "pointer",
+              zIndex: 10
+            }}
+            title="Cerrar menú"
+          >
+            <X size={16} />
+          </button>
+
           <img src="/link-banner.png" alt="LINK" style={{ width: "100%", height: "85px", objectFit: "cover", objectPosition: "left center", display: "block" }} />
           <div style={{ padding: "14px 20px 16px" }}>
             <div style={{ fontFamily: tokens.fontDisplay, fontSize: 18, fontWeight: 600, letterSpacing: "0.2px" }}>Finanzas</div>
@@ -889,21 +1049,109 @@ export default function App() {
           <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis?.deficitActual ? "#E0897A" : kpis?.sinQuemaNeta ? "#7FD9BE" : "#fff" }}>{!kpis ? "—" : kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} d.`}</div>
         </div>
 
-        <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 2 }}>
+        <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
           {NAV.map((n) => {
             const Icon = n.icon;
             const active = tab === n.id;
             return (
-              <button key={n.id} onClick={() => setTab(n.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 6, border: "none", cursor: "pointer", textAlign: "left", fontFamily: tokens.fontBody, fontSize: 13.5, fontWeight: active ? 600 : 500, background: active ? tokens.inkSoft : "transparent", color: active ? "#fff" : "#9AA3B8" }}>
+              <button
+                key={n.id}
+                onClick={() => {
+                  setTab(n.id);
+                  setMobileMenuOpen(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  fontFamily: tokens.fontBody,
+                  fontSize: 13.5,
+                  fontWeight: active ? 600 : 500,
+                  background: active ? tokens.inkSoft : "transparent",
+                  color: active ? "#fff" : "#9AA3B8"
+                }}
+              >
                 <Icon size={16} /> {n.label}
               </button>
             );
           })}
         </nav>
+
+        {/* Botón PWA para instalar como App en el celular */}
+        <div style={{ padding: "12px 14px", borderTop: `1px solid ${tokens.inkRule}` }}>
+          <PWAInstallButton />
+        </div>
       </aside>
 
-      {/* ---------- CANVAS ---------- */}
-      <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* ÁREA DE CONTENIDO PRINCIPAL */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, width: "100%", position: "relative" }}>
+        {/* Cabecera superior para celulares (Mobile Topbar) */}
+        <header
+          className="mobile-topbar"
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 900,
+            background: tokens.ink,
+            color: "#fff",
+            padding: "10px 14px",
+            display: "none",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: `1px solid ${tokens.inkRule}`,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.18)"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Abrir menú"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: `1px solid ${tokens.inkRule}`,
+                borderRadius: 6,
+                color: "#fff",
+                padding: "7px 9px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer"
+              }}
+            >
+              <Menu size={19} />
+            </button>
+            <div>
+              <div style={{ fontFamily: tokens.fontDisplay, fontSize: 15, fontWeight: 700, letterSpacing: "0.2px", lineHeight: 1.15 }}>CASHFLOW LINK</div>
+              <div style={{ fontSize: 10, color: "#8590A6", textTransform: "capitalize" }}>
+                {NAV.find(n => n.id === tab)?.label || "Finanzas"}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <PWAInstallButton compact={true} />
+            <div style={{
+              background: "rgba(255,255,255,0.07)",
+              border: `1px solid ${tokens.inkRule}`,
+              padding: "4px 8px",
+              borderRadius: 6,
+              textAlign: "right"
+            }}>
+              <div style={{ fontSize: 8.5, color: "#8590A6", textTransform: "uppercase", fontWeight: 700 }}>Caja</div>
+              <div style={{ fontFamily: tokens.fontMono, fontSize: 11.5, fontWeight: 700, color: kpis && kpis.liquidez < 0 ? "#E0897A" : "#7FD9BE" }}>
+                ${kpis ? (Math.round(kpis.liquidez / 1000000)).toLocaleString("es-AR") + "M" : "—"}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* ---------- CANVAS ---------- */}
+        <main className="main-canvas" style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
         
         {tab === "resumen" && (
           <ResumenTab
@@ -1440,8 +1688,94 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Barra de navegación inferior fija para celular (Mobile Bottom Nav) */}
+      <nav
+        className="mobile-bottomnav"
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 950,
+          background: "#0F172A",
+          borderTop: "1px solid #1E293B",
+          boxShadow: "0 -4px 16px rgba(0,0,0,0.25)",
+          padding: "6px 4px",
+          paddingBottom: "max(6px, env(safe-area-inset-bottom, 6px))",
+          display: "none",
+          justifyContent: "space-around",
+          alignItems: "center"
+        }}
+      >
+        <button
+          onClick={() => { setTab("resumen"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "resumen" ? "active" : ""}`}
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
+            color: tab === "resumen" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+          }}
+        >
+          <Compass size={18} />
+          <span style={{ fontSize: 10, fontWeight: tab === "resumen" ? 700 : 500 }}>Resumen</span>
+        </button>
+
+        <button
+          onClick={() => { setTab("presupuesto"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "presupuesto" ? "active" : ""}`}
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
+            color: tab === "presupuesto" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+          }}
+        >
+          <BarChart3 size={18} />
+          <span style={{ fontSize: 10, fontWeight: tab === "presupuesto" ? 700 : 500 }}>Plan 2027</span>
+        </button>
+
+        <button
+          onClick={() => { setTab("monitor"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "monitor" ? "active" : ""}`}
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
+            color: tab === "monitor" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+          }}
+        >
+          <Activity size={18} />
+          <span style={{ fontSize: 10, fontWeight: tab === "monitor" ? 700 : 500 }}>Monitor</span>
+        </button>
+
+        <button
+          onClick={() => { setTab("movimientos"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "movimientos" ? "active" : ""}`}
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
+            color: tab === "movimientos" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+          }}
+        >
+          <ListChecks size={18} />
+          <span style={{ fontSize: 10, fontWeight: tab === "movimientos" ? 700 : 500 }}>13 Sem</span>
+        </button>
+
+        <button
+          onClick={() => setMobileMenuOpen(prev => !prev)}
+          className={`mobile-bottomnav-btn ${mobileMenuOpen ? "active" : ""}`}
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
+            color: mobileMenuOpen ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+          }}
+        >
+          <Menu size={18} />
+          <span style={{ fontSize: 10, fontWeight: mobileMenuOpen ? 700 : 500 }}>Más</span>
+        </button>
+      </nav>
     </div>
-  );
+  </div>
+);
 }
 
 const fieldInputStyle = { width: "100%", padding: "8px 10px", border: `1px solid ${colorLineaFuerte}`, borderRadius: 5, fontSize: 13, fontFamily: tokens.fontBody, outline: "none", boxSizing: "border-box" };
