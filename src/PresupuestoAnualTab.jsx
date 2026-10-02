@@ -747,7 +747,7 @@ export default function PresupuestoAnualTab({
           </p>
         </div>
         
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 10, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4, maxWidth: "100%" }}>
           
           {/* SELECTOR DE MONEDA: PESOS ($ ARS) vs DÓLARES (USD) */}
           {view === "presupuesto" && (
@@ -759,7 +759,8 @@ export default function PresupuestoAnualTab({
               borderRadius: 8,
               padding: "3px 6px",
               border: "1.5px solid #CBD5E1",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+              flexShrink: 0
             }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
                 Moneda:
@@ -1094,7 +1095,7 @@ export default function PresupuestoAnualTab({
       {view === "presupuesto" && (
         <>
           {/* ── TARJETAS KPIS EJECUTIVAS ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+          <div className="responsive-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
             
             {/* KPI 1: INGRESOS */}
             <div style={{

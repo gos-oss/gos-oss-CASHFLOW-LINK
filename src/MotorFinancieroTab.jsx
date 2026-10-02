@@ -2014,7 +2014,7 @@ export default function MotorFinancieroTab({
               <Scale size={18} color={tokens.gold} /> Impacto en el Negocio vs. Presupuesto Base ({selectedYear})
             </h3>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+            <div className="responsive-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
               
               {/* DÍAS DE CAJA */}
               <div style={{ background: "#161F35", borderRadius: 8, padding: 16, border: "1px solid #2A3654" }}>

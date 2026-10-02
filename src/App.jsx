@@ -111,9 +111,14 @@ const globalStyles = `
     }
     .mobile-topbar {
       display: flex !important;
+      padding-top: max(14px, env(safe-area-inset-top, 14px)) !important;
+      padding-bottom: 12px !important;
+      padding-left: max(14px, env(safe-area-inset-left, 14px)) !important;
+      padding-right: max(14px, env(safe-area-inset-right, 14px)) !important;
     }
     .mobile-bottomnav {
       display: flex !important;
+      padding-bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
     }
     .mobile-bottomnav-btn {
       display: flex;
@@ -139,17 +144,51 @@ const globalStyles = `
       font-weight: 700 !important;
     }
     .main-canvas {
-      padding: 14px 12px 90px 12px !important;
+      padding: 16px 14px calc(80px + env(safe-area-inset-bottom, 20px)) 14px !important;
       width: 100% !important;
       max-width: 100vw !important;
-      overflow-x: hidden !important;
+      overflow-x: clip !important;
+      box-sizing: border-box !important;
     }
     .desktop-only {
       display: none !important;
     }
     .table-container {
       max-height: calc(100vh - 210px) !important;
+      overflow-x: auto !important;
       -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-x pan-y !important;
+    }
+    .horizontal-scroll-menu {
+      display: flex !important;
+      align-items: center !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-x !important;
+      max-width: 100% !important;
+      white-space: nowrap !important;
+      scrollbar-width: thin !important;
+      padding-bottom: 4px !important;
+    }
+    .horizontal-scroll-menu > * {
+      flex-shrink: 0 !important;
+    }
+    .responsive-kpi-grid {
+      display: grid !important;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+      gap: 14px !important;
+    }
+    @media (max-width: 640px) {
+      .responsive-kpi-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .sticky-col, th.sticky-col, td.sticky-col {
+        min-width: 140px !important;
+        max-width: 170px !important;
+        font-size: 11px !important;
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+      }
     }
   }
 
@@ -1194,7 +1233,7 @@ export default function App() {
                   Situación actual de caja, ingresos/egresos y necesidad de caja mensual, stock por proyecto y valuación total, e indicadores clave.
                 </p>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#F1F5F9", padding: 4, borderRadius: 8 }}>
+              <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 6, background: "#F1F5F9", padding: 4, borderRadius: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", maxWidth: "100%" }}>
                 <button
                   onClick={() => setVistaMonitor("ejecutivo")}
                   style={{
@@ -1202,7 +1241,8 @@ export default function App() {
                     background: vistaMonitor === "ejecutivo" ? tokens.ink : "transparent",
                     color: vistaMonitor === "ejecutivo" ? "#FFFFFF" : tokens.textMuted,
                     border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                    boxShadow: vistaMonitor === "ejecutivo" ? "0 1px 3px rgba(0,0,0,0.15)" : "none"
+                    boxShadow: vistaMonitor === "ejecutivo" ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
+                    flexShrink: 0
                   }}
                 >
                   <Activity size={14} color={vistaMonitor === "ejecutivo" ? tokens.gold : "currentColor"} />
@@ -1215,7 +1255,8 @@ export default function App() {
                     background: vistaMonitor === "indicadores" ? tokens.ink : "transparent",
                     color: vistaMonitor === "indicadores" ? "#FFFFFF" : tokens.textMuted,
                     border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                    boxShadow: vistaMonitor === "indicadores" ? "0 1px 3px rgba(0,0,0,0.15)" : "none"
+                    boxShadow: vistaMonitor === "indicadores" ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
+                    flexShrink: 0
                   }}
                 >
                   <BarChart3 size={14} color={vistaMonitor === "indicadores" ? tokens.gold : "currentColor"} />
@@ -1228,7 +1269,8 @@ export default function App() {
                     background: vistaMonitor === "externo" ? tokens.ink : "transparent",
                     color: vistaMonitor === "externo" ? "#FFFFFF" : tokens.textMuted,
                     border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                    boxShadow: vistaMonitor === "externo" ? "0 1px 3px rgba(0,0,0,0.15)" : "none"
+                    boxShadow: vistaMonitor === "externo" ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
+                    flexShrink: 0
                   }}
                 >
                   <Sparkles size={14} color={vistaMonitor === "externo" ? tokens.gold : "currentColor"} />
@@ -2271,7 +2313,7 @@ function ResumenTab({
       </div>
 
       {/* 2. BENTO GRID DE KPIS EJECUTIVOS */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+      <div className="responsive-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
         
         {/* KPI 1: HERO - LIQUIDEZ Y TESORERÍA ACTUAL */}
         <div style={{
@@ -2284,7 +2326,8 @@ function ResumenTab({
           justifyContent: "space-between",
           boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
           position: "relative",
-          overflow: "hidden"
+          overflow: "hidden",
+          minWidth: 0
         }}>
           <div style={{
             position: "absolute",
@@ -2618,7 +2661,7 @@ function ResumenTab({
           paddingTop: 16,
           borderTop: `1px solid ${colorLineaSuave}`,
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
           gap: 16
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

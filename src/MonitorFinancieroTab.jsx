@@ -123,7 +123,8 @@ export default function MonitorFinancieroTab({
     const activeIncomeCats = ejercicio === "2027" ? PLAN_INCOME_CATS_2027 : PLAN_INCOME_CATS_2026;
     const activeExpenseCats = ejercicio === "2027" ? PLAN_EXPENSE_CATS_2027 : (PLAN_EXPENSE_CATS || []);
 
-    let saldoAcumulado = situacionActual.liquidezARS;
+    let saldoAcumuladoConCaja = situacionActual.liquidezARS;
+    let saldoAcumuladoPuro = 0;
 
     return MESES.map((m) => {
       let totIng = 0;
@@ -137,7 +138,8 @@ export default function MonitorFinancieroTab({
       });
 
       const flujoNeto = totIng - totEg;
-      saldoAcumulado += flujoNeto;
+      saldoAcumuladoConCaja += flujoNeto;
+      saldoAcumuladoPuro += flujoNeto;
 
       // Necesidad de caja mensual: déficit de fondos del mes que debe fondearse
       const necesidadCaja = flujoNeto < 0 ? Math.abs(flujoNeto) : 0;
@@ -155,16 +157,18 @@ export default function MonitorFinancieroTab({
         flujoNeto: flujoNeto / div,
         necesidadCaja: necesidadCaja / div,
         superavit: superavit / div,
-        saldoAcumulado: saldoAcumulado / div,
+        saldoAcumulado: saldoAcumuladoPuro / div,
+        saldoConCajaInicial: saldoAcumuladoConCaja / div,
         rawIngresos: totIng,
         rawEgresos: totEg,
         rawFlujoNeto: flujoNeto,
         rawNecesidadCaja: necesidadCaja,
-        rawSaldoAcumulado: saldoAcumulado,
+        rawSaldoAcumulado: saldoAcumuladoPuro,
+        rawSaldoConCajaInicial: saldoAcumuladoConCaja,
         esDeficitario: flujoNeto < 0
       };
     });
-  }, [planActual, situacionActual.liquidezARS, moneda, tcReferencia]);
+  }, [planActual, situacionActual.liquidezARS, moneda, tcReferencia, ejercicio]);
 
   const metricasPlan = useMemo(() => {
     const totalIng = datosMensuales.reduce((acc, cur) => acc + cur.rawIngresos, 0);
@@ -490,9 +494,9 @@ export default function MonitorFinancieroTab({
         </div>
 
         {/* CONTROLES DE EJERCICIO Y MONEDA */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 12, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 }}>
           {/* Selector de Moneda */}
-          <div style={{ display: "flex", alignItems: "center", background: "#F1F5F9", borderRadius: 8, padding: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", background: "#F1F5F9", borderRadius: 8, padding: 3, flexShrink: 0 }}>
             <button
               onClick={() => setMoneda("ARS")}
               style={{
@@ -530,7 +534,7 @@ export default function MonitorFinancieroTab({
           </div>
 
           {/* Selector de Ejercicio */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: `1px solid ${colorLineaSuave}`, paddingLeft: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: `1px solid ${colorLineaSuave}`, paddingLeft: 12, flexShrink: 0 }}>
             <span style={{ fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>Plan:</span>
             {["2027", "2026"].map((y) => (
               <button
@@ -560,7 +564,8 @@ export default function MonitorFinancieroTab({
             border: `1px solid ${colorLineaSuave}`,
             padding: "5px 10px",
             borderRadius: 6,
-            fontFamily: tokens.fontMono
+            fontFamily: tokens.fontMono,
+            flexShrink: 0
           }}>
             TC Ref: <strong>${fmt(tcReferencia)}</strong>
           </div>
@@ -938,18 +943,33 @@ export default function MonitorFinancieroTab({
                 </td>
               </tr>
 
-              {/* FILA: SALDO DE CAJA ACUMULADO */}
+              {/* FILA: SALDO ACUMULADO DEL PRESUPUESTO (COINCIDE EXACTO CON LA PLANILLA) */}
               <tr style={{ background: tokens.ink, color: "#FFFFFF" }}>
                 <td style={{ textAlign: "left", padding: "11px 14px", fontWeight: 700, color: "#FFFFFF" }}>
-                  Saldo Caja Acumulado Estimado
+                  Saldo Acumulado en el Año ({ejercicio})
                 </td>
                 {datosMensuales.map(m => (
                   <td key={m.mesId} style={{ padding: "11px 12px", fontFamily: tokens.fontMono, fontWeight: 700, color: m.saldoAcumulado >= 0 ? "#86EFAC" : "#FCA5A5" }}>
-                    {fmt(m.saldoAcumulado)}
+                    {m.saldoAcumulado >= 0 ? `+${fmt(m.saldoAcumulado)}` : fmt(m.saldoAcumulado)}
                   </td>
                 ))}
-                <td style={{ padding: "11px 14px", fontFamily: tokens.fontMono, fontWeight: 800, color: "#FDE68A", background: "#0B1120" }}>
-                  {fmt(datosMensuales[datosMensuales.length - 1]?.saldoAcumulado || 0)}
+                <td style={{ padding: "11px 14px", fontFamily: tokens.fontMono, fontWeight: 800, color: metricasPlan.balanceNeto >= 0 ? "#86EFAC" : "#FCA5A5", background: "#0B1120" }}>
+                  {metricasPlan.balanceNeto >= 0 ? `+${fmt(metricasPlan.balanceNeto)}` : fmt(metricasPlan.balanceNeto)}
+                </td>
+              </tr>
+
+              {/* FILA COMPLEMENTARIA: POSICIÓN DE CAJA CON LIQUIDEZ INICIAL DE TESORERÍA */}
+              <tr style={{ background: "#0F172A", color: "#94A3B8", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                <td style={{ textAlign: "left", padding: "9px 14px", fontSize: 11, color: "#CBD5E1", fontWeight: 600 }}>
+                  💼 Proyección con Caja Inicial ({moneda === "USD" ? "U$D " : "$ "}{fmt(situacionActual.liquidezARS / (moneda === "USD" ? (tcReferencia || 1) : 1))})
+                </td>
+                {datosMensuales.map(m => (
+                  <td key={m.mesId} style={{ padding: "9px 12px", fontFamily: tokens.fontMono, fontSize: 11, color: m.saldoConCajaInicial >= 0 ? "#93C5FD" : "#FCA5A5" }}>
+                    {fmt(m.saldoConCajaInicial)}
+                  </td>
+                ))}
+                <td style={{ padding: "9px 14px", fontFamily: tokens.fontMono, fontSize: 11, fontWeight: 700, color: "#FDE68A", background: "#020617" }}>
+                  {fmt(datosMensuales[datosMensuales.length - 1]?.saldoConCajaInicial || 0)}
                 </td>
               </tr>
             </tbody>
