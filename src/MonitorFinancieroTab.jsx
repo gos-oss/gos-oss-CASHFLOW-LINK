@@ -966,14 +966,25 @@ export default function MonitorFinancieroTab({
               <Tooltip
                 formatter={(val, name) => [
                   `${moneda === "USD" ? "U$D " : "$ "}${fmt(val)}`,
-                  name === "ingresos" ? "Ingresos Proyectados" : name === "egresos" ? "Egresos Proyectados" : "Flujo Neto"
+                  name === "saldoAcumulado"
+                    ? "Saldo Caja Acumulado"
+                    : name === "ingresos"
+                    ? "Ingresos Proyectados"
+                    : name === "egresos"
+                    ? "Egresos Proyectados"
+                    : "Flujo Neto"
                 ]}
                 contentStyle={{ background: "#FFFFFF", border: `1px solid ${colorLineaSuave}`, borderRadius: 8, fontSize: 12 }}
               />
               <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="ingresos" name="Ingresos Proyectados" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              <Bar dataKey="egresos" name="Egresos Proyectados" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              <Line type="monotone" dataKey="flujoNeto" name="Flujo Neto Mensual" stroke={tokens.gold} strokeWidth={3} dot={{ r: 4, fill: tokens.gold }} />
+              <Bar dataKey="saldoAcumulado" name="Saldo Caja Acumulado" fill="#38BDF8" fillOpacity={0.7} radius={[4, 4, 0, 0]} maxBarSize={30}>
+                {datosMensuales.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.saldoAcumulado >= 0 ? "#38BDF8" : "#F87171"} fillOpacity={0.75} />
+                ))}
+              </Bar>
+              <Line type="monotone" dataKey="ingresos" name="Ingresos Proyectados" stroke="#10B981" strokeWidth={3} dot={{ r: 4, fill: "#10B981" }} />
+              <Line type="monotone" dataKey="egresos" name="Egresos Proyectados" stroke="#EF4444" strokeWidth={3} dot={{ r: 4, fill: "#EF4444" }} />
+              <Line type="monotone" dataKey="flujoNeto" name="Flujo Neto Mensual" stroke={tokens.gold} strokeWidth={2} strokeDasharray="3 3" dot={{ r: 3, fill: tokens.gold }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

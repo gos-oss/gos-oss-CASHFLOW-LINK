@@ -1545,13 +1545,14 @@ export default function PresupuestoAnualTab({
                     Curva de Evolución Financiera Mensual {selectedYear} ({moneda === "USD" ? (enMillones ? "en Miles de USD / kUSD" : "en USD") : (enMillones ? "en Millones de $" : "en $")})
                   </h3>
                   <p style={{ margin: "2px 0 0 0", fontSize: 12, color: "#64748B" }}>
-                    Comportamiento mes a mes de Ingresos, Egresos y la Brecha Neta resultante ({moneda === "USD" ? `expresado en Dólares al TC $${fmt(tcReferencia)}` : "expresado en Pesos Argentinos"}).
+                    Comportamiento mes a mes de Ingresos y Egresos (en líneas) junto al Saldo Acumulado (en barras) ({moneda === "USD" ? `expresado en Dólares al TC $${fmt(tcReferencia)}` : "expresado en Pesos Argentinos"}).
                   </p>
                 </div>
-                <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#64748B", fontWeight: 600 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 4, background: "#10B981", borderRadius: 2 }} /> Ingresos</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 4, background: "#EF4444", borderRadius: 2 }} /> Egresos</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 4, background: tokens.gold, borderRadius: 2 }} /> Flujo Neto</span>
+                <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#64748B", fontWeight: 600, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 10, background: "#38BDF8", borderRadius: 2 }} /> Saldo Acumulado (Barras)</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 3, background: "#10B981", borderRadius: 2 }} /> Ingresos (Línea)</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 3, background: "#EF4444", borderRadius: 2 }} /> Egresos (Línea)</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 3, background: tokens.gold, borderRadius: 2, borderTop: `2px dashed ${tokens.gold}` }} /> Flujo Neto</span>
                   {simulacionActiva && (
                     <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 0, borderTop: "2px dashed #94A3B8" }} /> Base original</span>
                   )}
@@ -1579,6 +1580,7 @@ export default function PresupuestoAnualTab({
                       labelStyle={{ color: "#0F172A", fontWeight: 700, marginBottom: 4 }}
                       formatter={(val, name) => {
                         const labels = {
+                          acumSim: "Saldo Acumulado",
                           ingresoSim: "Ingresos",
                           egresoSim: "Egresos",
                           netoSim: "Resultado Neto",
@@ -1600,9 +1602,14 @@ export default function PresupuestoAnualTab({
                         <Line type="monotone" dataKey="egresoBase" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
                       </>
                     )}
-                    <Bar dataKey="ingresoSim" fill="#10B981" fillOpacity={0.85} radius={[4, 4, 0, 0]} maxBarSize={22} />
-                    <Bar dataKey="egresoSim" fill="#EF4444" fillOpacity={0.8} radius={[4, 4, 0, 0]} maxBarSize={22} />
-                    <Line type="monotone" dataKey="netoSim" stroke={tokens.gold} strokeWidth={2.5} dot={{ r: 4, fill: tokens.gold }} />
+                    <Bar dataKey="acumSim" name="Saldo Acumulado" fill="#38BDF8" fillOpacity={0.7} radius={[4, 4, 0, 0]} maxBarSize={28}>
+                      {evolucionMensual.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.acumSim >= 0 ? "#38BDF8" : "#F87171"} fillOpacity={0.75} />
+                      ))}
+                    </Bar>
+                    <Line type="monotone" dataKey="ingresoSim" name="Ingresos" stroke="#10B981" strokeWidth={3} dot={{ r: 4, fill: "#10B981" }} />
+                    <Line type="monotone" dataKey="egresoSim" name="Egresos" stroke="#EF4444" strokeWidth={3} dot={{ r: 4, fill: "#EF4444" }} />
+                    <Line type="monotone" dataKey="netoSim" name="Resultado Neto" stroke={tokens.gold} strokeWidth={2} strokeDasharray="3 3" dot={{ r: 3, fill: tokens.gold }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
