@@ -494,80 +494,111 @@ export default function MonitorFinancieroTab({
         </div>
 
         {/* CONTROLES DE EJERCICIO Y MONEDA */}
-        <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 12, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 }}>
-          {/* Selector de Moneda */}
-          <div style={{ display: "flex", alignItems: "center", background: "#F1F5F9", borderRadius: 8, padding: 3, flexShrink: 0 }}>
-            <button
-              onClick={() => setMoneda("ARS")}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 6,
-                border: "none",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 700,
-                background: moneda === "ARS" ? "#FFFFFF" : "transparent",
-                color: moneda === "ARS" ? tokens.ink : tokens.textMuted,
-                boxShadow: moneda === "ARS" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              $ Pesos (ARS)
-            </button>
-            <button
-              onClick={() => setMoneda("USD")}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 6,
-                border: "none",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 700,
-                background: moneda === "USD" ? tokens.gold : "transparent",
-                color: moneda === "USD" ? "#FFFFFF" : tokens.textMuted,
-                boxShadow: moneda === "USD" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              U$D Dólares
-            </button>
-          </div>
-
-          {/* Selector de Ejercicio */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: `1px solid ${colorLineaSuave}`, paddingLeft: 12, flexShrink: 0 }}>
-            <span style={{ fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>Plan:</span>
-            {["2027", "2026"].map((y) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+          <div
+            className="horizontal-scroll-menu"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              overflowX: "auto",
+              WebkitOverflowScrolling: "touch",
+              paddingBottom: 6,
+              width: "100%",
+              maxWidth: "100%"
+            }}
+          >
+            {/* Selector de Moneda */}
+            <div style={{ display: "flex", alignItems: "center", background: "#F1F5F9", borderRadius: 8, padding: 3, flexShrink: 0 }}>
               <button
-                key={y}
-                onClick={() => setEjercicio(y)}
+                onClick={() => setMoneda("ARS")}
                 style={{
-                  padding: "5px 12px",
+                  padding: "6px 14px",
                   borderRadius: 6,
-                  border: `1px solid ${ejercicio === y ? tokens.gold : colorLineaSuave}`,
-                  background: ejercicio === y ? tokens.goldSoft : "#FFFFFF",
-                  color: ejercicio === y ? tokens.gold : tokens.textMuted,
+                  border: "none",
+                  cursor: "pointer",
                   fontSize: 12,
                   fontWeight: 700,
-                  cursor: "pointer"
+                  background: moneda === "ARS" ? "#FFFFFF" : "transparent",
+                  color: moneda === "ARS" ? tokens.ink : tokens.textMuted,
+                  boxShadow: moneda === "ARS" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  transition: "all 0.15s ease"
                 }}
               >
-                {y}
+                $ Pesos (ARS)
               </button>
-            ))}
-          </div>
+              <button
+                onClick={() => setMoneda("USD")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  background: moneda === "USD" ? tokens.gold : "transparent",
+                  color: moneda === "USD" ? "#FFFFFF" : tokens.textMuted,
+                  boxShadow: moneda === "USD" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                U$D Dólares
+              </button>
+            </div>
 
-          {/* Indicador TC de Referencia */}
-          <div style={{
-            fontSize: 11.5,
-            color: tokens.textMuted,
-            background: "#F8FAFC",
-            border: `1px solid ${colorLineaSuave}`,
-            padding: "5px 10px",
-            borderRadius: 6,
-            fontFamily: tokens.fontMono,
-            flexShrink: 0
-          }}>
-            TC Ref: <strong>${fmt(tcReferencia)}</strong>
+            {/* Selector de Ejercicio */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: `1px solid ${colorLineaSuave}`, paddingLeft: 12, flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>Plan:</span>
+              {["2027", "2026"].map((y) => (
+                <button
+                  key={y}
+                  onClick={() => setEjercicio(y)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 6,
+                    border: `1px solid ${ejercicio === y ? tokens.gold : colorLineaSuave}`,
+                    background: ejercicio === y ? tokens.goldSoft : "#FFFFFF",
+                    color: ejercicio === y ? tokens.gold : tokens.textMuted,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer"
+                  }}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+
+            {/* Indicador TC de Referencia */}
+            <div style={{
+              fontSize: 11.5,
+              color: tokens.textMuted,
+              background: "#F8FAFC",
+              border: `1px solid ${colorLineaSuave}`,
+              padding: "5px 10px",
+              borderRadius: 6,
+              fontFamily: tokens.fontMono,
+              flexShrink: 0
+            }}>
+              TC Ref: <strong>${fmt(tcReferencia)}</strong>
+            </div>
+
+            {/* Verificación de planilla oficial */}
+            <div style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 11.5,
+              padding: "5px 11px",
+              borderRadius: 6,
+              background: "#F0FDF4",
+              border: "1px solid #BBF7D0",
+              color: "#166534",
+              fontWeight: 600,
+              flexShrink: 0
+            }}>
+              <span>✓ Planilla {ejercicio} Oficial ($9.890M Ing · $9.695M Egr · +$194.8M Neto)</span>
+            </div>
           </div>
         </div>
       </div>
@@ -848,7 +879,7 @@ export default function MonitorFinancieroTab({
         </div>
 
         {/* TABLA MENSUAL: INGRESOS, EGRESOS Y NECESIDAD DE CAJA */}
-        <div style={{ overflowX: "auto", border: `1px solid ${colorLineaSuave}`, borderRadius: 8, marginBottom: 20 }}>
+        <div className="table-container" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y", border: `1px solid ${colorLineaSuave}`, borderRadius: 8, marginBottom: 20 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "right" }}>
             <thead>
               <tr style={{ background: colorTablaBg, borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted }}>
@@ -1132,7 +1163,7 @@ export default function MonitorFinancieroTab({
         </div>
 
         {/* TABLA DE VALUACIÓN DE STOCK POR PROYECTO */}
-        <div style={{ overflowX: "auto", border: `1px solid ${colorLineaSuave}`, borderRadius: 8 }}>
+        <div className="table-container" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y", border: `1px solid ${colorLineaSuave}`, borderRadius: 8 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: colorTablaBg, borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted }}>

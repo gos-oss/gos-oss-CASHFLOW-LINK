@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { supabase, isSupabaseConfigured, configuredSupabaseUrl, getLocalStoreData } from "./supabaseClient";
 import ImportadorCashflow from "./ImportadorCashflow";
 import CargarMovimiento from "./CargarMovimiento";
@@ -17,7 +17,7 @@ import {
 import {
   Wallet, CalendarX2, AlertTriangle, Save, Settings,
   ListChecks, Tag, SlidersHorizontal, Compass, CalendarRange,
-  ChevronDown, ChevronRight, BarChart3, Pencil, Link as LinkIcon, Trash2,
+  ChevronDown, ChevronRight, ChevronLeft, BarChart3, Pencil, Link as LinkIcon, Trash2,
   CalendarDays, Calendar, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
   Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2, Clock,
   ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Sparkles, Plus,
@@ -164,15 +164,59 @@ const globalStyles = `
       align-items: center !important;
       overflow-x: auto !important;
       -webkit-overflow-scrolling: touch !important;
-      touch-action: pan-x !important;
+      touch-action: pan-x pan-y !important;
+      overscroll-behavior-x: contain !important;
       max-width: 100% !important;
       white-space: nowrap !important;
       scrollbar-width: thin !important;
-      padding-bottom: 4px !important;
+      padding-bottom: 6px !important;
+      cursor: grab;
+    }
+    .horizontal-scroll-menu:active {
+      cursor: grabbing;
     }
     .horizontal-scroll-menu > * {
       flex-shrink: 0 !important;
     }
+
+    /* CARRUSEL DESLIZABLE DE KPIS (HORIZONTAL SLIDER FLUIDO EN TOUCH Y MOUSE) */
+    .kpi-carousel-wrapper {
+      width: 100%;
+      position: relative;
+    }
+    .kpi-carousel-container {
+      display: flex !important;
+      flex-direction: row !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-x pan-y !important;
+      overscroll-behavior-x: contain !important;
+      gap: 16px !important;
+      padding: 6px 4px 12px 4px !important;
+      scrollbar-width: thin !important;
+      max-width: 100% !important;
+      scroll-behavior: smooth !important;
+      cursor: grab;
+      user-select: none;
+    }
+    .kpi-carousel-container:active {
+      cursor: grabbing;
+    }
+    .kpi-carousel-card {
+      flex: 0 0 310px !important;
+      min-width: 290px !important;
+      max-width: 360px !important;
+      box-sizing: border-box !important;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .kpi-carousel-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(14,21,36,0.08) !important;
+    }
+    .mobile-kpi-controls {
+      display: flex !important;
+    }
+
     .responsive-kpi-grid {
       display: grid !important;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
@@ -182,6 +226,11 @@ const globalStyles = `
       .responsive-kpi-grid {
         grid-template-columns: 1fr !important;
       }
+      .kpi-carousel-card {
+        flex: 0 0 85% !important;
+        min-width: 275px !important;
+        max-width: 330px !important;
+      }
       .sticky-col, th.sticky-col, td.sticky-col {
         min-width: 140px !important;
         max-width: 170px !important;
@@ -189,6 +238,23 @@ const globalStyles = `
         padding-left: 8px !important;
         padding-right: 8px !important;
       }
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .kpi-carousel-container.desktop-grid {
+      display: grid !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      overflow-x: visible !important;
+      gap: 18px !important;
+      padding: 0 !important;
+      cursor: default;
+    }
+    .kpi-carousel-container.desktop-grid .kpi-carousel-card {
+      flex: none !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      width: 100% !important;
     }
   }
 
@@ -515,7 +581,20 @@ export default function App() {
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
       }
 
+      // Verificación estricta con la Planilla Oficial 2027 ($9.695.380.570 en egresos)
+      let sumEgresoActual2027 = 0;
+      if (planesTemporales["2027"]?.egreso) {
+        Object.keys(planesTemporales["2027"].egreso).forEach(k => {
+          for (let m = 1; m <= 12; m++) {
+            const mKey = String(m).padStart(2, "0");
+            sumEgresoActual2027 += Number(planesTemporales["2027"].egreso[k]?.[mKey] || 0);
+          }
+        });
+      }
+      const difEgresosPlanilla = Math.abs(sumEgresoActual2027 - 9695380569.95);
+
       const necesitaMigracion2027 = !planesTemporales["2027"]
+        || difEgresosPlanilla > 1000
         || !planesTemporales["2027"].egreso
         || !planesTemporales["2027"].egreso["proy_gastos-admin-green"]
         || !planesTemporales["2027"].egreso["est_sueldos-azlepi"]
@@ -770,6 +849,8 @@ export default function App() {
     });
 
     await supabase.from("cashflow_weeks").upsert(DEFAULT_REAL_WEEKS);
+    await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
+    await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
     await fetchData();
   };
 
@@ -1203,6 +1284,7 @@ export default function App() {
             formatDate={formatDate}
             weeks={weeks}
             tcList={tcList}
+            arqueosList={arqueosList}
             expenseCats={expenseCats}
             incomeCats={incomeCats}
             onIrAMovimientos={() => {
@@ -1233,7 +1315,7 @@ export default function App() {
                   Situación actual de caja, ingresos/egresos y necesidad de caja mensual, stock por proyecto y valuación total, e indicadores clave.
                 </p>
               </div>
-              <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 6, background: "#F1F5F9", padding: 4, borderRadius: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", maxWidth: "100%" }}>
+              <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 6, background: "#F1F5F9", padding: 4, borderRadius: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y", maxWidth: "100%", width: "auto" }}>
                 <button
                   onClick={() => setVistaMonitor("ejecutivo")}
                   style={{
@@ -1921,6 +2003,7 @@ function ResumenTab({
   formatDate,
   weeks = [],
   tcList = [],
+  arqueosList = [],
   expenseCats = [],
   incomeCats = [],
   onIrAMovimientos,
@@ -2075,6 +2158,91 @@ function ResumenTab({
     });
   }, [procesadas, weeks, hoy]);
 
+  // Arqueo más reciente para desglose de efectivo y banco
+  const ultimoArqueo = useMemo(() => {
+    if (!arqueosList || arqueosList.length === 0) return null;
+    const sorted = [...arqueosList].sort((a, b) => (b.fecha_corte || "").localeCompare(a.fecha_corte || ""));
+    return sorted[0];
+  }, [arqueosList]);
+  const saldoBanco = ultimoArqueo ? Number(ultimoArqueo.saldo_banco || 0) : 0;
+  const saldoEfectivo = ultimoArqueo ? Number(ultimoArqueo.saldo_efectivo || 0) : 0;
+
+  const kpiScrollRef = useRef(null);
+  const [activeKpiIndex, setActiveKpiIndex] = useState(0);
+  const dragRef = useRef({ isDown: false, startX: 0, scrollLeft: 0, hasMoved: false });
+
+  // Desplazamiento preciso al índice indicado basado en posición DOM real
+  const scrollToKpi = useCallback((targetIdx) => {
+    const container = kpiScrollRef.current;
+    if (!container) return;
+    const cards = container.querySelectorAll(".kpi-carousel-card");
+    const idx = Math.max(0, Math.min(cards.length - 1, targetIdx));
+    if (cards[idx]) {
+      const leftPos = cards[idx].offsetLeft - container.offsetLeft - 8;
+      container.scrollTo({ left: Math.max(0, leftPos), behavior: "smooth" });
+      setActiveKpiIndex(idx);
+    }
+  }, []);
+
+  const handleKpiScroll = useCallback(() => {
+    const container = kpiScrollRef.current;
+    if (!container) return;
+    const cards = container.querySelectorAll(".kpi-carousel-card");
+    if (!cards.length) return;
+    const centerPoint = container.scrollLeft + container.clientWidth * 0.35;
+    let closestIdx = 0;
+    let minDistance = Infinity;
+    cards.forEach((card, i) => {
+      const cardCenter = card.offsetLeft - container.offsetLeft;
+      const dist = Math.abs(cardCenter - centerPoint);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIdx = i;
+      }
+    });
+    setActiveKpiIndex(closestIdx);
+  }, []);
+
+  // Soporte de arrastre con mouse (Drag-to-scroll) para que se deslice en computadoras y tablets
+  const onMouseDown = (e) => {
+    if (e.target.closest("button, a, input, select")) return;
+    const container = kpiScrollRef.current;
+    if (!container) return;
+    dragRef.current = {
+      isDown: true,
+      startX: e.pageX - container.offsetLeft,
+      scrollLeft: container.scrollLeft,
+      hasMoved: false
+    };
+    container.style.cursor = "grabbing";
+    container.style.userSelect = "none";
+  };
+
+  const onMouseMove = (e) => {
+    if (!dragRef.current.isDown) return;
+    const container = kpiScrollRef.current;
+    if (!container) return;
+    e.preventDefault();
+    const x = e.pageX - container.offsetLeft;
+    const walk = (x - dragRef.current.startX) * 1.4;
+    if (Math.abs(walk) > 4) dragRef.current.hasMoved = true;
+    container.scrollLeft = dragRef.current.scrollLeft - walk;
+  };
+
+  const onMouseUpOrLeave = () => {
+    if (!dragRef.current.isDown) return;
+    dragRef.current.isDown = false;
+    const container = kpiScrollRef.current;
+    if (container) {
+      container.style.cursor = "grab";
+      container.style.removeProperty("user-select");
+    }
+  };
+
+  // Runway progress calculation (cap at 60 days for bar visualization)
+  const diasRunway = kpis?.diasDeCaja != null ? Number(kpis.diasDeCaja) : (kpis?.sinQuemaNeta ? 60 : 0);
+  const pctRunway = Math.min(100, Math.max(5, (diasRunway / 60) * 100));
+
   if (procesadas.length === 0 || !kpis) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -2179,10 +2347,6 @@ function ResumenTab({
       </div>
     );
   }
-
-  // Runway progress calculation (cap at 60 days for bar visualization)
-  const diasRunway = kpis.diasDeCaja != null ? Number(kpis.diasDeCaja) : (kpis.sinQuemaNeta ? 60 : 0);
-  const pctRunway = Math.min(100, Math.max(5, (diasRunway / 60) * 100));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -2312,223 +2476,366 @@ function ResumenTab({
         </div>
       </div>
 
-      {/* 2. BENTO GRID DE KPIS EJECUTIVOS */}
-      <div className="responsive-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
-        
-        {/* KPI 1: HERO - LIQUIDEZ Y TESORERÍA ACTUAL */}
+      {/* 2. KPIS EJECUTIVOS (CARRUSEL FLUIDO DESLIZABLE A LA DERECHA) */}
+      <div className="kpi-carousel-wrapper" style={{ position: "relative" }}>
+        {/* BARRA SUPERIOR DE NAVEGACIÓN Y CONTROL DEL CARRUSEL */}
         <div style={{
-          background: tokens.surface,
-          borderRadius: 10,
-          border: `1px solid ${colorLineaFuerte}`,
-          padding: "20px 22px",
           display: "flex",
-          flexDirection: "column",
           justifyContent: "space-between",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-          position: "relative",
-          overflow: "hidden",
-          minWidth: 0
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 10,
+          marginBottom: 10,
+          padding: "0 2px"
         }}>
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: kpis.liquidez >= 0 ? tokens.positive : tokens.negative
-          }} />
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
-                Liquidez & Tesorería Actual
-              </span>
-              <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(14, 124, 102, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.positive }}>
-                <Wallet size={17} />
-              </div>
-            </div>
-            <div style={{ fontFamily: tokens.fontMono, fontSize: 26, fontWeight: 700, color: kpis.liquidez >= 0 ? tokens.ink : tokens.negative, letterSpacing: "-0.5px" }}>
-              $ {fmt(kpis.liquidez)}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <span style={{ fontSize: 12, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
-                ≈ {formatUSD(kpis.liquidez)}
-              </span>
-              <span style={{ fontSize: 10.5, color: tokens.textFaint }}>
-                (al TC ${fmt(ultimoDolar)})
-              </span>
-            </div>
-          </div>
-          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {/* Identificación de tarjeta activa */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 11.5,
+              fontWeight: 700,
+              color: tokens.ink,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px"
+            }}>
+              <Activity size={14} color={tokens.gold} />
+              Indicadores Clave
+            </span>
             <span style={{
               fontSize: 11,
               fontWeight: 700,
+              background: tokens.goldSoft,
+              color: tokens.gold,
               padding: "2px 8px",
-              borderRadius: 4,
-              background: kpis.liquidez >= 0 ? tokens.positiveSoft : tokens.negativeSoft,
-              color: kpis.liquidez >= 0 ? tokens.positive : tokens.negative
+              borderRadius: 4
             }}>
-              {kpis.liquidez >= 0 ? "Superávit Operativo" : "Alerta de Déficit"}
-            </span>
-            <span style={{ fontSize: 11, color: tokens.textFaint }}>Corte al {formatDate(hoy)}</span>
-          </div>
-        </div>
-
-        {/* KPI 2: AUTONOMÍA DE CAJA (RUNWAY) */}
-        <div style={{
-          background: tokens.surface,
-          borderRadius: 10,
-          border: `1px solid ${colorLineaFuerte}`,
-          padding: "20px 22px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? tokens.negative : tokens.gold
-          }} />
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
-                Autonomía Financiera (Runway)
-              </span>
-              <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(184, 134, 42, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.gold }}>
-                <Clock size={17} />
-              </div>
-            </div>
-            <div style={{ fontFamily: tokens.fontMono, fontSize: 26, fontWeight: 700, color: kpis.deficitActual ? tokens.negative : tokens.ink, letterSpacing: "-0.5px" }}>
-              {kpis.deficitActual ? "Déficit Actual" : kpis.sinQuemaNeta ? "Sin quema neta" : `${kpis.diasDeCaja} días`}
-            </div>
-            {/* Barra de progreso visual de runway */}
-            <div style={{ marginTop: 8, height: 6, background: colorLineaSuave, borderRadius: 3, overflow: "hidden" }}>
-              <div style={{
-                height: "100%",
-                width: `${pctRunway}%`,
-                background: diasRunway > 30 ? tokens.positive : diasRunway > 15 ? tokens.gold : tokens.negative,
-                borderRadius: 3,
-                transition: "width 0.3s ease"
-              }} />
-            </div>
-          </div>
-          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}` }}>
-            <span style={{ fontSize: 11, color: kpis.diaDeficit !== "Sin déficit" ? tokens.negative : tokens.textMuted, fontWeight: 600 }}>
-              {kpis.diaDeficit !== "Sin déficit"
-                ? `⚠️ Primer déficit: ${formatDate(kpis.diaDeficit)}`
-                : "✓ Horizonte despejado sin déficit visible"}
+              Tarjeta {activeKpiIndex + 1} de 4: {["Liquidez", "Runway", "Flujo Neto", "Capital NOF"][activeKpiIndex]}
             </span>
           </div>
-        </div>
 
-        {/* KPI 3: FLUJO NETO DEL MES Y COBERTURA */}
-        <div style={{
-          background: tokens.surface,
-          borderRadius: 10,
-          border: `1px solid ${colorLineaFuerte}`,
-          padding: "20px 22px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: kpis.flujoNetoMes >= 0 ? tokens.positive : tokens.negative
-          }} />
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
-                Flujo Neto Mensual en Curso
-              </span>
-              <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(14, 21, 36, 0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.ink }}>
-                <Scale size={17} />
-              </div>
+          {/* Accesos directos y botones de navegación Deslizar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* Pestañas de salto directo a cada indicador */}
+            <div style={{
+              display: "flex",
+              background: "#F1F5F9",
+              padding: 2,
+              borderRadius: 6,
+              border: `1px solid ${colorLineaSuave}`
+            }}>
+              {[
+                { idx: 0, label: "1. Liquidez" },
+                { idx: 1, label: "2. Runway" },
+                { idx: 2, label: "3. Flujo" },
+                { idx: 3, label: "4. NOF" }
+              ].map((btn) => (
+                <button
+                  key={btn.idx}
+                  type="button"
+                  onClick={() => scrollToKpi(btn.idx)}
+                  style={{
+                    padding: "4px 9px",
+                    borderRadius: 4,
+                    border: "none",
+                    background: activeKpiIndex === btn.idx ? tokens.ink : "transparent",
+                    color: activeKpiIndex === btn.idx ? "#FFFFFF" : tokens.textMuted,
+                    fontSize: 11,
+                    fontWeight: activeKpiIndex === btn.idx ? 700 : 500,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  {btn.label}
+                </button>
+              ))}
             </div>
-            <div style={{ fontFamily: tokens.fontMono, fontSize: 26, fontWeight: 700, color: kpis.flujoNetoMes >= 0 ? tokens.positive : tokens.negative, letterSpacing: "-0.5px" }}>
-              $ {fmt(kpis.flujoNetoMes)}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <span style={{ fontSize: 12, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
-                ≈ {formatUSD(kpis.flujoNetoMes)}
-              </span>
-              <span style={{
-                fontSize: 10.5,
+
+            {/* Botón Anterior < */}
+            <button
+              type="button"
+              onClick={() => scrollToKpi(Math.max(0, activeKpiIndex - 1))}
+              disabled={activeKpiIndex === 0}
+              aria-label="Deslizar a la izquierda"
+              title="Ver indicador anterior"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                border: `1px solid ${colorLineaFuerte}`,
+                background: activeKpiIndex === 0 ? "#F8FAFC" : tokens.surface,
+                color: activeKpiIndex === 0 ? "#CBD5E1" : tokens.ink,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: activeKpiIndex === 0 ? "not-allowed" : "pointer",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {/* Botón Siguiente > Deslizar */}
+            <button
+              type="button"
+              onClick={() => scrollToKpi(Math.min(3, activeKpiIndex + 1))}
+              disabled={activeKpiIndex === 3}
+              aria-label="Deslizar a la derecha"
+              title="Deslizar a la siguiente tarjeta"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                height: 32,
+                padding: "0 12px",
+                borderRadius: 6,
+                border: `1px solid ${activeKpiIndex === 3 ? colorLineaFuerte : tokens.gold}`,
+                background: activeKpiIndex === 3 ? "#F8FAFC" : "rgba(201, 174, 107, 0.15)",
+                color: activeKpiIndex === 3 ? "#94A3B8" : tokens.ink,
+                fontSize: 12,
                 fontWeight: 700,
-                padding: "1px 6px",
-                borderRadius: 3,
-                background: kpis.cobertura >= 100 ? tokens.positiveSoft : tokens.negativeSoft,
-                color: kpis.cobertura >= 100 ? tokens.positive : tokens.negative
-              }}>
-                {kpis.cobertura}% Cobertura
-              </span>
-            </div>
-          </div>
-          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}` }}>
-            <span style={{ fontSize: 11, color: tokens.textMuted }}>
-              {kpis.cobertura >= 100
-                ? "Cobranzas superan los pagos presupuestados"
-                : "Faltan ingresos para cubrir los egresos del mes"}
-            </span>
+                cursor: activeKpiIndex === 3 ? "not-allowed" : "pointer",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <span>Deslizar</span>
+              <ChevronRight size={15} color={activeKpiIndex === 3 ? "#94A3B8" : tokens.gold} />
+            </button>
           </div>
         </div>
 
-        {/* KPI 4: NECESIDADES OPERATIVAS DE FONDOS (NOF) & FUGA */}
-        <div style={{
-          background: tokens.surface,
-          borderRadius: 10,
-          border: `1px solid ${colorLineaFuerte}`,
-          padding: "20px 22px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: "#64748B"
-          }} />
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
-                NOF Mensual & Mayor Egreso
+        {/* CONTENEDOR DESLIZABLE HORIZONTALMENTE (CON DRAG DE MOUSE Y SWIPE TÁCTIL) */}
+        <div
+          ref={kpiScrollRef}
+          onScroll={handleKpiScroll}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUpOrLeave}
+          onMouseLeave={onMouseUpOrLeave}
+          className="kpi-carousel-container"
+        >
+          {/* KPI 1: HERO - LIQUIDEZ Y TESORERÍA ACTUAL */}
+          <div className="kpi-carousel-card" style={{
+            background: tokens.surface,
+            borderRadius: 12,
+            border: `1px solid ${colorLineaFuerte}`,
+            padding: "20px 22px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: kpis.liquidez >= 0 ? tokens.positive : tokens.negative
+            }} />
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
+                  1. Liquidez & Tesorería Actual
+                </span>
+                <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(14, 124, 102, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.positive }}>
+                  <Wallet size={17} />
+                </div>
+              </div>
+              <div style={{ fontFamily: tokens.fontMono, fontSize: "clamp(22px, 5vw, 26px)", fontWeight: 700, color: kpis.liquidez >= 0 ? tokens.ink : tokens.negative, letterSpacing: "-0.5px" }}>
+                $ {fmt(kpis.liquidez)}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                  ≈ {formatUSD(kpis.liquidez)}
+                </span>
+                <span style={{ fontSize: 10.5, color: tokens.textFaint }}>
+                  (TC Ref ${fmt(ultimoDolar)})
+                </span>
+              </div>
+              {(saldoBanco > 0 || saldoEfectivo > 0) && (
+                <div style={{ marginTop: 8, fontSize: 11, color: tokens.textMuted, display: "flex", gap: 10 }}>
+                  <span>Banco: <strong>${fmt(saldoBanco)}</strong></span>
+                  <span>•</span>
+                  <span>Efectivo: <strong>${fmt(saldoEfectivo)}</strong></span>
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "2px 8px",
+                borderRadius: 4,
+                background: kpis.liquidez >= 0 ? tokens.positiveSoft : tokens.negativeSoft,
+                color: kpis.liquidez >= 0 ? tokens.positive : tokens.negative
+              }}>
+                {kpis.liquidez >= 0 ? "✓ Superávit Operativo" : "⚠️ Alerta de Déficit"}
               </span>
-              <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(100, 116, 139, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569" }}>
-                <AlertTriangle size={17} />
+              <span style={{ fontSize: 11, color: tokens.textFaint }}>Corte al {formatDate(hoy)}</span>
+            </div>
+          </div>
+
+          {/* KPI 2: AUTONOMÍA DE CAJA (RUNWAY) */}
+          <div className="kpi-carousel-card" style={{
+            background: tokens.surface,
+            borderRadius: 12,
+            border: `1px solid ${colorLineaFuerte}`,
+            padding: "20px 22px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: kpis.deficitActual || (kpis.diasDeCaja != null && kpis.diasDeCaja <= 15) ? tokens.negative : tokens.gold
+            }} />
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
+                  2. Autonomía Financiera (Runway)
+                </span>
+                <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(184, 134, 42, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.gold }}>
+                  <Clock size={17} />
+                </div>
+              </div>
+              <div style={{ fontFamily: tokens.fontMono, fontSize: "clamp(22px, 5vw, 26px)", fontWeight: 700, color: kpis.deficitActual ? tokens.negative : tokens.ink, letterSpacing: "-0.5px" }}>
+                {kpis.deficitActual ? "Déficit Actual" : kpis.sinQuemaNeta ? "Sin quema neta" : `${kpis.diasDeCaja} Días de Caja`}
+              </div>
+              {/* Barra de progreso visual de runway */}
+              <div style={{ marginTop: 8, height: 6, background: colorLineaSuave, borderRadius: 3, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${pctRunway}%`,
+                  background: diasRunway > 30 ? tokens.positive : diasRunway > 15 ? tokens.gold : tokens.negative,
+                  borderRadius: 3,
+                  transition: "width 0.3s ease"
+                }} />
               </div>
             </div>
-            <div style={{ fontFamily: tokens.fontMono, fontSize: 26, fontWeight: 700, color: tokens.ink, letterSpacing: "-0.5px" }}>
-              $ {fmt(kpis.nofMensual)}
-            </div>
-            <div style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 4 }}>
-              Capital de trabajo operativo / mes
+            <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}` }}>
+              <span style={{ fontSize: 11, color: kpis.diaDeficit !== "Sin déficit" ? tokens.negative : tokens.textMuted, fontWeight: 600 }}>
+                {kpis.diaDeficit !== "Sin déficit"
+                  ? `⚠️ Próximo déficit previsto: ${formatDate(kpis.diaDeficit)}`
+                  : "✓ Horizonte despejado sin déficit visible"}
+              </span>
             </div>
           </div>
-          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: tokens.textMuted }}>Mayor salida 30d:</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${kpis.maxEgresoCat} ($ ${fmt(kpis.maxEgresoVal)})`}>
-              {kpis.maxEgresoCat}
-            </span>
-          </div>
-        </div>
 
+          {/* KPI 3: FLUJO NETO DEL MES Y COBERTURA */}
+          <div className="kpi-carousel-card" style={{
+            background: tokens.surface,
+            borderRadius: 12,
+            border: `1px solid ${colorLineaFuerte}`,
+            padding: "20px 22px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: kpis.flujoNetoMes >= 0 ? tokens.positive : tokens.negative
+            }} />
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
+                  3. Flujo Neto del Mes en Curso
+                </span>
+                <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(14, 21, 36, 0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: tokens.ink }}>
+                  <Scale size={17} />
+                </div>
+              </div>
+              <div style={{ fontFamily: tokens.fontMono, fontSize: "clamp(22px, 5vw, 26px)", fontWeight: 700, color: kpis.flujoNetoMes >= 0 ? tokens.positive : tokens.negative, letterSpacing: "-0.5px" }}>
+                {kpis.flujoNetoMes >= 0 ? "+" : ""}$ {fmt(kpis.flujoNetoMes)}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                <span style={{ fontSize: 12, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                  ≈ {formatUSD(kpis.flujoNetoMes)}
+                </span>
+                <span style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  padding: "1px 6px",
+                  borderRadius: 3,
+                  background: kpis.cobertura >= 100 ? tokens.positiveSoft : tokens.negativeSoft,
+                  color: kpis.cobertura >= 100 ? tokens.positive : tokens.negative
+                }}>
+                  {kpis.cobertura}% Cobertura de Pagos
+                </span>
+              </div>
+            </div>
+            <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}` }}>
+              <span style={{ fontSize: 11, color: tokens.textMuted }}>
+                {kpis.cobertura >= 100
+                  ? "✓ Cobranzas superan los pagos presupuestados"
+                  : "⚠️ Faltan ingresos para cubrir los egresos del mes"}
+              </span>
+            </div>
+          </div>
+
+          {/* KPI 4: NECESIDADES OPERATIVAS DE FONDOS (NOF) & FUGA */}
+          <div className="kpi-carousel-card" style={{
+            background: tokens.surface,
+            borderRadius: 12,
+            border: `1px solid ${colorLineaFuerte}`,
+            padding: "20px 22px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: "#64748B"
+            }} />
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
+                  4. Capital de Trabajo Mensual (NOF)
+                </span>
+                <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(100, 116, 139, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569" }}>
+                  <AlertTriangle size={17} />
+                </div>
+              </div>
+              <div style={{ fontFamily: tokens.fontMono, fontSize: "clamp(22px, 5vw, 26px)", fontWeight: 700, color: tokens.ink, letterSpacing: "-0.5px" }}>
+                $ {fmt(kpis.nofMensual)}
+              </div>
+              <div style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 4 }}>
+                Capital operativo requerido para rodar el mes
+              </div>
+            </div>
+            <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: tokens.textMuted }}>Mayor salida 30d:</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${kpis.maxEgresoCat} ($ ${fmt(kpis.maxEgresoVal)})`}>
+                {kpis.maxEgresoCat}
+              </span>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* 3. CURVA DE EVOLUCIÓN FINANCIERA INTERACTIVA */}
@@ -2704,7 +3011,7 @@ function ResumenTab({
       </div>
 
       {/* 4. DOS MÓDULOS ANALÍTICOS: ESTRUCTURA DE EGRESOS & PRÓXIMAS SEMANAS CLAVE */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
         
         {/* MÓDULO A: TOP 5 EGRESOS PROYECTADOS */}
         <div style={{

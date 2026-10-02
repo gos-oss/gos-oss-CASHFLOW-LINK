@@ -747,7 +747,7 @@ export default function PresupuestoAnualTab({
           </p>
         </div>
         
-        <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 10, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4, maxWidth: "100%" }}>
+        <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 10, overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y", paddingBottom: 6, maxWidth: "100%", width: "100%" }}>
           
           {/* SELECTOR DE MONEDA: PESOS ($ ARS) vs DÓLARES (USD) */}
           {view === "presupuesto" && (
@@ -1662,7 +1662,7 @@ export default function PresupuestoAnualTab({
               </div>
             </div>
 
-            <div className="table-container" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "75vh", maxWidth: "100%", border: "1px solid #CBD5E1", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div className="table-container" style={{ overflowX: "auto", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y", maxHeight: "75vh", maxWidth: "100%", border: "1px solid #CBD5E1", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
                 <thead style={{ position: "sticky", top: 0, zIndex: 20 }}>
                   <tr style={{ background: "#F1F5F9", color: tokens.ink, borderBottom: "2px solid #CBD5E1" }}>
