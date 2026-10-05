@@ -92,6 +92,8 @@ export default function PresupuestoAnualTab({
   const [planDraft, setPlanDraft] = useState({});
   const [mappingDraft, setMappingDraft] = useState({ ingreso: {}, egreso: {} });
   const [mostrarImportadorPresupuesto, setMostrarImportadorPresupuesto] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [toast, setToast] = useState("");
 
   // NUEVO: Switch para Ver en Moneda Pesos ($ ARS) o Dólares (USD)
   const [moneda, setMoneda] = useState("ARS"); // "ARS" | "USD"
@@ -131,38 +133,29 @@ export default function PresupuestoAnualTab({
   const isProyectoActivo = (key) => proyectosActivos[key] !== false;
 
   useEffect(() => {
+    // Si estamos editando y el usuario está escribiendo datos, no sobreescribir el planDraft
+    if (editMode) return;
+
     const rawPlan = planesFondos[selectedYear] || (selectedYear === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026);
     if (selectedYear === "2027" && rawPlan?.ingreso) {
       const cloned = JSON.parse(JSON.stringify(rawPlan));
-      const desactualizado = Number(cloned.ingreso?.["custom_ventas-mostrador"]?.["01"] || 0) < 350000000
-        || Number(cloned.ingreso?.["custom_ventas-paquetes"]?.["01"] || 0) < 180000000
-        || !cloned.ingreso?.["custom_sigma-propios"]
-        || !cloned.egreso?.["proy_gastos-admin-green"]
-        || !cloned.egreso?.["est_sueldos-azlepi"]
-        || !cloned.egreso?.["pas_baja-sposito"]
-        || Number(cloned.egreso?.["proy_gastos-admin-auria"]?.["12"] || 0) === 0
-        || Number(cloned.egreso?.["proy_gastos-admin-auria"]?.["07"] || 0) > 2000000;
-      if (desactualizado) {
-        cloned.ingreso = { ...cloned.ingreso, ...DEFAULT_PLAN_2027.ingreso };
-        cloned.egreso = { ...cloned.egreso, ...DEFAULT_PLAN_2027.egreso };
-      } else {
-        PLAN_INCOME_CATS_2027.forEach(cat => {
-          if (!cloned.ingreso[cat.key]) {
-            cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {
-              "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
-              "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
-            };
-          }
-        });
-        PLAN_EXPENSE_CATS_2027.forEach(cat => {
-          if (!cloned.egreso[cat.key]) {
-            cloned.egreso[cat.key] = DEFAULT_PLAN_2027.egreso[cat.key] || {
-              "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
-              "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
-            };
-          }
-        });
-      }
+      // Asegurar que todas las categorías tengan su estructura de meses
+      PLAN_INCOME_CATS_2027.forEach(cat => {
+        if (!cloned.ingreso[cat.key]) {
+          cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {
+            "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
+            "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
+          };
+        }
+      });
+      PLAN_EXPENSE_CATS_2027.forEach(cat => {
+        if (!cloned.egreso[cat.key]) {
+          cloned.egreso[cat.key] = DEFAULT_PLAN_2027.egreso[cat.key] || {
+            "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
+            "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
+          };
+        }
+      });
       setPlanDraft(cloned);
     } else {
       setPlanDraft(rawPlan);
@@ -669,13 +662,35 @@ export default function PresupuestoAnualTab({
   const COLORS_ING = ['#10B981', '#0284C7', '#8B5CF6', '#F59E0B', '#059669', '#3B82F6', '#EC4899', '#6366F1'];
   const COLORS_EG = ['#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#64748B'];
 
-  const guardarTodo = () => {
+  const guardarTodo = async () => {
     if (view === "presupuesto") {
-      onGuardarPlan(planDraft, selectedYear); 
-      setEditMode(false);
+      setGuardando(true);
+      try {
+        const ok = await onGuardarPlan(planDraft, selectedYear); 
+        if (ok !== false) {
+          setEditMode(false);
+          setToast(`¡Presupuesto ${selectedYear} guardado y actualizado con éxito en la nube!`);
+          setTimeout(() => setToast(""), 3500);
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Error al guardar presupuesto: " + err.message);
+      } finally {
+        setGuardando(false);
+      }
     } else {
-      onGuardarMapeo(mappingDraft);
-      setView("presupuesto");
+      setGuardando(true);
+      try {
+        await onGuardarMapeo(mappingDraft);
+        setView("presupuesto");
+        setToast("¡Mapeo guardado y actualizado con éxito!");
+        setTimeout(() => setToast(""), 3500);
+      } catch (err) {
+        console.error(err);
+        alert("Error al guardar mapeo: " + err.message);
+      } finally {
+        setGuardando(false);
+      }
     }
   };
 
@@ -694,6 +709,31 @@ export default function PresupuestoAnualTab({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       
+      {/* ── NOTIFICACIÓN TOAST ── */}
+      {toast && (
+        <div style={{
+          position: "fixed",
+          top: 24,
+          right: 24,
+          zIndex: 9999,
+          background: tokens.ink,
+          color: "#fff",
+          padding: "12px 20px",
+          borderRadius: 8,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          borderLeft: `4px solid ${tokens.gold}`,
+          fontFamily: tokens.fontBody,
+          fontSize: 13,
+          fontWeight: 600
+        }}>
+          <CheckCircle2 size={18} color={tokens.gold} />
+          <span>{toast}</span>
+        </div>
+      )}
+
       {/* ── BARRA SUPERIOR: ENCABEZADO Y CONTROLES PRINCIPALES ── */}
       <div style={{
         background: tokens.surface,
@@ -1050,21 +1090,24 @@ export default function PresupuestoAnualTab({
               </button>
               <button 
                 onClick={guardarTodo} 
+                disabled={guardando}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
                   padding: "8px 16px",
-                  background: tokens.positive,
+                  background: guardando ? tokens.textMuted : tokens.positive,
                   color: "#fff",
                   border: "none",
                   borderRadius: 8,
-                  cursor: "pointer",
+                  cursor: guardando ? "not-allowed" : "pointer",
                   fontWeight: 700,
-                  fontSize: 13
+                  fontSize: 13,
+                  opacity: guardando ? 0.75 : 1,
+                  boxShadow: "0 2px 6px rgba(16,185,129,0.3)"
                 }}
               >
-                <Save size={15} /> Guardar Cambios
+                <Save size={15} /> {guardando ? "Guardando en Nube..." : "Guardar Cambios"}
               </button>
             </>
           )}
@@ -1072,21 +1115,24 @@ export default function PresupuestoAnualTab({
           {view === "mapeo" && (
             <button 
               onClick={guardarTodo} 
+              disabled={guardando}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
                 padding: "8px 16px",
-                background: tokens.positive,
+                background: guardando ? tokens.textMuted : tokens.positive,
                 color: "#fff",
                 border: "none",
                 borderRadius: 8,
-                cursor: "pointer",
+                cursor: guardando ? "not-allowed" : "pointer",
                 fontWeight: 700,
-                fontSize: 13
+                fontSize: 13,
+                opacity: guardando ? 0.75 : 1,
+                boxShadow: "0 2px 6px rgba(16,185,129,0.3)"
               }}
             >
-              <Save size={15} /> Guardar Mapeo
+              <Save size={15} /> {guardando ? "Guardando Mapeo..." : "Guardar Mapeo"}
             </button>
           )}
         </div>

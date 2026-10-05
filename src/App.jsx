@@ -581,31 +581,12 @@ export default function App() {
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
       }
 
-      // Verificación estricta con la Planilla Oficial 2027 ($9.695.380.570 en egresos)
-      let sumEgresoActual2027 = 0;
-      if (planesTemporales["2027"]?.egreso) {
-        Object.keys(planesTemporales["2027"].egreso).forEach(k => {
-          for (let m = 1; m <= 12; m++) {
-            const mKey = String(m).padStart(2, "0");
-            sumEgresoActual2027 += Number(planesTemporales["2027"].egreso[k]?.[mKey] || 0);
-          }
-        });
-      }
-      const difEgresosPlanilla = Math.abs(sumEgresoActual2027 - 9695380569.95);
-
-      const necesitaMigracion2027 = !planesTemporales["2027"]
-        || difEgresosPlanilla > 1000
+      // Inicialización 2027: solo si el registro no existe en Supabase o está completamente vacío
+      const necesitaInicializacion2027 = !planesTemporales["2027"]
+        || !planesTemporales["2027"].ingreso
         || !planesTemporales["2027"].egreso
-        || !planesTemporales["2027"].egreso["proy_gastos-admin-green"]
-        || !planesTemporales["2027"].egreso["est_sueldos-azlepi"]
-        || !planesTemporales["2027"].egreso["pas_baja-sposito"]
-        || Number(planesTemporales["2027"].egreso?.["est_sueldos"]?.["01"] || 0) > 0
-        || !planesTemporales["2027"].ingreso?.["custom_gestion-comercial"]
-        || Number(planesTemporales["2027"].ingreso?.["custom_gestion-comercial"]?.["01"] || 0) < 600000000
-        || Number(planesTemporales["2027"].ingreso?.["custom_sigma"]?.["01"] || 0) > 0
-        || Number(planesTemporales["2027"].egreso?.["proy_gastos-admin-auria"]?.["12"] || 0) === 0
-        || Number(planesTemporales["2027"].egreso?.["proy_gastos-admin-auria"]?.["07"] || 0) > 2000000;
-      if (necesitaMigracion2027) {
+        || Object.keys(planesTemporales["2027"].egreso || {}).length === 0;
+      if (necesitaInicializacion2027) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
         await supabase.from("cashflow_plan").upsert({ id: "2027", data: DEFAULT_PLAN_2027 });
       }
@@ -650,8 +631,20 @@ export default function App() {
   };
 
   const guardarPlanDeFondos = async (nuevoPlan, year) => {
-    setPlanesFondos(prev => ({ ...prev, [year]: nuevoPlan }));
-    await supabase.from("cashflow_plan").upsert({ id: year, data: nuevoPlan });
+    try {
+      setPlanesFondos(prev => ({ ...prev, [year]: nuevoPlan }));
+      const { error } = await supabase.from("cashflow_plan").upsert({ id: year, data: nuevoPlan });
+      if (error) {
+        console.error("Error al persistir presupuesto en Supabase:", error);
+        alert("Error al guardar en la nube de Supabase: " + error.message);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("Excepción en guardarPlanDeFondos:", err);
+      alert("Error de conexión al guardar presupuesto: " + err.message);
+      return false;
+    }
   };
 
   const guardarMapeo = async (nuevoMapeo) => {
