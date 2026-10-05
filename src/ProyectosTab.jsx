@@ -362,10 +362,119 @@ export default function ProyectosTab({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 1400, margin: "0 auto" }}>
+    <div className="proyectos-container" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+      <style>{`
+        .proyectos-container {
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        .proyectos-subnav-menu {
+          display: flex !important;
+          gap: 6px !important;
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+          touch-action: pan-x pan-y !important;
+          scrollbar-width: none !important;
+          padding: 4px 2px !important;
+          width: 100% !important;
+        }
+        .proyectos-subnav-menu::-webkit-scrollbar {
+          display: none !important;
+        }
+        .proyectos-subnav-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 6px !important;
+          padding: 8px 13px !important;
+          border-radius: 8px !important;
+          font-size: 12.5px !important;
+          white-space: nowrap !important;
+          flex-shrink: 0 !important;
+          transition: all 0.15s ease !important;
+        }
+        @media (max-width: 768px) {
+          .proyectos-header-box {
+            padding: 14px 12px !important;
+            gap: 12px !important;
+          }
+          .proyectos-title {
+            font-size: 19px !important;
+            line-height: 1.25 !important;
+          }
+          .proyectos-actions-row {
+            width: 100% !important;
+            display: flex !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            padding-bottom: 4px !important;
+            gap: 6px !important;
+          }
+          .proyectos-actions-row button {
+            padding: 6px 10px !important;
+            font-size: 12px !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+          }
+          .proyectos-filters-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+            padding-top: 10px !important;
+          }
+          .proyectos-filter-group {
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+          }
+          .proyectos-obra-wrap {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .proyectos-select-obra {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            height: 38px !important;
+            font-size: 13px !important;
+          }
+          .proyectos-subnav-btn {
+            padding: 7px 11px !important;
+            font-size: 11.5px !important;
+          }
+          .proyectos-kpi-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          .proyectos-kpi-card {
+            padding: 11px 10px !important;
+          }
+          .proyectos-kpi-card .kpi-num {
+            font-size: 16px !important;
+          }
+          .proyectos-chart-box {
+            padding: 14px 10px !important;
+          }
+          .proyectos-chart-container {
+            height: 270px !important;
+          }
+          .proyectos-pie-grid {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+          }
+          .proyectos-fichas-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
+          .proyectos-fichas-grid > div {
+            padding: 14px 12px !important;
+          }
+        }
+      `}</style>
       
       {/* ── HEADER SUPERIOR Y CONTROLES ── */}
-      <div style={{
+      <div className="proyectos-header-box" style={{
         background: tokens.surface,
         borderRadius: 12,
         border: `1px solid ${tokens.rule}`,
@@ -375,43 +484,43 @@ export default function ProyectosTab({
         flexDirection: "column",
         gap: 16
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
               <span style={{
                 background: "#EEF2FF",
                 color: "#4338CA",
-                padding: "4px 10px",
-                borderRadius: 8,
-                fontSize: 12,
+                padding: "3px 8px",
+                borderRadius: 6,
+                fontSize: 11.5,
                 fontWeight: 700,
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 5
               }}>
-                <HardHat size={14} /> LINK INVERSIONES · OBRAS
+                <HardHat size={13} /> LINK INVERSIONES · OBRAS
               </span>
-              <span style={{ fontSize: 13, color: tokens.textMuted }}>
-                Costos de Desarrollo de Obras (Sin Cupos) · Horizonte Dic 2024 - Nov 2029
+              <span style={{ fontSize: 12, color: tokens.textMuted }}>
+                Costos de Desarrollo de Obras · 2024-2029
               </span>
             </div>
-            <h1 style={{
+            <h1 className="proyectos-title" style={{
               margin: 0,
               fontFamily: tokens.fontDisplay,
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: 700,
               color: tokens.text,
               letterSpacing: "-0.02em"
             }}>
-              Curvas de Ejecución de Obras & Costos de Desarrollo
+              Curvas de Ejecución de Obras & Costos
             </h1>
-            <p style={{ margin: "4px 0 0 0", fontSize: 13.5, color: tokens.textMuted }}>
-              Seguimiento financiero exclusivo del costo de desarrollo y construcción de las obras (desembolsos mensuales, avance acumulado y Curva S desde inicio hasta entrega).
+            <p style={{ margin: "4px 0 0 0", fontSize: 13, color: tokens.textMuted }}>
+              Seguimiento financiero de obras: desembolsos mensuales, avance acumulado y Curva S.
             </p>
           </div>
 
           {/* Botones de acción general */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className="proyectos-actions-row horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button
               onClick={handleExportarExcel}
               style={{
@@ -423,10 +532,11 @@ export default function ProyectosTab({
                 border: `1px solid ${tokens.rule}`,
                 background: "#fff",
                 color: tokens.text,
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 600,
                 cursor: "pointer",
-                transition: "all 0.15s ease"
+                transition: "all 0.15s ease",
+                flexShrink: 0
               }}
               title="Descargar reporte completo en Excel con gráficos y números"
             >
@@ -447,9 +557,10 @@ export default function ProyectosTab({
                 border: "none",
                 background: tokens.ink,
                 color: "#fff",
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 600,
-                cursor: "pointer"
+                cursor: "pointer",
+                flexShrink: 0
               }}
             >
               <Plus size={15} /> Nueva Obra
@@ -466,60 +577,65 @@ export default function ProyectosTab({
                 border: `1px solid ${tokens.rule}`,
                 background: "#F8FAFC",
                 color: tokens.textMuted,
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: 500,
-                cursor: "pointer"
+                cursor: "pointer",
+                flexShrink: 0
               }}
               title="Restaurar a datos originales de la planilla oficial Link"
             >
-              <RefreshCw size={14} /> Restaurar Obras Oficiales
+              <RefreshCw size={14} /> Restaurar Oficiales
             </button>
           </div>
         </div>
 
         {/* ── BARRA DE FILTROS Y SELECTORES ── */}
-        <div style={{
+        <div className="proyectos-filters-row" style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           flexWrap: "wrap",
-          gap: 14,
-          paddingTop: 14,
+          gap: 12,
+          paddingTop: 12,
           borderTop: `1px solid ${tokens.ruleSoft}`
         }}>
-          {/* Selector de Obra */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: tokens.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-              <Building2 size={15} /> Obra:
-            </span>
-            <select
-              value={selectedProyId}
-              onChange={(e) => setSelectedProyId(e.target.value)}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: `1px solid ${tokens.rule}`,
-                background: "#fff",
-                fontFamily: tokens.fontBody,
-                fontSize: 13.5,
-                fontWeight: 600,
-                color: tokens.text,
-                cursor: "pointer",
-                outline: "none"
-              }}
-            >
-              <option value="todos">🌐 Todas las Obras (Cartera Consolidada)</option>
-              {proyectos.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} — {p.avance_pct}% ejecutado ({p.tag})
-                </option>
-              ))}
-            </select>
+          {/* Selector de Obra y Horizonte */}
+          <div className="proyectos-filter-group" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div className="proyectos-obra-wrap" style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", maxWidth: 360 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: tokens.textMuted, display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                <Building2 size={14} /> Obra:
+              </span>
+              <select
+                className="proyectos-select-obra"
+                value={selectedProyId}
+                onChange={(e) => setSelectedProyId(e.target.value)}
+                style={{
+                  padding: "7px 10px",
+                  borderRadius: 8,
+                  border: `1px solid ${tokens.rule}`,
+                  background: "#fff",
+                  fontFamily: tokens.fontBody,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: tokens.text,
+                  cursor: "pointer",
+                  outline: "none",
+                  width: "100%"
+                }}
+              >
+                <option value="todos">🌐 Todas las Obras (Consolidado)</option>
+                {proyectos.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} — {p.avance_pct}% ({p.tag})
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Selector de Horizonte */}
-            <div style={{ display: "inline-flex", background: "#F1F5F9", padding: 3, borderRadius: 8, flexWrap: "wrap", gap: 2 }}>
+            <div className="horizontal-scroll-menu" style={{ display: "inline-flex", background: "#F1F5F9", padding: 3, borderRadius: 8, overflowX: "auto", maxWidth: "100%", WebkitOverflowScrolling: "touch", gap: 2 }}>
               {[
-                { id: "todos", label: "Horizonte Completo (2024-2029)" },
+                { id: "todos", label: "2024-2029" },
                 { id: "2025", label: "2025" },
                 { id: "2026", label: "2026" },
                 { id: "2027", label: "2027" },
@@ -529,15 +645,17 @@ export default function ProyectosTab({
                   key={opt.id}
                   onClick={() => setFiltroAnio(opt.id)}
                   style={{
-                    padding: "6px 11px",
+                    padding: "5px 10px",
                     borderRadius: 6,
                     border: "none",
                     background: filtroAnio === opt.id ? "#fff" : "transparent",
                     color: filtroAnio === opt.id ? tokens.text : tokens.textMuted,
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: filtroAnio === opt.id ? 700 : 500,
                     cursor: "pointer",
-                    boxShadow: filtroAnio === opt.id ? "0 1px 2px rgba(0,0,0,0.06)" : "none"
+                    boxShadow: filtroAnio === opt.id ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0
                   }}
                 >
                   {opt.label}
@@ -547,17 +665,17 @@ export default function ProyectosTab({
           </div>
 
           {/* Selector de Moneda y Tipo de Cambio */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{ display: "inline-flex", background: "#F1F5F9", padding: 3, borderRadius: 8 }}>
               <button
                 onClick={() => setMoneda("ARS")}
                 style={{
-                  padding: "6px 12px",
+                  padding: "5px 10px",
                   borderRadius: 6,
                   border: "none",
                   background: moneda === "ARS" ? tokens.ink : "transparent",
                   color: moneda === "ARS" ? "#fff" : tokens.textMuted,
-                  fontSize: 12.5,
+                  fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer"
                 }}
@@ -567,12 +685,12 @@ export default function ProyectosTab({
               <button
                 onClick={() => setMoneda("USD")}
                 style={{
-                  padding: "6px 12px",
+                  padding: "5px 10px",
                   borderRadius: 6,
                   border: "none",
                   background: moneda === "USD" ? tokens.positive : "transparent",
                   color: moneda === "USD" ? "#fff" : tokens.textMuted,
-                  fontSize: 12.5,
+                  fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer"
                 }}
@@ -581,19 +699,19 @@ export default function ProyectosTab({
               </button>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: tokens.textMuted }}>
-              <span>TC Ref:</span>
-              <div style={{ display: "flex", alignItems: "center", background: "#fff", border: `1px solid ${tokens.rule}`, borderRadius: 6, padding: "3px 8px" }}>
-                <span style={{ color: "#94A3B8", marginRight: 4 }}>$</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: tokens.textMuted }}>
+              <span>TC:</span>
+              <div style={{ display: "flex", alignItems: "center", background: "#fff", border: `1px solid ${tokens.rule}`, borderRadius: 6, padding: "2px 6px" }}>
+                <span style={{ color: "#94A3B8", marginRight: 3 }}>$</span>
                 <input
                   type="number"
                   value={tcReferencia}
                   onChange={(e) => setTcReferencia(Number(e.target.value) || 1)}
                   style={{
-                    width: 65,
+                    width: 58,
                     border: "none",
                     outline: "none",
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: 600,
                     color: tokens.text
                   }}
@@ -604,13 +722,13 @@ export default function ProyectosTab({
         </div>
 
         {/* ── SUBNAV DE PESTAÑAS DENTRO DE PROYECTOS ── */}
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingTop: 4 }}>
+        <div className="proyectos-subnav-menu horizontal-scroll-menu" style={{ display: "flex", gap: 6, overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y", paddingTop: 4, paddingBottom: 4, width: "100%", maxWidth: "100%" }}>
           {[
-            { id: "curva-s", label: "Curva S & Avance Acumulado", icon: TrendingUp },
+            { id: "curva-s", label: "Curva S & Avance", icon: TrendingUp },
             { id: "mensual", label: "Desembolsos Mensuales", icon: BarChart3 },
-            { id: "comparativa", label: "Comparativa Multiproyecto", icon: Layers },
-            { id: "matriz", label: "Matriz Numérica Oficial", icon: FileSpreadsheet },
-            { id: "fichas", label: "Fichas & Estado de Obras", icon: HardHat }
+            { id: "comparativa", label: "Comparativa Obras", icon: Layers },
+            { id: "matriz", label: "Matriz Numérica", icon: FileSpreadsheet },
+            { id: "fichas", label: "Fichas de Obras", icon: HardHat }
           ].map(t => {
             const Icon = t.icon;
             const active = viewTab === t.id;
@@ -618,23 +736,25 @@ export default function ProyectosTab({
               <button
                 key={t.id}
                 onClick={() => setViewTab(t.id)}
+                className={`proyectos-subnav-btn ${active ? "active" : ""}`}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  padding: "9px 14px",
+                  gap: 6,
+                  padding: "8px 12px",
                   borderRadius: 8,
                   border: `1px solid ${active ? tokens.ink : "transparent"}`,
                   background: active ? tokens.inkSoft : "#F8FAFC",
                   color: active ? "#fff" : tokens.textMuted,
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: active ? 600 : 500,
                   cursor: "pointer",
                   whiteSpace: "nowrap",
+                  flexShrink: 0,
                   transition: "all 0.15s ease"
                 }}
               >
-                <Icon size={15} color={active ? "#A5B4FC" : "#64748B"} />
+                <Icon size={14} color={active ? "#A5B4FC" : "#64748B"} />
                 {t.label}
               </button>
             );
@@ -643,13 +763,13 @@ export default function ProyectosTab({
       </div>
 
       {/* ── TARJETAS DE INDICADORES CLAVE (KPIS) ── */}
-      <div style={{
+      <div className="proyectos-kpi-grid" style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
         gap: 14
       }}>
         {/* KPI 1: Presupuesto Total */}
-        <div style={{
+        <div className="proyectos-kpi-card" style={{
           background: tokens.surface,
           borderRadius: 10,
           border: `1px solid ${tokens.rule}`,
@@ -662,7 +782,7 @@ export default function ProyectosTab({
             </span>
             <Building2 size={16} color="#3B82F6" />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
+          <div className="kpi-num" style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
             {formatoMonto(proyectoActivo ? proyectoActivo.presupuesto_total : resumenCartera.presupuestoTotal)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
@@ -671,7 +791,7 @@ export default function ProyectosTab({
         </div>
 
         {/* KPI 2: Ejecutado a la Fecha */}
-        <div style={{
+        <div className="proyectos-kpi-card" style={{
           background: tokens.surface,
           borderRadius: 10,
           border: `1px solid ${tokens.rule}`,
@@ -684,7 +804,7 @@ export default function ProyectosTab({
             </span>
             <CheckCircle2 size={16} color={tokens.positive} />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.positive }}>
+          <div className="kpi-num" style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.positive }}>
             {formatoMonto(proyectoActivo ? proyectoActivo.ejecutado : resumenCartera.ejecutadoTotal)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
@@ -695,7 +815,7 @@ export default function ProyectosTab({
         </div>
 
         {/* KPI 3: Saldo por Desembolsar */}
-        <div style={{
+        <div className="proyectos-kpi-card" style={{
           background: tokens.surface,
           borderRadius: 10,
           border: `1px solid ${tokens.rule}`,
@@ -708,7 +828,7 @@ export default function ProyectosTab({
             </span>
             <DollarSign size={16} color={tokens.ink} />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.ink }}>
+          <div className="kpi-num" style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.ink }}>
             {formatoMonto(proyectoActivo ? proyectoActivo.saldo_presupuesto : resumenCartera.saldoTotal)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
@@ -717,7 +837,7 @@ export default function ProyectosTab({
         </div>
 
         {/* KPI 4: Desembolso Período Filtrado */}
-        <div style={{
+        <div className="proyectos-kpi-card" style={{
           background: tokens.surface,
           borderRadius: 10,
           border: `1px solid ${tokens.rule}`,
@@ -730,7 +850,7 @@ export default function ProyectosTab({
             </span>
             <Calendar size={16} color="#8B5CF6" />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
+          <div className="kpi-num" style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
             {formatoMonto(metricas.totalInversionArs)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
@@ -739,7 +859,7 @@ export default function ProyectosTab({
         </div>
 
         {/* KPI 5: Promedio Mensual */}
-        <div style={{
+        <div className="proyectos-kpi-card" style={{
           background: tokens.surface,
           borderRadius: 10,
           border: `1px solid ${tokens.rule}`,
@@ -752,7 +872,7 @@ export default function ProyectosTab({
             </span>
             <TrendingUp size={16} color="#3B82F6" />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
+          <div className="kpi-num" style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
             {formatoMonto(metricas.promedioMensualArs)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
@@ -761,7 +881,7 @@ export default function ProyectosTab({
         </div>
 
         {/* KPI 6: Mes Pico */}
-        <div style={{
+        <div className="proyectos-kpi-card" style={{
           background: tokens.surface,
           borderRadius: 10,
           border: `1px solid ${tokens.rule}`,
@@ -774,7 +894,7 @@ export default function ProyectosTab({
             </span>
             <ArrowUpRight size={16} color="#D97706" />
           </div>
-          <div style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: "#D97706" }}>
+          <div className="kpi-num" style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: "#D97706" }}>
             {metricas.maxMes ? formatearMes(metricas.maxMes) : "—"}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
@@ -790,7 +910,7 @@ export default function ProyectosTab({
          ────────────────────────────────────────────────────────── */}
       {viewTab === "curva-s" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{
+          <div className="proyectos-chart-box" style={{
             background: tokens.surface,
             borderRadius: 12,
             border: `1px solid ${tokens.rule}`,
@@ -825,7 +945,7 @@ export default function ProyectosTab({
             </div>
 
             {/* Gráfico Recharts ComposedChart */}
-            <div style={{ height: 380, width: "100%" }}>
+            <div className="proyectos-chart-container" style={{ height: 380, width: "100%" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={metricas.datosCurva} margin={{ top: 15, right: 25, left: 10, bottom: 25 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
@@ -991,7 +1111,7 @@ export default function ProyectosTab({
          ────────────────────────────────────────────────────────── */}
       {viewTab === "mensual" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{
+          <div className="proyectos-chart-box" style={{
             background: tokens.surface,
             borderRadius: 12,
             border: `1px solid ${tokens.rule}`,
@@ -1020,7 +1140,7 @@ export default function ProyectosTab({
               </div>
             </div>
 
-            <div style={{ height: 350, width: "100%" }}>
+            <div className="proyectos-chart-container" style={{ height: 350, width: "100%" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={metricas.datosCurva} margin={{ top: 15, right: 20, left: 10, bottom: 25 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
@@ -1187,7 +1307,7 @@ export default function ProyectosTab({
          ────────────────────────────────────────────────────────── */}
       {viewTab === "comparativa" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{
+          <div className="proyectos-chart-box" style={{
             background: tokens.surface,
             borderRadius: 12,
             border: `1px solid ${tokens.rule}`,
@@ -1214,7 +1334,7 @@ export default function ProyectosTab({
               </div>
             </div>
 
-            <div style={{ height: 380, width: "100%" }}>
+            <div className="proyectos-chart-container" style={{ height: 380, width: "100%" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={datosComparativa} margin={{ top: 15, right: 20, left: 10, bottom: 25 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
@@ -1278,7 +1398,7 @@ export default function ProyectosTab({
           </div>
 
           {/* Gráfico de Distribución del Presupuesto por Proyecto */}
-          <div style={{
+          <div className="proyectos-chart-box" style={{
             background: tokens.surface,
             borderRadius: 12,
             border: `1px solid ${tokens.rule}`,
@@ -1289,7 +1409,7 @@ export default function ProyectosTab({
               Participación en la Cartera Total de Obras
             </h3>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "center" }}>
+            <div className="proyectos-pie-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "center" }}>
               <div style={{ height: 260 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -1347,7 +1467,7 @@ export default function ProyectosTab({
           PESTAÑA 4: MATRIZ NUMÉRICA DETALLADA
          ────────────────────────────────────────────────────────── */}
       {viewTab === "matriz" && (
-        <div style={{
+        <div className="proyectos-chart-box" style={{
           background: tokens.surface,
           borderRadius: 12,
           border: `1px solid ${tokens.rule}`,
@@ -1375,7 +1495,7 @@ export default function ProyectosTab({
           </div>
 
           {/* Tabla con scroll horizontal */}
-          <div style={{ overflowX: "auto", border: `1px solid ${tokens.rule}`, borderRadius: 8 }}>
+          <div className="table-container table-scroll" style={{ overflowX: "auto", border: `1px solid ${tokens.rule}`, borderRadius: 8, WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, textAlign: "right", fontFamily: tokens.fontBody }}>
               <thead>
                 <tr style={{ background: "#F8FAFC", borderBottom: `2px solid ${tokens.rule}` }}>
@@ -1548,7 +1668,7 @@ export default function ProyectosTab({
           PESTAÑA 5: FICHAS & HITOS DE OBRA
          ────────────────────────────────────────────────────────── */}
       {viewTab === "fichas" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 18 }}>
+        <div className="proyectos-fichas-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 18 }}>
           {proyectos.map(p => {
             let totalArs = 0;
             mesesFiltrados.forEach(m => totalArs += Number(p.costos_mensuales?.[m] || 0));

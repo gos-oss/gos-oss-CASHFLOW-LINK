@@ -125,18 +125,20 @@ const globalStyles = `
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3px;
+      gap: 2px;
       background: transparent;
       border: none;
-      padding: 6px 4px;
+      padding: 5px 2px;
       border-radius: 8px;
       color: #94A3B8;
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.15s ease;
-      flex: 1;
-      max-width: 80px;
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: 82px;
+      text-align: center;
     }
     .mobile-bottomnav-btn.active {
       color: #E2A03F !important;
@@ -239,9 +241,20 @@ const globalStyles = `
         padding-right: 8px !important;
       }
     }
+    /* Adaptación responsive para el módulo de Proyectos */
+    .proyectos-kpi-grid {
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 10px !important;
+    }
+    .proyectos-mobile-col {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
   }
 
   @media (min-width: 1200px) {
+    .kpi-carousel-container,
     .kpi-carousel-container.desktop-grid {
       display: grid !important;
       grid-template-columns: repeat(4, 1fr) !important;
@@ -250,6 +263,7 @@ const globalStyles = `
       padding: 0 !important;
       cursor: default;
     }
+    .kpi-carousel-container .kpi-carousel-card,
     .kpi-carousel-container.desktop-grid .kpi-carousel-card {
       flex: none !important;
       min-width: 0 !important;
@@ -1050,12 +1064,6 @@ export default function App() {
       diasDeCaja = Math.ceil((new Date(semanaDeficit.week_start + "T00:00:00").getTime() - new Date(hoy + "T00:00:00").getTime()) / (1000 * 3600 * 24));
     } else { sinQuemaNeta = true; }
 
-    const ultimaFecha = procesadas[procesadas.length - 1].week_start;
-    const ultimoMes = ultimaFecha.substring(0, 7);
-    const datosUltimoMes = procesadas.filter((w) => w.week_start.startsWith(ultimoMes));
-    const flujoUltimoMes = datosUltimoMes.reduce((acc, cur) => acc + cur.totalIngresos, 0) - datosUltimoMes.reduce((acc, cur) => acc + cur.totalEgresos, 0);
-    const nofAnual = (flujoUltimoMes < 0 ? Math.abs(flujoUltimoMes) : 0) * 12;
-
     const mesActual = hoy.substring(0, 7);
     const datosMesActual = procesadas.filter(w => w.week_start.startsWith(mesActual));
     const ingresosMes = datosMesActual.reduce((acc, cur) => acc + cur.totalIngresos, 0);
@@ -1066,9 +1074,49 @@ export default function App() {
     const fechaLimite = new Date(); fechaLimite.setDate(fechaLimite.getDate() + 30);
     const fechaLimiteISO = fechaLimite.toISOString().slice(0, 10);
     const datosProyectados = procesadas.filter(w => w.week_start >= hoy && w.week_start <= fechaLimiteISO);
+    const ingresosProximos30d = datosProyectados.reduce((acc, cur) => acc + cur.totalIngresos, 0);
 
-    let maxEgresoVal = 0; let maxEgresoCat = "Sin egresos proyectados";
-    if (datosProyectados.length > 0) {
+    // 4. CAPITAL DE TRABAJO (NOF & MARGEN DE MANIOBRA OPERATIVO)
+    // Compromisos operativos necesarios para mantener en marcha el negocio a 30 días
+    const egresosProximos30d = datosProyectados.reduce((acc, cur) => acc + cur.totalEgresos, 0);
+    const proximasSemanas = procesadas.filter(w => w.week_start >= hoy).slice(0, 4);
+    const egresosProximasSemanas = proximasSemanas.reduce((acc, cur) => acc + cur.totalEgresos, 0);
+
+    // Si la matriz de cashflow semanal no tiene semanas futuras inmediatas,
+    // se toma el presupuesto operativo del mes corriente del plan anual (planesFondos)
+    const mIdx = Math.max(0, Math.min(11, (new Date(hoy + "T12:00:00").getMonth())));
+    const yStr = hoy.substring(0, 4);
+    const planActivo = planesFondos?.[yStr] || planesFondos?.["2027"] || planesFondos?.["2026"];
+    let egresoPlanMesActual = 0;
+    let planMayorCat = "";
+    let planMayorMonto = 0;
+    if (planActivo?.egreso) {
+      Object.entries(planActivo.egreso).forEach(([catKey, valores]) => {
+        const valMes = Array.isArray(valores) ? Number(valores[mIdx] || 0) : 0;
+        egresoPlanMesActual += valMes;
+        if (valMes > planMayorMonto) {
+          planMayorMonto = valMes;
+          const catObj = expenseCats.find(c => c.key === catKey);
+          planMayorCat = catObj ? catObj.label : catKey.replace("custom_", "").replace("proy_", "Obra ").replace("est_", "").replace("pas_", "Pasivo ");
+        }
+      });
+    }
+
+    const nofMensual = egresosProximos30d > 0
+      ? egresosProximos30d
+      : (egresosProximasSemanas > 0
+          ? egresosProximasSemanas
+          : (egresosMes > 0
+              ? egresosMes
+              : (egresoPlanMesActual > 0
+                  ? egresoPlanMesActual
+                  : 0)));
+    const nofAnual = nofMensual * 12;
+
+    let maxEgresoVal = 0;
+    let maxEgresoCat = "Sin egresos registrados";
+    const fuentesEgresos = datosProyectados.length > 0 ? datosProyectados : proximasSemanas;
+    if (fuentesEgresos.length > 0) {
       const sumasEgresos = {};
       const getTC = (d) => {
         if (!tcList || tcList.length === 0) return 1;
@@ -1076,7 +1124,7 @@ export default function App() {
         return vTC.length > 0 ? Number(vTC[0].saldo_efectivo) || 1 : 1;
       };
 
-      datosProyectados.forEach(w => {
+      fuentesEgresos.forEach(w => {
          const rawWeek = weeks.find(raw => raw.week_start === w.week_start) || {};
          const tc = getTC(w.week_start);
          Object.entries(rawWeek.expense || {}).forEach(([k, v]) => {
@@ -1089,10 +1137,34 @@ export default function App() {
             maxEgresoVal = v; const catObj = expenseCats.find(c => c.key === k); maxEgresoCat = catObj ? catObj.label : k.replace('custom_', '');
          }
       });
+    } else if (planMayorMonto > 0) {
+      maxEgresoVal = planMayorMonto;
+      maxEgresoCat = planMayorCat;
     }
 
-    return { diasDeCaja, deficitActual, sinQuemaNeta, diaDeficit, nofMensual: nofAnual / 12, nofAnual, liquidez: saldoHoy, flujoNetoMes, cobertura, maxEgresoVal, maxEgresoCat };
-  }, [procesadas, arqueosList, expenseCats, weeks, tcList]);
+    // Capital de Trabajo Neto (Liquidez disponible vs Compromisos operativos)
+    const capitalDeTrabajoNeto = saldoHoy - nofMensual;
+    const coberturaNOF = nofMensual > 0 ? Math.round((saldoHoy / nofMensual) * 100) : (saldoHoy >= 0 ? 100 : 0);
+    const cubiertoNOF = saldoHoy >= nofMensual;
+
+    return {
+      diasDeCaja,
+      deficitActual,
+      sinQuemaNeta,
+      diaDeficit,
+      nofMensual,
+      nofAnual,
+      capitalDeTrabajoNeto,
+      coberturaNOF,
+      cubiertoNOF,
+      liquidez: saldoHoy,
+      flujoNetoMes,
+      cobertura,
+      maxEgresoVal,
+      maxEgresoCat,
+      ingresosProximos30d
+    };
+  }, [procesadas, arqueosList, expenseCats, weeks, tcList, planesFondos]);
 
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: tokens.ink, color: "#fff", fontFamily: tokens.fontBody }}><style>{fontImport}</style>Iniciando entorno seguro…</div>;
 
@@ -1821,7 +1893,7 @@ export default function App() {
           background: "#0F172A",
           borderTop: "1px solid #1E293B",
           boxShadow: "0 -4px 16px rgba(0,0,0,0.25)",
-          padding: "6px 4px",
+          padding: "6px 2px",
           paddingBottom: "max(6px, env(safe-area-inset-bottom, 6px))",
           display: "none",
           justifyContent: "space-around",
@@ -1833,12 +1905,13 @@ export default function App() {
           className={`mobile-bottomnav-btn ${tab === "resumen" ? "active" : ""}`}
           style={{
             display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
-            color: tab === "resumen" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
+            color: tab === "resumen" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
           }}
+          title="Resumen Ejecutivo"
         >
           <Compass size={18} />
-          <span style={{ fontSize: 10, fontWeight: tab === "resumen" ? 700 : 500 }}>Resumen</span>
+          <span style={{ fontSize: 9.5, fontWeight: tab === "resumen" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Resumen</span>
         </button>
 
         <button
@@ -1846,12 +1919,13 @@ export default function App() {
           className={`mobile-bottomnav-btn ${tab === "presupuesto" ? "active" : ""}`}
           style={{
             display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
-            color: tab === "presupuesto" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
+            color: tab === "presupuesto" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
           }}
+          title="Presupuesto Anual"
         >
           <BarChart3 size={18} />
-          <span style={{ fontSize: 10, fontWeight: tab === "presupuesto" ? 700 : 500 }}>Plan 2027</span>
+          <span style={{ fontSize: 9.5, fontWeight: tab === "presupuesto" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Presupuesto anual</span>
         </button>
 
         <button
@@ -1859,38 +1933,41 @@ export default function App() {
           className={`mobile-bottomnav-btn ${tab === "monitor" ? "active" : ""}`}
           style={{
             display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
-            color: tab === "monitor" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
+            color: tab === "monitor" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
           }}
+          title="Monitor Financiero"
         >
           <Activity size={18} />
-          <span style={{ fontSize: 10, fontWeight: tab === "monitor" ? 700 : 500 }}>Monitor</span>
+          <span style={{ fontSize: 9.5, fontWeight: tab === "monitor" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Monitor</span>
         </button>
 
         <button
-          onClick={() => { setTab("movimientos"); setMobileMenuOpen(false); }}
-          className={`mobile-bottomnav-btn ${tab === "movimientos" ? "active" : ""}`}
+          onClick={() => { setTab("proyectos"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "proyectos" ? "active" : ""}`}
           style={{
             display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
-            color: tab === "movimientos" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
+            color: tab === "proyectos" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
           }}
+          title="Curvas y Costos de Obras"
         >
-          <ListChecks size={18} />
-          <span style={{ fontSize: 10, fontWeight: tab === "movimientos" ? 700 : 500 }}>13 Sem</span>
+          <HardHat size={18} />
+          <span style={{ fontSize: 9.5, fontWeight: tab === "proyectos" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Proyectos</span>
         </button>
 
         <button
-          onClick={() => setMobileMenuOpen(prev => !prev)}
-          className={`mobile-bottomnav-btn ${mobileMenuOpen ? "active" : ""}`}
+          onClick={() => { setTab("stock"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "stock" ? "active" : ""}`}
           style={{
             display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-            background: "transparent", border: "none", padding: "6px 6px", borderRadius: 8,
-            color: mobileMenuOpen ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1
+            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
+            color: tab === "stock" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
           }}
+          title="Stock Disponible"
         >
-          <Menu size={18} />
-          <span style={{ fontSize: 10, fontWeight: mobileMenuOpen ? 700 : 500 }}>Más</span>
+          <Building2 size={18} />
+          <span style={{ fontSize: 9.5, fontWeight: tab === "stock" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Stock</span>
         </button>
       </nav>
     </div>
@@ -2504,7 +2581,7 @@ function ResumenTab({
               padding: "2px 8px",
               borderRadius: 4
             }}>
-              Tarjeta {activeKpiIndex + 1} de 4: {["Liquidez", "Runway", "Flujo Neto", "Capital NOF"][activeKpiIndex]}
+              Tarjeta {activeKpiIndex + 1} de 4: {["Liquidez", "Runway", "Flujo Neto", "Capital de Trabajo"][activeKpiIndex]}
             </span>
           </div>
 
@@ -2522,7 +2599,7 @@ function ResumenTab({
                 { idx: 0, label: "1. Liquidez" },
                 { idx: 1, label: "2. Runway" },
                 { idx: 2, label: "3. Flujo" },
-                { idx: 3, label: "4. NOF" }
+                { idx: 3, label: "4. Cap. Trabajo" }
               ].map((btn) => (
                 <button
                   key={btn.idx}
@@ -2783,7 +2860,7 @@ function ResumenTab({
             </div>
           </div>
 
-          {/* KPI 4: NECESIDADES OPERATIVAS DE FONDOS (NOF) & FUGA */}
+          {/* KPI 4: CAPITAL DE TRABAJO (NOF & MARGEN DE MANIOBRA) */}
           <div className="kpi-carousel-card" style={{
             background: tokens.surface,
             borderRadius: 12,
@@ -2802,28 +2879,47 @@ function ResumenTab({
               left: 0,
               right: 0,
               height: 3,
-              background: "#64748B"
+              background: kpis.cubiertoNOF ? tokens.positive : "#F59E0B"
             }} />
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: tokens.textMuted }}>
-                  4. Capital de Trabajo Mensual (NOF)
+                  4. Capital de Trabajo (NOF)
                 </span>
-                <div style={{ width: 32, height: 32, borderRadius: 6, background: "rgba(100, 116, 139, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569" }}>
-                  <AlertTriangle size={17} />
+                <div style={{
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  background: kpis.cubiertoNOF ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.15)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: kpis.cubiertoNOF ? tokens.positive : "#D97706"
+                }}>
+                  {kpis.cubiertoNOF ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                  <span>{kpis.cubiertoNOF ? `Cubierto ${kpis.coberturaNOF}%` : `Brecha ${kpis.coberturaNOF}%`}</span>
                 </div>
               </div>
               <div style={{ fontFamily: tokens.fontMono, fontSize: "clamp(22px, 5vw, 26px)", fontWeight: 700, color: tokens.ink, letterSpacing: "-0.5px" }}>
                 $ {fmt(kpis.nofMensual)}
               </div>
-              <div style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 4 }}>
-                Capital operativo requerido para rodar el mes
+              <div style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 4, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+                <span>Compromisos operativos 30d</span>
+                <span style={{
+                  fontSize: 11,
+                  fontFamily: tokens.fontMono,
+                  fontWeight: 700,
+                  color: kpis.capitalDeTrabajoNeto >= 0 ? tokens.positive : tokens.negative
+                }}>
+                  {kpis.capitalDeTrabajoNeto >= 0 ? "+$ " : "-$ "}{fmt(Math.abs(kpis.capitalDeTrabajoNeto))} neto
+                </span>
               </div>
             </div>
             <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 11, color: tokens.textMuted }}>Mayor salida 30d:</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${kpis.maxEgresoCat} ($ ${fmt(kpis.maxEgresoVal)})`}>
-                {kpis.maxEgresoCat}
+              <span style={{ fontSize: 11, fontWeight: 700, color: tokens.negative, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${kpis.maxEgresoCat} ($ ${fmt(kpis.maxEgresoVal)})`}>
+                {kpis.maxEgresoCat} {kpis.maxEgresoVal > 0 ? `($ ${fmt(kpis.maxEgresoVal)})` : ""}
               </span>
             </div>
           </div>
