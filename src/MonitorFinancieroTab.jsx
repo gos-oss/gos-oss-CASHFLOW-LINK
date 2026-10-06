@@ -9,6 +9,7 @@ import {
   PLAN_INCOME_CATS_2027,
   PLAN_INCOME_CATS_2026,
   PLAN_EXPENSE_CATS_2027,
+  PLAN_EXPENSE_CATS_2026,
   PLAN_EXPENSE_CATS
 } from "./budgetData";
 import {
@@ -114,8 +115,61 @@ export default function MonitorFinancieroTab({
 
   // ── 2. CUADRO 2: INGRESOS, EGRESOS & NECESIDAD DE CAJA MENSUAL ──
   const planActual = useMemo(() => {
-    if (planesFondos && planesFondos[ejercicio]) return planesFondos[ejercicio];
-    return ejercicio === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026;
+    const raw = (planesFondos && planesFondos[ejercicio]) || (ejercicio === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026);
+    if (!raw) return ejercicio === "2027" ? DEFAULT_PLAN_2027 : DEFAULT_PLAN_2026;
+
+    if (ejercicio === "2027") {
+      const cloned = JSON.parse(JSON.stringify(raw));
+      if (!cloned.ingreso) cloned.ingreso = {};
+      if (!cloned.egreso) cloned.egreso = {};
+
+      PLAN_INCOME_CATS_2027.forEach(cat => {
+        const tieneCat = cloned.ingreso[cat.key] && Object.keys(cloned.ingreso[cat.key]).length > 0;
+        if (!tieneCat) {
+          // Si es custom_gestion-comercial, verificar si existen las 3 subcategorías de ventas (mostrador + canjes + paquetes)
+          if (cat.key === "custom_gestion-comercial") {
+            const hasSubcats = cloned.ingreso["custom_ventas-mostrador"] || cloned.ingreso["custom_ventas-canjes"] || cloned.ingreso["custom_ventas-paquetes"];
+            if (hasSubcats) {
+              const mergedMeses = {};
+              MESES.forEach(m => {
+                const vm = Number(cloned.ingreso["custom_ventas-mostrador"]?.[m.id] || 0);
+                const vc = Number(cloned.ingreso["custom_ventas-canjes"]?.[m.id] || 0);
+                const vp = Number(cloned.ingreso["custom_ventas-paquetes"]?.[m.id] || 0);
+                mergedMeses[m.id] = vm + vc + vp;
+              });
+              cloned.ingreso[cat.key] = mergedMeses;
+            } else {
+              cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {};
+            }
+          } else {
+            cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {};
+          }
+        }
+      });
+
+      PLAN_EXPENSE_CATS_2027.forEach(cat => {
+        const tieneCat = cloned.egreso[cat.key] && Object.keys(cloned.egreso[cat.key]).length > 0;
+        if (!tieneCat) {
+          cloned.egreso[cat.key] = DEFAULT_PLAN_2027.egreso[cat.key] || {};
+        }
+      });
+      return cloned;
+    }
+
+    if (ejercicio === "2026") {
+      const cloned = JSON.parse(JSON.stringify(raw));
+      if (!cloned.ingreso) cloned.ingreso = {};
+      if (!cloned.egreso) cloned.egreso = {};
+      PLAN_INCOME_CATS_2026.forEach(cat => {
+        if (!cloned.ingreso[cat.key]) cloned.ingreso[cat.key] = DEFAULT_PLAN_2026.ingreso[cat.key] || {};
+      });
+      PLAN_EXPENSE_CATS_2026.forEach(cat => {
+        if (!cloned.egreso[cat.key]) cloned.egreso[cat.key] = DEFAULT_PLAN_2026.egreso[cat.key] || {};
+      });
+      return cloned;
+    }
+
+    return raw;
   }, [planesFondos, ejercicio]);
 
   const datosMensuales = useMemo(() => {
@@ -123,7 +177,7 @@ export default function MonitorFinancieroTab({
     const egData = planActual.egreso || {};
 
     const activeIncomeCats = ejercicio === "2027" ? PLAN_INCOME_CATS_2027 : PLAN_INCOME_CATS_2026;
-    const activeExpenseCats = ejercicio === "2027" ? PLAN_EXPENSE_CATS_2027 : (PLAN_EXPENSE_CATS || []);
+    const activeExpenseCats = ejercicio === "2027" ? PLAN_EXPENSE_CATS_2027 : PLAN_EXPENSE_CATS_2026;
 
     let saldoAcumuladoConCaja = situacionActual.liquidezARS;
     let saldoAcumuladoPuro = 0;
@@ -677,7 +731,9 @@ export default function MonitorFinancieroTab({
               fontWeight: 600,
               flexShrink: 0
             }}>
-              <span>✓ Planilla {ejercicio} Oficial ($9.890M Ing · $9.695M Egr · +$194.8M Neto)</span>
+              <span>
+                ✓ Presupuesto {ejercicio} (${fmt(metricasPlan.rawTotalIng / 1_000_000)}M Ing · ${fmt(metricasPlan.rawTotalEg / 1_000_000)}M Egr · {metricasPlan.rawBalanceNeto >= 0 ? "+" : ""}${fmt(metricasPlan.rawBalanceNeto / 1_000_000)}M Neto)
+              </span>
             </div>
           </div>
         </div>

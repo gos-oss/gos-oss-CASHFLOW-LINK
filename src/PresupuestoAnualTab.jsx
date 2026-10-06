@@ -695,6 +695,38 @@ export default function PresupuestoAnualTab({
     }
   };
 
+  const aplicarSimulacionAPresupuesto = async () => {
+    if (!window.confirm(`¿Deseas aplicar los valores simulados como el nuevo Presupuesto Oficial ${selectedYear} y trasladarlos al Monitor Financiero?`)) return;
+    setGuardando(true);
+    try {
+      const nuevoPlan = { ingreso: {}, egreso: {} };
+      activeIncomeCats.forEach(cat => {
+        nuevoPlan.ingreso[cat.key] = {};
+        meses.forEach(m => {
+          nuevoPlan.ingreso[cat.key][m.k] = Math.round(getSimVal("ingreso", cat.key, m.k));
+        });
+      });
+      activeExpenseCats.forEach(cat => {
+        nuevoPlan.egreso[cat.key] = {};
+        meses.forEach(m => {
+          nuevoPlan.egreso[cat.key][m.k] = Math.round(getSimVal("egreso", cat.key, m.k));
+        });
+      });
+      setPlanDraft(nuevoPlan);
+      const ok = await onGuardarPlan(nuevoPlan, selectedYear);
+      if (ok !== false) {
+        setSimulacionActiva(false);
+        setToast(`¡Simulación guardada y trasladada al Monitor Financiero con éxito!`);
+        setTimeout(() => setToast(""), 4000);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error al aplicar simulación: " + err.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   // Cálculo acumulado mensual del déficit
   const deficitAcumuladoMeses = useMemo(() => {
     let acum = 0;
@@ -1428,6 +1460,30 @@ export default function PresupuestoAnualTab({
                     }}
                   >
                     🎯 Plan Mitigación Integral (+15% Ventas + Auria diferida + -5% Estructura)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={aplicarSimulacionAPresupuesto}
+                    disabled={guardando}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      padding: "7px 16px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "#10B981",
+                      color: "#FFFFFF",
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      cursor: guardando ? "not-allowed" : "pointer",
+                      boxShadow: "0 2px 8px rgba(16, 185, 129, 0.4)",
+                      marginLeft: "auto"
+                    }}
+                    title="Aplica los valores simulados como el presupuesto oficial y los traslada al Monitor Financiero"
+                  >
+                    <Save size={14} /> Trasladar al Monitor Financiero
                   </button>
                 </div>
               </div>
