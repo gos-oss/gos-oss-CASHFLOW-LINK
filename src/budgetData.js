@@ -145,11 +145,20 @@ export const PLAN_FINANCIERO_CATS_2027 = [
   { key: "pas_baja-sposito", label: "Baja Sposito", sublabel: "Cuotas mensuales ene-abr ($18,99M)", group: "pasivos", pctEgreso: 0.78 }
 ];
 
-// TOTAL DE EGRESOS PARA EL PLAN
+// TOTAL DE EGRESOS PARA EL PLAN 2027
 export const PLAN_EXPENSE_CATS_2027 = [
   ...PLAN_PROJECT_CATS_2027,
   ...PLAN_ESTRUCTURA_CATS_2027,
   ...PLAN_FINANCIERO_CATS_2027
+];
+
+// TOTAL DE EGRESOS PARA EL PLAN 2026 (HISTÓRICO)
+export const PLAN_EXPENSE_CATS_2026 = [
+  ...PLAN_PROJECT_CATS_2027,
+  { key: "est_sueldos", label: "Sueldos y Cargas Sociales", sublabel: "Estructura RRHH 2026", group: "estructura", pctEgreso: 30.5 },
+  { key: "est_gastos-admin", label: "Gastos Administrativos e Impuestos", sublabel: "Operación y estructura 2026", group: "estructura", pctEgreso: 12.0 },
+  { key: "inv_colonia", label: "Colonia (Inversión)", sublabel: "Inversión fija mensual", group: "inversiones", pctEgreso: 5.5 },
+  { key: "pas_cudmani", label: "Cudmani (Pasivo)", sublabel: "Obligaciones financieras", group: "pasivos", pctEgreso: 4.8 }
 ];
 
 export const PLAN_EXPENSE_CATS = PLAN_EXPENSE_CATS_2027;

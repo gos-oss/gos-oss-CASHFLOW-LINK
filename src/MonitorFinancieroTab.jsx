@@ -63,12 +63,14 @@ export default function MonitorFinancieroTab({
   fmt = fmtEntero,
   formatDate = (d) => d,
   onSyncTC,
-  onNavigateToTab
+  onNavigateToTab,
+  onRefresh
 }) {
   // ── 0. ESTADO GENERAL & MONEDA ──
   const [moneda, setMoneda] = useState("ARS"); // "ARS" | "USD"
   const [ejercicio, setEjercicio] = useState("2027"); // "2027" | "2026"
   const [toast, setToast] = useState("");
+  const [actualizandoTodo, setActualizandoTodo] = useState(false);
 
   // Tipo de Cambio oficial de cálculo
   const tcReferencia = useMemo(() => {
@@ -300,6 +302,22 @@ export default function MonitorFinancieroTab({
   const [dolares, setDolares] = useState([]);
   const [loadingDolares, setLoadingDolares] = useState(false);
 
+  const [cacData, setCacData] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cf_cac_cache");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  const [h21Data, setH21Data] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cf_h21_cache");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+
   const [indiceLink, setIndiceLink] = useState(() => {
     try {
       const saved = localStorage.getItem("cf_indice_link_data");
@@ -351,10 +369,65 @@ export default function MonitorFinancieroTab({
     }
   }, []);
 
+  // Fetch CAC Indicadores
+  const loadCAC = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("cf_cac_indicadores").select("*");
+      if (!error && Array.isArray(data)) {
+        const byKey = {};
+        data.forEach((row) => { byKey[row.indicador] = row; });
+        setCacData(byKey);
+        localStorage.setItem("cf_cac_cache", JSON.stringify(byKey));
+      }
+    } catch (err) {
+      console.warn("Error al cargar CAC:", err);
+    }
+  }, []);
+
+  // Fetch H-21 Precios
+  const loadH21 = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("cf_h21_precios").select("*").order("id_mes", { ascending: true });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        setH21Data(data);
+        localStorage.setItem("cf_h21_cache", JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn("Error al cargar H21:", err);
+    }
+  }, []);
+
+  const recargarTodo = useCallback(async () => {
+    setActualizandoTodo(true);
+    try {
+      await Promise.all([
+        fetchDolares(),
+        loadIndiceLink(),
+        loadCAC(),
+        loadH21()
+      ]);
+      if (onRefresh) onRefresh();
+      setToast("Tablero e indicadores sincronizados");
+      setTimeout(() => setToast(""), 2500);
+    } finally {
+      setActualizandoTodo(false);
+    }
+  }, [fetchDolares, loadIndiceLink, loadCAC, loadH21, onRefresh]);
+
   useEffect(() => {
     fetchDolares();
     loadIndiceLink();
-  }, [fetchDolares, loadIndiceLink]);
+    loadCAC();
+    loadH21();
+
+    const handleStorageChange = (e) => {
+      if (e.key === "cf_indice_link_data") loadIndiceLink();
+      if (e.key === "cf_cac_cache") loadCAC();
+      if (e.key === "cf_h21_cache") loadH21();
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [fetchDolares, loadIndiceLink, loadCAC, loadH21]);
 
   const handleSincronizarTC = (valor, etiqueta) => {
     if (!valor) return;
@@ -408,6 +481,13 @@ export default function MonitorFinancieroTab({
     const varMensual = prev && prev.indice > 0 ? ((ult.indice - prev.indice) / prev.indice) * 100 : 0;
     return { ...ult, varMensual };
   }, [indiceLink]);
+
+  // Último precio de Hormigón H-21
+  const ultimoH21 = useMemo(() => {
+    if (!h21Data || h21Data.length === 0) return { valor: 184500, etiqueta: "Sep 2026" };
+    const sorted = [...h21Data].sort((a, b) => (a.id_mes || "").localeCompare(b.id_mes || ""));
+    return sorted[sorted.length - 1];
+  }, [h21Data]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -1348,36 +1428,60 @@ export default function MonitorFinancieroTab({
               )}
             </div>
 
-            <button
-              onClick={() => {
-                setIndiceDraft({
-                  id_mes: "2026-09",
-                  anio: 2026,
-                  mesIdx: 9,
-                  etiqueta: "Sep 2026",
-                  indice: ultimoIndiceLink ? String(ultimoIndiceLink.indice) : "100",
-                  valor_absoluto: ultimoIndiceLink ? String(ultimoIndiceLink.valor_absoluto || "") : "",
-                  observaciones: ""
-                });
-                setModalIndiceOpen(true);
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "8px 14px",
-                borderRadius: 6,
-                background: tokens.ink,
-                color: "#FFFFFF",
-                border: "none",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-                boxShadow: "0 2px 6px rgba(0,0,0,0.15)"
-              }}
-            >
-              <Plus size={14} color={tokens.gold} /> Cargar / Actualizar Índice Link
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={recargarTodo}
+                disabled={actualizandoTodo}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: 6,
+                  background: "#F1F5F9",
+                  color: tokens.ink,
+                  border: `1px solid ${colorLineaFuerte}`,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer"
+                }}
+                title="Sincronizar indicadores desde la nube, matrices y monitor externo"
+              >
+                <RefreshCw size={14} color={tokens.gold} className={actualizandoTodo ? "spin" : ""} />
+                {actualizandoTodo ? "Sincronizando..." : "Sincronizar Indicadores"}
+              </button>
+
+              <button
+                onClick={() => {
+                  setIndiceDraft({
+                    id_mes: "2026-09",
+                    anio: 2026,
+                    mesIdx: 9,
+                    etiqueta: "Sep 2026",
+                    indice: ultimoIndiceLink ? String(ultimoIndiceLink.indice) : "100",
+                    valor_absoluto: ultimoIndiceLink ? String(ultimoIndiceLink.valor_absoluto || "") : "",
+                    observaciones: ""
+                  });
+                  setModalIndiceOpen(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: 6,
+                  background: tokens.ink,
+                  color: "#FFFFFF",
+                  border: "none",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.15)"
+                }}
+              >
+                <Plus size={14} color={tokens.gold} /> Cargar / Actualizar Índice Link
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1453,10 +1557,10 @@ export default function MonitorFinancieroTab({
             <div style={{ background: "#F8FAFC", border: `1px solid ${colorLineaSuave}`, borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 700, textTransform: "uppercase" }}>Índice CAC General</div>
               <div style={{ fontFamily: tokens.fontMono, fontSize: 17, fontWeight: 700, color: tokens.ink, marginTop: 4 }}>
-                22.950 pts
+                {cacData?.general?.valor ? `${fmtNum(cacData.general.valor, 0)} pts` : "22.950 pts"}
               </div>
               <div style={{ fontSize: 11, color: tokens.positive, fontWeight: 600, marginTop: 2 }}>
-                +2.1% mensual · Actualización cuotas
+                {cacData?.general?.variacion != null ? `${cacData.general.variacion >= 0 ? "+" : ""}${fmtNum(cacData.general.variacion, 1)}% mensual` : "+2.1% mensual"} · Actualización cuotas
               </div>
             </div>
 
@@ -1464,10 +1568,10 @@ export default function MonitorFinancieroTab({
             <div style={{ background: "#F8FAFC", border: `1px solid ${colorLineaSuave}`, borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 700, textTransform: "uppercase" }}>CAC Materiales</div>
               <div style={{ fontFamily: tokens.fontMono, fontSize: 17, fontWeight: 700, color: tokens.ink, marginTop: 4 }}>
-                25.150 pts
+                {cacData?.materiales?.valor ? `${fmtNum(cacData.materiales.valor, 0)} pts` : "25.150 pts"}
               </div>
               <div style={{ fontSize: 11, color: tokens.textMuted, marginTop: 2 }}>
-                +1.9% mensual · Acopios e insumos
+                {cacData?.materiales?.variacion != null ? `${cacData.materiales.variacion >= 0 ? "+" : ""}${fmtNum(cacData.materiales.variacion, 1)}% mensual` : "+1.9% mensual"} · Acopios e insumos
               </div>
             </div>
 
@@ -1475,10 +1579,10 @@ export default function MonitorFinancieroTab({
             <div style={{ background: "#F8FAFC", border: `1px solid ${colorLineaSuave}`, borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 700, textTransform: "uppercase" }}>CAC Mano de Obra</div>
               <div style={{ fontFamily: tokens.fontMono, fontSize: 17, fontWeight: 700, color: tokens.ink, marginTop: 4 }}>
-                19.800 pts
+                {cacData?.mano_obra?.valor ? `${fmtNum(cacData.mano_obra.valor, 0)} pts` : "19.800 pts"}
               </div>
               <div style={{ fontSize: 11, color: tokens.textMuted, marginTop: 2 }}>
-                +2.7% mensual · Salarios UOCRA
+                {cacData?.mano_obra?.variacion != null ? `${cacData.mano_obra.variacion >= 0 ? "+" : ""}${fmtNum(cacData.mano_obra.variacion, 1)}% mensual` : "+2.7% mensual"} · Salarios UOCRA
               </div>
             </div>
 
@@ -1486,10 +1590,10 @@ export default function MonitorFinancieroTab({
             <div style={{ background: "#F8FAFC", border: `1px solid ${colorLineaSuave}`, borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 700, textTransform: "uppercase" }}>Hormigón Elaborado H-21</div>
               <div style={{ fontFamily: tokens.fontMono, fontSize: 17, fontWeight: 700, color: tokens.ink, marginTop: 4 }}>
-                $ 184.500 / m³
+                $ {fmt(ultimoH21.valor)} / m³
               </div>
               <div style={{ fontSize: 11, color: tokens.textMuted, marginTop: 2 }}>
-                Bomba en obra · Estructuras
+                Bomba en obra · {ultimoH21.etiqueta || "Sep 2026"}
               </div>
             </div>
           </div>

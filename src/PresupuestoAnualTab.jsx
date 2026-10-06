@@ -11,6 +11,7 @@ import {
   PLAN_ESTRUCTURA_CATS_2027,
   PLAN_FINANCIERO_CATS_2027,
   PLAN_EXPENSE_CATS_2027,
+  PLAN_EXPENSE_CATS_2026,
   PLAN_EXPENSE_CATS,
   DEFAULT_PLAN_2026,
   DEFAULT_PLAN_2027
@@ -222,12 +223,12 @@ export default function PresupuestoAnualTab({
 
   // Categorías activas según el año seleccionado
   const activeIncomeCats = useMemo(() => {
-    return selectedYear === "2027" ? PLAN_INCOME_CATS_2027 : planIncomeCats;
-  }, [selectedYear, planIncomeCats]);
+    return selectedYear === "2027" ? PLAN_INCOME_CATS_2027 : PLAN_INCOME_CATS_2026;
+  }, [selectedYear]);
 
   const activeExpenseCats = useMemo(() => {
-    return selectedYear === "2027" ? PLAN_EXPENSE_CATS_2027 : planExpenseCats;
-  }, [selectedYear, planExpenseCats]);
+    return selectedYear === "2027" ? PLAN_EXPENSE_CATS_2027 : PLAN_EXPENSE_CATS_2026;
+  }, [selectedYear]);
 
   const calcularTotalColumna = (tipo, mesKey) => {
     let total = 0;
@@ -363,14 +364,14 @@ export default function PresupuestoAnualTab({
   const estructuraCats = useMemo(() => {
     return selectedYear === "2027"
       ? PLAN_ESTRUCTURA_CATS_2027
-      : planExpenseCats.filter(p => ["custom_rrhh", "custom_administracion"].includes(p.key) || p.group === "estructura");
-  }, [selectedYear, planExpenseCats]);
+      : PLAN_EXPENSE_CATS_2026.filter(p => p.group === "estructura");
+  }, [selectedYear]);
 
   const financieroCats = useMemo(() => {
     return selectedYear === "2027"
       ? PLAN_FINANCIERO_CATS_2027
-      : planExpenseCats.filter(p => ["custom_inversiones", "custom_pasivos-financieros"].includes(p.key) || p.group === "inversiones" || p.group === "pasivos");
-  }, [selectedYear, planExpenseCats]);
+      : PLAN_EXPENSE_CATS_2026.filter(p => p.group === "inversiones" || p.group === "pasivos");
+  }, [selectedYear]);
 
   const totalObrasSim = useMemo(() => {
     return PLAN_PROJECT_CATS_2027.reduce((acc, c) => acc + calcularTotalFila("egreso", c.key), 0);
@@ -1203,7 +1204,7 @@ export default function PresupuestoAnualTab({
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: totalNetoSim >= 0 ? tokens.positive : tokens.negative, letterSpacing: "0.5px" }}>
-                  Déficit Operativo Anual
+                  {totalNetoSim >= 0 ? "Superávit Anual (Ingresos - Egresos)" : "Déficit Anual (Ingresos - Egresos)"}
                 </span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted }}>
                   {moneda === "USD" ? `$ ${(Math.abs(totalNetoSim) / 1_000_000).toFixed(1)} M ARS` : formatUSD(totalNetoSim)}
@@ -1218,7 +1219,12 @@ export default function PresupuestoAnualTab({
                     {alivioARS > 0 ? "✨ Alivio: +" : "Mayor quema: "}{formatMoney(alivioARS)} {moneda === "USD" ? `($ ${(alivioARS / 1_000_000).toFixed(1)}M)` : `(${formatUSD(alivioARS)})`}
                   </span>
                 ) : (
-                  <span>Brecha a financiar en el ejercicio {moneda === "USD" ? `(TC $${fmt(tcReferencia)})` : `(${formatUSD(totalNetoSim)})`}</span>
+                  <span>
+                    {totalNetoSim >= 0
+                      ? `Superávit neto proyectado en el ejercicio ${moneda === "USD" ? `(TC $${fmt(tcReferencia)})` : `(${formatUSD(totalNetoSim)})`}`
+                      : `Déficit neto proyectado a financiar en el ejercicio ${moneda === "USD" ? `(TC $${fmt(tcReferencia)})` : `(${formatUSD(totalNetoSim)})`}`
+                    }
+                  </span>
                 )}
               </div>
             </div>
@@ -1438,7 +1444,9 @@ export default function PresupuestoAnualTab({
                 marginBottom: 18
               }}>
                 <div>
-                  <div style={{ fontSize: 11, color: "#94A3B8", textTransform: "uppercase", fontWeight: 700 }}>Déficit Base vs Simulado</div>
+                  <div style={{ fontSize: 11, color: "#94A3B8", textTransform: "uppercase", fontWeight: 700 }}>
+                    {totalNetoSim >= 0 ? "Superávit Base vs Simulado" : "Déficit Base vs Simulado"}
+                  </div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
                     <span style={{ fontSize: 15, color: "#94A3B8", textDecoration: "line-through", fontFamily: tokens.fontMono }}>
                       {formatMoney(totalNetoBase)}
@@ -3041,12 +3049,16 @@ export default function PresupuestoAnualTab({
                       borderRight: "2px solid #CBD5E1",
                       fontSize: 11.5
                     }}>
-                      <span>📉 Déficit Acumulado en el Año</span>
+                      <span>
+                        {totalNetoSim >= 0 
+                          ? "📈 Superávit Acumulado (Ingresos - Egresos)" 
+                          : "📉 Déficit Acumulado (Ingresos - Egresos)"}
+                      </span>
                     </td>
                     {meses.map(m => {
                       const acum = deficitAcumuladoMeses[m.k];
                       return (
-                        <td key={m.k} title={`Déficit acumulado a fin de ${m.n}: $ ${Math.round(acum).toLocaleString("es-AR")}`} style={{ padding: "10px 10px", textAlign: "right", fontWeight: 600, color: acum >= 0 ? tokens.positive : tokens.negative, fontFamily: tokens.fontMono, fontSize: 11 }}>
+                        <td key={m.k} title={`${acum >= 0 ? "Superávit" : "Déficit"} acumulado a fin de ${m.n}: $ ${Math.round(acum).toLocaleString("es-AR")}`} style={{ padding: "10px 10px", textAlign: "right", fontWeight: 600, color: acum >= 0 ? tokens.positive : tokens.negative, fontFamily: tokens.fontMono, fontSize: 11 }}>
                           {formatMoney(acum)}
                         </td>
                       );
@@ -3194,14 +3206,16 @@ export default function PresupuestoAnualTab({
                 <div style={{ width: "100%", borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
                   <div style={{ fontSize: 11, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
                     {totalNetoSim >= 0 
-                      ? (moneda === "USD" ? "Superávit Anual en USD" : "Superávit Proyectado en USD") 
-                      : (moneda === "USD" ? "Déficit Anual en USD" : "Déficit Anual Proyectado en USD")}
+                      ? (moneda === "USD" ? "Superávit Anual en USD" : "Superávit Anual (Ingresos - Egresos)") 
+                      : (moneda === "USD" ? "Déficit Anual en USD" : "Déficit Anual (Ingresos - Egresos)")}
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: totalNetoSim >= 0 ? "#166534" : "#DC2626", fontFamily: tokens.fontMono, marginTop: 4 }}>
-                    {formatUSD(totalNetoSim)}
+                    {moneda === "USD" ? formatUSD(totalNetoSim, true) : formatMoney(totalNetoSim)}
                   </div>
                   <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
-                    {moneda === "USD" ? `Equivalente: $ ${(Math.abs(totalNetoSim) / 1_000_000).toFixed(1)} M ARS` : `TC ref aplicado: $${fmt(tcReferencia)}`}
+                    {moneda === "USD"
+                      ? `Equivalente en Pesos: $ ${(Math.abs(totalNetoSim) / 1_000_000).toFixed(1)} M ARS`
+                      : `Equivalente en Dólares: ${formatUSD(totalNetoSim)} (TC $${fmt(tcReferencia)})`}
                   </div>
                 </div>
 

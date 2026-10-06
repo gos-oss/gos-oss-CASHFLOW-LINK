@@ -484,8 +484,8 @@ export default function ProyectosTab({
         flexDirection: "column",
         gap: 16
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
-          <div>
+        <div className="proyectos-header-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
+          <div className="proyectos-header-title">
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
               <span style={{
                 background: "#EEF2FF",
@@ -665,7 +665,7 @@ export default function ProyectosTab({
           </div>
 
           {/* Selector de Moneda y Tipo de Cambio */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div className="proyectos-currency-wrap" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{ display: "inline-flex", background: "#F1F5F9", padding: 3, borderRadius: 8 }}>
               <button
                 onClick={() => setMoneda("ARS")}

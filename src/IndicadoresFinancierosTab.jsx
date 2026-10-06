@@ -389,7 +389,7 @@ function filtrarPorPeriodo(arrayDatos, periodo = "1A") {
   return filtrados.length >= 2 ? filtrados : normalizados.slice(-4);
 }
 
-export default function IndicadoresFinancierosTab({ onSyncTC }) {
+export default function IndicadoresFinancierosTab({ onSyncTC, onUpdate }) {
   // Estado de segmentación por períodos general: por defecto Año 2026 (Ejercicio presupuestario en curso)
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState("2026");
 
@@ -444,6 +444,9 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
     if (!valor) return;
     if (onSyncTC) {
       onSyncTC(valor, label);
+    }
+    if (onUpdate) {
+      onUpdate();
     }
     setToast(`Dólar ${label} ($${fmtNum(valor, 0)}) vinculado al Cashflow`);
     setTimeout(() => setToast(""), 3000);
@@ -639,6 +642,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
     setModalIndiceOpen(false);
     setToast(`Índice Link guardado correctamente (${reg.etiqueta})`);
     setTimeout(() => setToast(""), 3000);
+    if (onUpdate) onUpdate();
   };
 
   const eliminarIndiceLink = async (id_mes) => {
@@ -651,6 +655,7 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
     } catch {}
     setToast(`Registro ${id_mes} eliminado`);
     setTimeout(() => setToast(""), 2500);
+    if (onUpdate) onUpdate();
   };
 
   const saveCAC = async (id) => {
@@ -661,10 +666,15 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
     const mes = d.mes || "";
     const row = { indicador: id, valor, variacion, mes, updated_at: new Date().toISOString() };
     await supabase.from("cf_cac_indicadores").upsert(row);
-    setCac((p) => ({ ...p, [id]: row }));
+    setCac((p) => {
+      const updated = { ...p, [id]: row };
+      try { localStorage.setItem("cf_cac_cache", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
     toggleForm(id);
     setToast(`${id.toUpperCase()} actualizado`);
     setTimeout(() => setToast(""), 2500);
+    if (onUpdate) onUpdate();
   };
 
   const saveH21 = async () => {
@@ -674,11 +684,14 @@ export default function IndicadoresFinancierosTab({ onSyncTC }) {
     const valor = rawVal < 1000 ? rawVal * 1000 : rawVal;
     const row = { id_mes: d.mes, etiqueta: d.label || d.mes, valor, updated_at: new Date().toISOString() };
     await supabase.from("cf_h21_precios").upsert(row);
-    setH21((p) => [...p.filter((x) => x.id_mes !== row.id_mes), row].sort((a, b) => a.id_mes.localeCompare(b.id_mes)));
+    const updatedH21 = [...h21.filter((x) => x.id_mes !== row.id_mes), row].sort((a, b) => a.id_mes.localeCompare(b.id_mes));
+    setH21(updatedH21);
+    try { localStorage.setItem("cf_h21_cache", JSON.stringify(updatedH21)); } catch {}
     toggleForm("h21");
     setDraft((p) => ({ ...p, h21: {} }));
     setToast("Hormigón H-21 actualizado con éxito");
     setTimeout(() => setToast(""), 2500);
+    if (onUpdate) onUpdate();
   };
 
   const setD = (id, field, value) => setDraft((p) => ({ ...p, [id]: { ...(p[id] || {}), [field]: value } }));

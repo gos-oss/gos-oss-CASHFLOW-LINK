@@ -242,14 +242,85 @@ const globalStyles = `
       }
     }
     /* Adaptación responsive para el módulo de Proyectos */
+    .proyectos-header-row {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 12px !important;
+    }
+    .proyectos-header-title h1 {
+      font-size: 20px !important;
+    }
+    .proyectos-actions-row {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      gap: 6px !important;
+      padding-bottom: 4px !important;
+      width: 100% !important;
+    }
+    .proyectos-actions-row button {
+      padding: 7px 11px !important;
+      font-size: 11.5px !important;
+      white-space: nowrap !important;
+      flex-shrink: 0 !important;
+    }
+    .proyectos-filters-row {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 10px !important;
+      padding-top: 10px !important;
+    }
+    .proyectos-filter-group {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 8px !important;
+      width: 100% !important;
+    }
+    .proyectos-obra-wrap {
+      max-width: 100% !important;
+      width: 100% !important;
+    }
+    .proyectos-currency-wrap {
+      justify-content: space-between !important;
+      width: 100% !important;
+    }
+    .proyectos-subnav-menu {
+      display: flex !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-x pan-y !important;
+      gap: 6px !important;
+      padding: 4px 2px 8px 2px !important;
+      width: 100% !important;
+    }
+    .proyectos-subnav-btn {
+      padding: 7px 10px !important;
+      font-size: 12px !important;
+      white-space: nowrap !important;
+      flex-shrink: 0 !important;
+    }
     .proyectos-kpi-grid {
       display: grid !important;
       grid-template-columns: repeat(2, 1fr) !important;
       gap: 10px !important;
     }
-    .proyectos-mobile-col {
-      flex-direction: column !important;
-      align-items: stretch !important;
+    .proyectos-kpi-card {
+      padding: 12px 14px !important;
+    }
+    .proyectos-chart-box {
+      padding: 14px 12px !important;
+    }
+    .proyectos-chart-container {
+      height: 270px !important;
+    }
+    .proyectos-pie-grid {
+      grid-template-columns: 1fr !important;
+      gap: 14px !important;
+    }
+    .proyectos-fichas-grid {
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
     }
   }
 
@@ -534,6 +605,24 @@ export default function App() {
       .then(res => res.json())
       .then(data => { if (Array.isArray(data)) setLiveDolarQuotes(data); })
       .catch(() => {});
+
+    // Sincronización automática ante cambios en matrices o monitor externo
+    const handleStorage = (e) => {
+      if (["cf_indice_link_data", "cf_cac_cache", "cf_h21_cache", "cf_tc_cache"].includes(e.key)) {
+        fetchData();
+      }
+    };
+    const handleMsg = (e) => {
+      if (e?.data?.type === "SYNC_INDICATORS" || e?.data?.type === "UPDATE_CASHFLOW") {
+        fetchData();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("message", handleMsg);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("message", handleMsg);
+    };
   }, []);
 
   useEffect(() => {
@@ -1085,6 +1174,7 @@ export default function App() {
     // Si la matriz de cashflow semanal no tiene semanas futuras inmediatas,
     // se toma el presupuesto operativo del mes corriente del plan anual (planesFondos)
     const mIdx = Math.max(0, Math.min(11, (new Date(hoy + "T12:00:00").getMonth())));
+    const mKey = String(mIdx + 1).padStart(2, "0");
     const yStr = hoy.substring(0, 4);
     const planActivo = planesFondos?.[yStr] || planesFondos?.["2027"] || planesFondos?.["2026"];
     let egresoPlanMesActual = 0;
@@ -1092,7 +1182,14 @@ export default function App() {
     let planMayorMonto = 0;
     if (planActivo?.egreso) {
       Object.entries(planActivo.egreso).forEach(([catKey, valores]) => {
-        const valMes = Array.isArray(valores) ? Number(valores[mIdx] || 0) : 0;
+        let valMes = 0;
+        if (Array.isArray(valores)) {
+          valMes = Number(valores[mIdx] || 0);
+        } else if (valores && typeof valores === 'object') {
+          valMes = Number(valores[mKey] ?? valores[String(mIdx + 1)] ?? valores[mIdx] ?? 0);
+        } else {
+          valMes = Number(valores || 0);
+        }
         egresoPlanMesActual += valMes;
         if (valMes > planMayorMonto) {
           planMayorMonto = valMes;
@@ -1382,7 +1479,7 @@ export default function App() {
               </div>
               <div className="horizontal-scroll-menu" style={{ display: "flex", alignItems: "center", gap: 6, background: "#F1F5F9", padding: 4, borderRadius: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y", maxWidth: "100%", width: "auto" }}>
                 <button
-                  onClick={() => setVistaMonitor("ejecutivo")}
+                  onClick={() => { setVistaMonitor("ejecutivo"); fetchData(); }}
                   style={{
                     display: "flex", alignItems: "center", gap: 6, padding: "7px 14px",
                     background: vistaMonitor === "ejecutivo" ? tokens.ink : "transparent",
@@ -1440,11 +1537,15 @@ export default function App() {
                 formatDate={formatDate}
                 onSyncTC={handleSyncTCFromMonitor}
                 onNavigateToTab={(target) => setTab(target)}
+                onRefresh={fetchData}
               />
             )}
 
             {vistaMonitor === "indicadores" && (
-              <IndicadoresFinancierosTab onSyncTC={handleSyncTCFromMonitor} />
+              <IndicadoresFinancierosTab 
+                onSyncTC={handleSyncTCFromMonitor}
+                onUpdate={fetchData}
+              />
             )}
 
             {vistaMonitor === "externo" && (
