@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { tokens } from "./tokens";
+import { normalizarNombreProyecto } from "./stockData";
 import {
   Upload, Download, FileSpreadsheet, CheckCircle2, AlertCircle,
   X, HelpCircle, Layers, Check, ArrowRight, Clipboard, RefreshCw,
@@ -301,8 +302,9 @@ export default function ImportadorStockModal({
         precio_usd = Math.round(precio_m2_usd * m2_propios);
       }
 
-      // Nombre de proyecto y unidad
-      const proyecto = String(u.proyecto || "Proyecto Link").trim();
+      // Nombre de proyecto normalizado y unidad
+      const rawProyecto = String(u.proyecto || "Proyecto Link").trim();
+      const proyecto = normalizarNombreProyecto(rawProyecto);
       const unidad = String(u.unidad || `Unidad ${idx + 1}`).trim();
 
       // Descartar filas completamente vacías

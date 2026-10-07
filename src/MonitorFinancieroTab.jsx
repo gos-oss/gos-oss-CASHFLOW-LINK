@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import { tokens } from "./tokens";
-import { DEFAULT_STOCK_UNITS, PROYECTOS_STOCK } from "./stockData";
+import { DEFAULT_STOCK_UNITS, PROYECTOS_STOCK, normalizarNombreProyecto } from "./stockData";
 import {
   DEFAULT_PLAN_2026,
   DEFAULT_PLAN_2027,
@@ -261,7 +261,22 @@ export default function MonitorFinancieroTab({
   const [unidadesStock, setUnidadesStock] = useState(() => {
     try {
       const local = localStorage.getItem("cf_stock_disponible_units_v1");
-      if (local) return JSON.parse(local);
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length >= 100) {
+          return parsed
+            .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
+            .map(u => ({
+              ...u,
+              proyecto: normalizarNombreProyecto(u.proyecto),
+              m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
+              m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
+              precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
+              precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
+              estado: u.estado || "Disponible"
+            }));
+        }
+      }
     } catch {}
     return DEFAULT_STOCK_UNITS;
   });
@@ -274,8 +289,19 @@ export default function MonitorFinancieroTab({
       try {
         const { data, error } = await supabase.from("stock_units").select("*");
         if (!error && Array.isArray(data) && data.length > 0) {
-          setUnidadesStock(data);
-          localStorage.setItem("cf_stock_disponible_units_v1", JSON.stringify(data));
+          const cleaned = data
+            .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
+            .map(u => ({
+              ...u,
+              proyecto: normalizarNombreProyecto(u.proyecto),
+              m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
+              m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
+              precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
+              precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
+              estado: u.estado || "Disponible"
+            }));
+          setUnidadesStock(cleaned);
+          localStorage.setItem("cf_stock_disponible_units_v1", JSON.stringify(cleaned));
         }
       } catch (err) {
         console.warn("Stock fetch fallback:", err);
@@ -301,7 +327,7 @@ export default function MonitorFinancieroTab({
     });
 
     unidadesStock.forEach(u => {
-      const pNom = u.proyecto || "Otros Proyectos";
+      const pNom = normalizarNombreProyecto(u.proyecto || "Otros Proyectos");
       if (!mapa[pNom]) {
         mapa[pNom] = {
           proyecto: pNom,

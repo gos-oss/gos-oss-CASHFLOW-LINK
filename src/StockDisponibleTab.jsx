@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import { tokens } from "./tokens";
-import { DEFAULT_STOCK_UNITS, PROYECTOS_STOCK, TIPOLOGIAS_STOCK } from "./stockData";
+import { DEFAULT_STOCK_UNITS, PROYECTOS_STOCK, TIPOLOGIAS_STOCK, normalizarNombreProyecto } from "./stockData";
 import ImportadorStockModal from "./ImportadorStockModal";
 import {
   Building2, DollarSign, Layers, Plus, Search, Filter, Download,
@@ -49,11 +49,26 @@ export default function StockDisponibleTab({
   const [moneda, setMoneda] = useState("USD"); // "USD" | "ARS"
   const [viewMode, setViewMode] = useState("unidades"); // "unidades" | "proyectos" | "graficos"
   
-  // Lista de unidades (Sincronizada con Supabase Cloud)
+  // Lista de unidades (Sincronizada con Supabase Cloud y catálogo oficial de 256 unidades disponibles)
   const [unidades, setUnidades] = useState(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 100) {
+          return parsed
+            .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
+            .map(u => ({
+              ...u,
+              proyecto: normalizarNombreProyecto(u.proyecto),
+              m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
+              m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
+              precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
+              precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
+              estado: u.estado || "Disponible"
+            }));
+        }
+      }
     } catch (e) {
       console.error("Error reading stock from localStorage:", e);
     }
@@ -69,8 +84,19 @@ export default function StockDisponibleTab({
     try {
       const { data, error } = await supabase.from("stock_units").select("*");
       if (!error && Array.isArray(data) && data.length > 0) {
-        setUnidades(data);
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+        const cleaned = data
+          .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
+          .map(u => ({
+            ...u,
+            proyecto: normalizarNombreProyecto(u.proyecto),
+            m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
+            m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
+            precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
+            precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
+            estado: u.estado || "Disponible"
+          }));
+        setUnidades(cleaned);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cleaned));
       }
     } catch (err) {
       console.warn("Error cargando stock desde la nube:", err);
@@ -128,10 +154,21 @@ export default function StockDisponibleTab({
 
   // Manejador de importación masiva
   const handleImportarStock = (nuevasUnidades, modo) => {
+    const cleaned = (nuevasUnidades || [])
+      .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
+      .map(u => ({
+        ...u,
+        proyecto: normalizarNombreProyecto(u.proyecto),
+        m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
+        m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
+        precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
+        precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
+        estado: u.estado || "Disponible"
+      }));
     if (modo === "reemplazar") {
-      setUnidades(nuevasUnidades);
+      setUnidades(cleaned);
     } else {
-      setUnidades(prev => [...nuevasUnidades, ...prev]);
+      setUnidades(prev => [...cleaned, ...prev]);
     }
   };
 
@@ -940,6 +977,55 @@ export default function StockDisponibleTab({
               <option value="precio_asc">Menor Valuación</option>
               <option value="m2_desc">Mayor Superficie m²</option>
             </select>
+
+            {/* BOTÓN RÁPIDO: SOLO DISPONIBLES */}
+            <button
+              type="button"
+              onClick={() => setSelectedEstado(selectedEstado === "Disponible" ? "TODOS" : "Disponible")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 12,
+                fontWeight: 700,
+                padding: "5px 10px",
+                borderRadius: 6,
+                border: selectedEstado === "Disponible" ? "1px solid #059669" : "1px solid #CBD5E1",
+                background: selectedEstado === "Disponible" ? "#ECFDF5" : "#FFFFFF",
+                color: selectedEstado === "Disponible" ? "#065F46" : "#475569",
+                cursor: "pointer"
+              }}
+            >
+              <CheckCircle2 size={13} color={selectedEstado === "Disponible" ? "#10B981" : "#94A3B8"} />
+              Solo Disponibles ({totalDisponibles})
+            </button>
+
+            {(selectedProyecto !== "TODOS" || selectedTipologia !== "TODAS" || selectedEstado !== "TODOS" || search) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProyecto("TODOS");
+                  setSelectedTipologia("TODAS");
+                  setSelectedEstado("TODOS");
+                  setSearch("");
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  padding: "5px 8px",
+                  borderRadius: 6,
+                  border: "1px dashed #CBD5E1",
+                  background: "transparent",
+                  color: "#64748B",
+                  cursor: "pointer"
+                }}
+              >
+                <X size={12} /> Limpiar filtros
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1047,7 +1133,7 @@ export default function StockDisponibleTab({
 
                         {/* SUPERFICIE M2 */}
                         <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600, color: "#334155" }}>
-                          {u.m2_propios ? `${u.m2_propios} m²` : "-"}
+                          {u.m2_propios ? `${Number(u.m2_propios).toLocaleString("es-AR", { maximumFractionDigits: 2 })} m²` : "-"}
                         </td>
 
                         {/* VALOR M2 */}
