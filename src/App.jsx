@@ -1334,7 +1334,7 @@ export default function App() {
           <div style={{ fontSize: 10, color: "#6B7690", textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 700, marginBottom: 6 }}>Liquidez actual</div>
           <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis && kpis.liquidez < 0 ? "#E0897A" : "#fff" }}>$ {kpis ? fmt(kpis.liquidez) : "—"}</div>
           <div style={{ fontSize: 10, color: "#6B7690", textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 700, margin: "14px 0 6px" }}>Días de caja</div>
-          <div style={{ fontFamily: tokens.fontMono, fontSize: 20, fontWeight: 600, color: kpis?.deficitActual ? "#E0897A" : kpis?.sinQuemaNeta ? "#7FD9BE" : "#fff" }}>{!kpis ? "—" : kpis.deficitActual ? "Déficit" : kpis.sinQuemaNeta ? "Sin quema" : `${kpis.diasDeCaja} d.`}</div>
+          <div style={{ fontFamily: tokens.fontMono, fontSize: 18, fontWeight: 600, color: kpis?.deficitActual ? "#E0897A" : (kpis?.sinQuemaNeta || (kpis?.diasDeCaja != null && kpis?.diasDeCaja > 90)) ? "#7FD9BE" : "#fff" }}>{!kpis ? "—" : kpis.deficitActual ? "Déficit" : (kpis.sinQuemaNeta || (kpis.diasDeCaja != null && kpis.diasDeCaja > 90)) ? "Sin déficit próx 90 d" : `${kpis.diasDeCaja} d.`}</div>
         </div>
 
         <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
@@ -2884,7 +2884,7 @@ function ResumenTab({
                 </div>
               </div>
               <div style={{ fontFamily: tokens.fontMono, fontSize: "clamp(22px, 5vw, 26px)", fontWeight: 700, color: kpis.deficitActual ? tokens.negative : tokens.ink, letterSpacing: "-0.5px" }}>
-                {kpis.deficitActual ? "Déficit Actual" : kpis.sinQuemaNeta ? "Sin quema neta" : `${kpis.diasDeCaja} Días de Caja`}
+                {kpis.deficitActual ? "Déficit Actual" : (kpis.sinQuemaNeta || (kpis.diasDeCaja != null && kpis.diasDeCaja > 90)) ? "Sin déficit próx 90 días" : `${kpis.diasDeCaja} Días de Caja`}
               </div>
               {/* Barra de progreso visual de runway */}
               <div style={{ marginTop: 8, height: 6, background: colorLineaSuave, borderRadius: 3, overflow: "hidden" }}>
@@ -2898,10 +2898,10 @@ function ResumenTab({
               </div>
             </div>
             <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${colorLineaSuave}` }}>
-              <span style={{ fontSize: 11, color: kpis.diaDeficit !== "Sin déficit" ? tokens.negative : tokens.textMuted, fontWeight: 600 }}>
-                {kpis.diaDeficit !== "Sin déficit"
+              <span style={{ fontSize: 11, color: kpis.diaDeficit !== "Sin déficit" && (kpis.diasDeCaja != null && kpis.diasDeCaja <= 90) ? tokens.negative : tokens.textMuted, fontWeight: 600 }}>
+                {kpis.diaDeficit !== "Sin déficit" && (kpis.diasDeCaja != null && kpis.diasDeCaja <= 90)
                   ? `⚠️ Próximo déficit previsto: ${formatDate(kpis.diaDeficit)}`
-                  : "✓ Horizonte despejado sin déficit visible"}
+                  : "✓ Superávit proyectado: sin déficit en los próximos 90 días"}
               </span>
             </div>
           </div>

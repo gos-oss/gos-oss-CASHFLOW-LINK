@@ -126,26 +126,21 @@ export default function MonitorFinancieroTab({
       PLAN_INCOME_CATS_2027.forEach(cat => {
         const tieneCat = cloned.ingreso[cat.key] && Object.keys(cloned.ingreso[cat.key]).length > 0;
         if (!tieneCat) {
-          // Si es custom_gestion-comercial, verificar si existen las 3 subcategorías de ventas (mostrador + canjes + paquetes)
-          if (cat.key === "custom_gestion-comercial") {
-            const hasSubcats = cloned.ingreso["custom_ventas-mostrador"] || cloned.ingreso["custom_ventas-canjes"] || cloned.ingreso["custom_ventas-paquetes"];
-            if (hasSubcats) {
-              const mergedMeses = {};
-              MESES.forEach(m => {
-                const vm = Number(cloned.ingreso["custom_ventas-mostrador"]?.[m.id] || 0);
-                const vc = Number(cloned.ingreso["custom_ventas-canjes"]?.[m.id] || 0);
-                const vp = Number(cloned.ingreso["custom_ventas-paquetes"]?.[m.id] || 0);
-                mergedMeses[m.id] = vm + vc + vp;
-              });
-              cloned.ingreso[cat.key] = mergedMeses;
-            } else {
-              cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {};
-            }
-          } else {
-            cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {};
-          }
+          cloned.ingreso[cat.key] = DEFAULT_PLAN_2027.ingreso[cat.key] || {};
         }
       });
+
+      // Sincronizar SIEMPRE custom_gestion-comercial con la suma exacta de sus subcategorías de ventas
+      const hasSubcats = cloned.ingreso["custom_ventas-mostrador"] || cloned.ingreso["custom_ventas-canjes"] || cloned.ingreso["custom_ventas-paquetes"];
+      if (hasSubcats) {
+        cloned.ingreso["custom_gestion-comercial"] = cloned.ingreso["custom_gestion-comercial"] || {};
+        MESES.forEach(m => {
+          const vm = Number(cloned.ingreso["custom_ventas-mostrador"]?.[m.id] || 0);
+          const vc = Number(cloned.ingreso["custom_ventas-canjes"]?.[m.id] || 0);
+          const vp = Number(cloned.ingreso["custom_ventas-paquetes"]?.[m.id] || 0);
+          cloned.ingreso["custom_gestion-comercial"][m.id] = vm + vc + vp;
+        });
+      }
 
       PLAN_EXPENSE_CATS_2027.forEach(cat => {
         const tieneCat = cloned.egreso[cat.key] && Object.keys(cloned.egreso[cat.key]).length > 0;
@@ -887,8 +882,8 @@ export default function MonitorFinancieroTab({
 
           {/* Días de Caja / Runway */}
           <div style={{
-            background: situacionActual.deficitActual ? "#FEF2F2" : situacionActual.sinQuemaNeta ? "#F0FDF4" : "#F8FAFC",
-            border: `1px solid ${situacionActual.deficitActual ? "#FECACA" : situacionActual.sinQuemaNeta ? "#BBF7D0" : colorLineaSuave}`,
+            background: situacionActual.deficitActual ? "#FEF2F2" : (situacionActual.sinQuemaNeta || (situacionActual.diasDeCaja != null && situacionActual.diasDeCaja > 90)) ? "#F0FDF4" : "#F8FAFC",
+            border: `1px solid ${situacionActual.deficitActual ? "#FECACA" : (situacionActual.sinQuemaNeta || (situacionActual.diasDeCaja != null && situacionActual.diasDeCaja > 90)) ? "#BBF7D0" : colorLineaSuave}`,
             borderRadius: 10,
             padding: "16px 18px"
           }}>
@@ -898,22 +893,30 @@ export default function MonitorFinancieroTab({
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.5px",
-                color: situacionActual.deficitActual ? tokens.negative : situacionActual.sinQuemaNeta ? tokens.positive : tokens.textMuted
+                color: situacionActual.deficitActual ? tokens.negative : (situacionActual.sinQuemaNeta || (situacionActual.diasDeCaja != null && situacionActual.diasDeCaja > 90)) ? tokens.positive : tokens.textMuted
               }}>
                 Runway · Días de Caja
               </span>
-              <Calendar size={16} color={situacionActual.deficitActual ? tokens.negative : situacionActual.sinQuemaNeta ? tokens.positive : "#64748B"} />
+              <Calendar size={16} color={situacionActual.deficitActual ? tokens.negative : (situacionActual.sinQuemaNeta || (situacionActual.diasDeCaja != null && situacionActual.diasDeCaja > 90)) ? tokens.positive : "#64748B"} />
             </div>
             <div style={{
               fontFamily: tokens.fontMono,
               fontSize: 20,
               fontWeight: 800,
-              color: situacionActual.deficitActual ? tokens.negative : situacionActual.sinQuemaNeta ? tokens.positive : tokens.ink
+              color: situacionActual.deficitActual ? tokens.negative : (situacionActual.sinQuemaNeta || (situacionActual.diasDeCaja != null && situacionActual.diasDeCaja > 90)) ? tokens.positive : tokens.ink
             }}>
-              {situacionActual.deficitActual ? "En Déficit" : situacionActual.sinQuemaNeta ? "Holgura Total" : `${situacionActual.diasDeCaja} días`}
+              {situacionActual.deficitActual 
+                ? "En Déficit" 
+                : (situacionActual.sinQuemaNeta || (situacionActual.diasDeCaja != null && situacionActual.diasDeCaja > 90)) 
+                  ? "Sin déficit próx 90 días" 
+                  : `${situacionActual.diasDeCaja} días`}
             </div>
             <div style={{ fontSize: 11, color: tokens.textMuted, marginTop: 4 }}>
-              {situacionActual.deficitActual ? "Saldo inicial negativo" : situacionActual.sinQuemaNeta ? "Sin quema neta de caja" : `Pico de déficit: ${formatDate(situacionActual.diaDeficit)}`}
+              {situacionActual.deficitActual 
+                ? "Saldo inicial negativo" 
+                : (situacionActual.sinQuemaNeta || (situacionActual.diasDeCaja != null && situacionActual.diasDeCaja > 90)) 
+                  ? "Superávit de caja proyectado para los próximos 90 días" 
+                  : `Pico de déficit: ${formatDate(situacionActual.diaDeficit)}`}
             </div>
           </div>
         </div>

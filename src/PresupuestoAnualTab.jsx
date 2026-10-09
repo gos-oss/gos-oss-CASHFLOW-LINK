@@ -149,6 +149,26 @@ export default function PresupuestoAnualTab({
           };
         }
       });
+      // Asegurar también subcategorías comerciales oficiales 2027
+      PLAN_INCOME_SUB_CATS_2027.forEach(sub => {
+        if (!cloned.ingreso[sub.key]) {
+          cloned.ingreso[sub.key] = DEFAULT_PLAN_2027.ingreso[sub.key] || {
+            "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0,
+            "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0
+          };
+        }
+      });
+      // Sincronizar siempre custom_gestion-comercial con la suma exacta de sus subcategorías
+      const hasSubcats = cloned.ingreso["custom_ventas-mostrador"] || cloned.ingreso["custom_ventas-canjes"] || cloned.ingreso["custom_ventas-paquetes"];
+      if (hasSubcats) {
+        cloned.ingreso["custom_gestion-comercial"] = cloned.ingreso["custom_gestion-comercial"] || {};
+        meses.forEach(m => {
+          const vm = Number(cloned.ingreso["custom_ventas-mostrador"]?.[m.k] || 0);
+          const vc = Number(cloned.ingreso["custom_ventas-canjes"]?.[m.k] || 0);
+          const vp = Number(cloned.ingreso["custom_ventas-paquetes"]?.[m.k] || 0);
+          cloned.ingreso["custom_gestion-comercial"][m.k] = vm + vc + vp;
+        });
+      }
       PLAN_EXPENSE_CATS_2027.forEach(cat => {
         if (!cloned.egreso[cat.key]) {
           cloned.egreso[cat.key] = DEFAULT_PLAN_2027.egreso[cat.key] || {
@@ -177,6 +197,16 @@ export default function PresupuestoAnualTab({
       if (!newState[tipo]) newState[tipo] = {};
       if (!newState[tipo][conceptoKey]) newState[tipo][conceptoKey] = {};
       newState[tipo][conceptoKey][mesKey] = Number(value) || 0;
+
+      // Si se edita una subcategoría de Gestión Comercial, recalcular automáticamente el consolidado del mes
+      if (tipo === "ingreso" && ["custom_ventas-mostrador", "custom_ventas-canjes", "custom_ventas-paquetes"].includes(conceptoKey)) {
+        if (!newState.ingreso["custom_gestion-comercial"]) newState.ingreso["custom_gestion-comercial"] = {};
+        const vm = conceptoKey === "custom_ventas-mostrador" ? (Number(value) || 0) : Number(newState.ingreso["custom_ventas-mostrador"]?.[mesKey] || 0);
+        const vc = conceptoKey === "custom_ventas-canjes" ? (Number(value) || 0) : Number(newState.ingreso["custom_ventas-canjes"]?.[mesKey] || 0);
+        const vp = conceptoKey === "custom_ventas-paquetes" ? (Number(value) || 0) : Number(newState.ingreso["custom_ventas-paquetes"]?.[mesKey] || 0);
+        newState.ingreso["custom_gestion-comercial"][mesKey] = vm + vc + vp;
+      }
+
       return newState;
     });
   };
@@ -187,6 +217,14 @@ export default function PresupuestoAnualTab({
 
   // MATEMÁTICA DEL SIMULADOR
   const getSimVal = (tipo, conceptoKey, mesKey) => {
+    // Si es Gestión Comercial consolidado, devolver la suma exacta de sus 3 subcategorías simuladas
+    if (tipo === "ingreso" && conceptoKey === "custom_gestion-comercial") {
+      const vm = getSimVal("ingreso", "custom_ventas-mostrador", mesKey);
+      const vc = getSimVal("ingreso", "custom_ventas-canjes", mesKey);
+      const vp = getSimVal("ingreso", "custom_ventas-paquetes", mesKey);
+      if (vm > 0 || vc > 0 || vp > 0) return vm + vc + vp;
+    }
+
     const baseVal = planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
     if (!simulacionActiva) return baseVal;
 
@@ -207,7 +245,15 @@ export default function PresupuestoAnualTab({
     return Math.max(0, baseVal * (1 + totalPct / 100));
   };
 
-  const getBaseVal = (tipo, conceptoKey, mesKey) => planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
+  const getBaseVal = (tipo, conceptoKey, mesKey) => {
+    if (tipo === "ingreso" && conceptoKey === "custom_gestion-comercial") {
+      const vm = Number(planDraft?.ingreso?.["custom_ventas-mostrador"]?.[mesKey] || 0);
+      const vc = Number(planDraft?.ingreso?.["custom_ventas-canjes"]?.[mesKey] || 0);
+      const vp = Number(planDraft?.ingreso?.["custom_ventas-paquetes"]?.[mesKey] || 0);
+      if (vm > 0 || vc > 0 || vp > 0) return vm + vc + vp;
+    }
+    return planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
+  };
 
   const calcularTotalFila = (tipo, conceptoKey) => {
     let total = 0;
@@ -667,10 +713,26 @@ export default function PresupuestoAnualTab({
     if (view === "presupuesto") {
       setGuardando(true);
       try {
-        const ok = await onGuardarPlan(planDraft, selectedYear); 
+        // Asegurar que custom_gestion-comercial tenga la suma exacta de las subcategorías en todos los meses
+        const planToSave = JSON.parse(JSON.stringify(planDraft));
+        if (selectedYear === "2027" && planToSave?.ingreso) {
+          const hasSubcats = planToSave.ingreso["custom_ventas-mostrador"] || planToSave.ingreso["custom_ventas-canjes"] || planToSave.ingreso["custom_ventas-paquetes"];
+          if (hasSubcats) {
+            planToSave.ingreso["custom_gestion-comercial"] = planToSave.ingreso["custom_gestion-comercial"] || {};
+            meses.forEach(m => {
+              const vm = Number(planToSave.ingreso["custom_ventas-mostrador"]?.[m.k] || 0);
+              const vc = Number(planToSave.ingreso["custom_ventas-canjes"]?.[m.k] || 0);
+              const vp = Number(planToSave.ingreso["custom_ventas-paquetes"]?.[m.k] || 0);
+              planToSave.ingreso["custom_gestion-comercial"][m.k] = vm + vc + vp;
+            });
+          }
+        }
+
+        const ok = await onGuardarPlan(planToSave, selectedYear); 
         if (ok !== false) {
+          setPlanDraft(planToSave);
           setEditMode(false);
-          setToast(`¡Presupuesto ${selectedYear} guardado y actualizado con éxito en la nube!`);
+          setToast(`¡Presupuesto ${selectedYear} guardado y actualizado con éxito en la nube y en el Monitor Financiero!`);
           setTimeout(() => setToast(""), 3500);
         }
       } catch (err) {
@@ -706,6 +768,22 @@ export default function PresupuestoAnualTab({
           nuevoPlan.ingreso[cat.key][m.k] = Math.round(getSimVal("ingreso", cat.key, m.k));
         });
       });
+      // Guardar también subcategorías si estamos en 2027
+      if (selectedYear === "2027") {
+        PLAN_INCOME_SUB_CATS_2027.forEach(sub => {
+          nuevoPlan.ingreso[sub.key] = {};
+          meses.forEach(m => {
+            nuevoPlan.ingreso[sub.key][m.k] = Math.round(getSimVal("ingreso", sub.key, m.k));
+          });
+        });
+        // Asegurar que custom_gestion-comercial sea la suma exacta de sus subcategorías
+        meses.forEach(m => {
+          const vm = Number(nuevoPlan.ingreso["custom_ventas-mostrador"]?.[m.k] || 0);
+          const vc = Number(nuevoPlan.ingreso["custom_ventas-canjes"]?.[m.k] || 0);
+          const vp = Number(nuevoPlan.ingreso["custom_ventas-paquetes"]?.[m.k] || 0);
+          nuevoPlan.ingreso["custom_gestion-comercial"][m.k] = vm + vc + vp;
+        });
+      }
       activeExpenseCats.forEach(cat => {
         nuevoPlan.egreso[cat.key] = {};
         meses.forEach(m => {
