@@ -135,11 +135,25 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
             const ing = baseIncome.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
             const eg = baseExpense.find(c => normalizarTexto(c.label) === concepto || normalizarTexto(c.key) === concepto);
 
-            // Sumamos el dinero nuevo al dinero que ya pudiera existir
+            // Reemplazar montos previos con los del Excel ({ ars, usd: 0 }) sin corromper objetos
             if (ing) {
-              periodos[fechaStart].income[ing.key] = (periodos[fechaStart].income[ing.key] || 0) + montoPorFecha;
+              if (!periodos[fechaStart]._reemplazadosIng) periodos[fechaStart]._reemplazadosIng = {};
+              if (!periodos[fechaStart]._reemplazadosIng[ing.key]) {
+                periodos[fechaStart]._reemplazadosIng[ing.key] = true;
+                periodos[fechaStart].income[ing.key] = { ars: Math.round(montoPorFecha), usd: 0 };
+              } else {
+                const prevArs = Number(periodos[fechaStart].income[ing.key]?.ars || 0);
+                periodos[fechaStart].income[ing.key] = { ars: prevArs + Math.round(montoPorFecha), usd: 0 };
+              }
             } else if (eg) {
-              periodos[fechaStart].expense[eg.key] = (periodos[fechaStart].expense[eg.key] || 0) + montoPorFecha;
+              if (!periodos[fechaStart]._reemplazadosEg) periodos[fechaStart]._reemplazadosEg = {};
+              if (!periodos[fechaStart]._reemplazadosEg[eg.key]) {
+                periodos[fechaStart]._reemplazadosEg[eg.key] = true;
+                periodos[fechaStart].expense[eg.key] = { ars: Math.round(montoPorFecha), usd: 0 };
+              } else {
+                const prevArs = Number(periodos[fechaStart].expense[eg.key]?.ars || 0);
+                periodos[fechaStart].expense[eg.key] = { ars: prevArs + Math.round(montoPorFecha), usd: 0 };
+              }
             } else {
               noReconocidos.add(fila.Concepto); 
             }
@@ -147,12 +161,20 @@ export default function ImportadorCashflow({ baseIncome, baseExpense, onImportar
         }
       });
 
-      await onImportarSemanas(Object.values(periodos));
+      // Limpiar marcas auxiliares antes de persistir
+      const periodosFinales = Object.values(periodos).map(p => {
+        const clon = { ...p };
+        delete clon._reemplazadosIng;
+        delete clon._reemplazadosEg;
+        return clon;
+      });
+
+      await onImportarSemanas(periodosFinales);
       
       if (noReconocidos.size > 0) {
         alert("Atención: Los siguientes conceptos fueron ignorados porque no existen en tu configuración:\n\n" + Array.from(noReconocidos).join(", "));
       } else {
-        alert("¡Proyecciones calculadas y guardadas o actualizadas con éxito!");
+        alert("¡Proyecciones calculadas, reemplazadas y sincronizadas con éxito!");
       }
       
     } catch (err) {

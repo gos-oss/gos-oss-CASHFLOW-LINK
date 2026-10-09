@@ -256,10 +256,10 @@ export default function MonitorFinancieroTab({
   // ── 3. CUADRO 3: STOCK DE UNIDADES POR PROYECTO & VALUACIÓN TOTAL ──
   const [unidadesStock, setUnidadesStock] = useState(() => {
     try {
-      const local = localStorage.getItem("cf_stock_disponible_units_v1");
+      const local = localStorage.getItem("cf_stock_disponible_units_v2");
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length >= 100) {
+        if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some(u => String(u.id).startsWith("import-179"))) {
           return parsed
             .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
             .map(u => ({
@@ -297,7 +297,7 @@ export default function MonitorFinancieroTab({
               estado: u.estado || "Disponible"
             }));
           setUnidadesStock(cleaned);
-          localStorage.setItem("cf_stock_disponible_units_v1", JSON.stringify(cleaned));
+          localStorage.setItem("cf_stock_disponible_units_v2", JSON.stringify(cleaned));
         }
       } catch (err) {
         console.warn("Stock fetch fallback:", err);

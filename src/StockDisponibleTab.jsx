@@ -14,7 +14,7 @@ import {
   CartesianGrid, PieChart, Pie, Cell, Legend
 } from "recharts";
 
-const LOCAL_STORAGE_KEY = "cf_stock_disponible_units_v1";
+const LOCAL_STORAGE_KEY = "cf_stock_disponible_units_v2";
 
 const ESTADOS = [
   { id: "Disponible", label: "Disponible", color: "#10B981", bg: "#ECFDF5", border: "#A7F3D0" },
@@ -49,13 +49,17 @@ export default function StockDisponibleTab({
   const [moneda, setMoneda] = useState("USD"); // "USD" | "ARS"
   const [viewMode, setViewMode] = useState("unidades"); // "unidades" | "proyectos" | "graficos"
   
-  // Lista de unidades (Sincronizada con Supabase Cloud y catálogo oficial de 256 unidades disponibles)
+  // Lista de unidades (Inventario oficial de 174 unidades por proyecto según relevamiento oficial)
   const [unidades, setUnidades] = useState(() => {
     try {
+      // Limpiar cache vieja de v1 si existía
+      if (localStorage.getItem("cf_stock_disponible_units_v1")) {
+        localStorage.removeItem("cf_stock_disponible_units_v1");
+      }
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= 100) {
+        if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some(u => String(u.id).startsWith("import-179"))) {
           return parsed
             .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
             .map(u => ({

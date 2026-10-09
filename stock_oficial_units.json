@@ -1,22 +1,4 @@
-// INVENTARIO BASE OFICIAL DE STOCK DISPONIBLE - LINK INVERSIONES
-// Total: 174 unidades disponibles en cartera · Valuación consolidada: USD 13.425.214
-
-export function normalizarNombreProyecto(p) {
-  if (!p) return "Proyecto Link";
-  const clean = String(p).trim();
-  const lower = clean.toLowerCase();
-  if (lower.includes("duo")) return "+ DUO Proyecto";
-  if (lower.includes("green")) return "Torre Green Proyecto";
-  if (lower.includes("auria")) return "Auria Proyecto";
-  if (lower.includes("boulevard")) return "Cupo Link Boulevard";
-  if (lower.includes("torre 4")) return "Cupo Link # 300 - Torre 4";
-  if (lower.includes("torre 3")) return "Cupo Link # 300 - Torre 3";
-  if (lower.includes("torre 2")) return "Cupo Link # 300 - Torre 2";
-  if (lower.includes("corporativ")) return "Torre Corporativa";
-  return clean;
-}
-
-export const DEFAULT_STOCK_UNITS = [
+[
   {
     "id": "green-03",
     "proyecto": "Torre Green Proyecto",
@@ -3149,25 +3131,4 @@ export const DEFAULT_STOCK_UNITS = [
     "entrega_estimada": "2027",
     "orientacion": "Exterior"
   }
-];
-
-export const PROYECTOS_STOCK = [
-  "+ DUO Proyecto",
-  "Auria Proyecto",
-  "Cupo Link # 300 - Torre 4",
-  "Cupo Link # 300 - Torre 3",
-  "Torre Green Proyecto",
-  "Cupo Link Boulevard",
-  "Cupo Link # 300 - Torre 2",
-  "Torre Corporativa"
-];
-
-export const TIPOLOGIAS_STOCK = [
-  "Monoambiente",
-  "1 Dormitorio",
-  "2 Dormitorios",
-  "3 Dormitorios",
-  "Cochera",
-  "Local Comercial",
-  "Oficina"
-];
+]
