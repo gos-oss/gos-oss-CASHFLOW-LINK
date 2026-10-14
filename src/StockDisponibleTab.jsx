@@ -14,7 +14,7 @@ import {
   CartesianGrid, PieChart, Pie, Cell, Legend
 } from "recharts";
 
-const LOCAL_STORAGE_KEY = "cf_stock_disponible_units_v2";
+const LOCAL_STORAGE_KEY = "cf_stock_disponible_units_v3";
 
 const ESTADOS = [
   { id: "Disponible", label: "Disponible", color: "#10B981", bg: "#ECFDF5", border: "#A7F3D0" },
@@ -49,13 +49,12 @@ export default function StockDisponibleTab({
   const [moneda, setMoneda] = useState("USD"); // "USD" | "ARS"
   const [viewMode, setViewMode] = useState("unidades"); // "unidades" | "proyectos" | "graficos"
   
-  // Lista de unidades (Inventario oficial de 174 unidades por proyecto según relevamiento oficial)
+  // Lista de unidades (Inventario oficial de 190 unidades por proyecto según relevamiento oficial, Boulevard 0)
   const [unidades, setUnidades] = useState(() => {
     try {
-      // Limpiar cache vieja de v1 si existía
-      if (localStorage.getItem("cf_stock_disponible_units_v1")) {
-        localStorage.removeItem("cf_stock_disponible_units_v1");
-      }
+      // Limpiar cache vieja si existía
+      if (localStorage.getItem("cf_stock_disponible_units_v1")) localStorage.removeItem("cf_stock_disponible_units_v1");
+      if (localStorage.getItem("cf_stock_disponible_units_v2")) localStorage.removeItem("cf_stock_disponible_units_v2");
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
