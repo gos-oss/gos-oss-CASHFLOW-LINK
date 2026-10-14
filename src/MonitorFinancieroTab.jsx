@@ -258,10 +258,11 @@ export default function MonitorFinancieroTab({
     try {
       if (localStorage.getItem("cf_stock_disponible_units_v1")) localStorage.removeItem("cf_stock_disponible_units_v1");
       if (localStorage.getItem("cf_stock_disponible_units_v2")) localStorage.removeItem("cf_stock_disponible_units_v2");
-      const local = localStorage.getItem("cf_stock_disponible_units_v3");
+      if (localStorage.getItem("cf_stock_disponible_units_v3")) localStorage.removeItem("cf_stock_disponible_units_v3");
+      const local = localStorage.getItem("cf_stock_disponible_units_v4");
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some(u => String(u.id).startsWith("import-179"))) {
+        if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some(u => String(u.id).startsWith("import-179") || u.proyecto?.toLowerCase().includes("torre 3"))) {
           return parsed
             .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
             .map(u => ({
@@ -299,7 +300,7 @@ export default function MonitorFinancieroTab({
               estado: u.estado || "Disponible"
             }));
           setUnidadesStock(cleaned);
-          localStorage.setItem("cf_stock_disponible_units_v3", JSON.stringify(cleaned));
+          localStorage.setItem("cf_stock_disponible_units_v4", JSON.stringify(cleaned));
         }
       } catch (err) {
         console.warn("Stock fetch fallback:", err);
