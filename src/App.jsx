@@ -765,19 +765,43 @@ export default function App() {
   };
 
   const handleImportarMatrizExcel = async ({ semanas, saldoInicial, fechaSaldoInicial }) => {
-    if (saldoInicial !== null && saldoInicial !== undefined && fechaSaldoInicial) {
-      await supabase.from("cashflow_settings").upsert({
-        id: "arqueo_" + fechaSaldoInicial,
-        fecha_corte: fechaSaldoInicial,
-        saldo_efectivo: 0,
-        saldo_banco: Number(saldoInicial) || 0,
-        tipo_cambio: 1250
-      });
+    try {
+      if (saldoInicial !== null && saldoInicial !== undefined && fechaSaldoInicial) {
+        await supabase.from("cashflow_settings").upsert({
+          id: "arqueo_" + fechaSaldoInicial,
+          fecha_corte: fechaSaldoInicial,
+          saldo_efectivo: 0,
+          saldo_banco: Number(saldoInicial) || 0,
+          tipo_cambio: 1250
+        });
+      }
+      if (semanas && semanas.length > 0) {
+        const sanitized = semanas.map(w => ({
+          id: w.id || w.week_start,
+          week_start: w.week_start,
+          status: w.status || "proyectado",
+          saldo_inicial: Number(w.saldo_inicial) || 0,
+          saldo_bancos: Number(w.saldo_bancos) || 0,
+          saldo_credimas: Number(w.saldo_credimas) || 0,
+          income: w.income || {},
+          expense: w.expense || {},
+          notes: typeof w.notes === "string" ? w.notes : JSON.stringify(w.notes || {})
+        }));
+
+        for (let i = 0; i < sanitized.length; i += 30) {
+          const chunk = sanitized.slice(i, i + 30);
+          const { error } = await supabase.from("cashflow_weeks").upsert(chunk);
+          if (error) {
+            console.error("[AI Studio] Error al guardar lote de semanas:", error);
+            throw error;
+          }
+        }
+      }
+      await fetchData();
+    } catch (err) {
+      console.error("[AI Studio] Error en handleImportarMatrizExcel:", err);
+      throw err;
     }
-    if (semanas && semanas.length > 0) {
-      await supabase.from("cashflow_weeks").upsert(semanas);
-    }
-    await fetchData();
   };
 
   const handleBorrarDatos = async () => {
