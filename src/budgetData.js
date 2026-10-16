@@ -95,20 +95,20 @@ export const PLAN_INCOME_CATS = PLAN_INCOME_CATS_2027;
 
 // PROYECTOS LINK 2027 (EGRESOS OBRAS Y CUPOS)
 export const PLAN_PROJECT_CATS_2027 = [
+  // 1. Comercialización (Primer rubro oficial de Proyectos)
+  { key: "proy_comercializacion", label: "Comercialización", tag: "Comercial", sublabel: "Costo comercial de proyectos ($22,33M/mes)", group: "obras", pctEgreso: 2.70, pctProy: 3.67 },
   // Cupos Fijos
-  { key: "proy_300", label: "Cupo Link # 300", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($53,97M)", group: "cupos", pctEgreso: 6.60, pctProy: 9.22 },
-  { key: "proy_boulevard", label: "Cupo Link Boulevard", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($49,31M)", group: "cupos", pctEgreso: 6.03, pctProy: 8.42 },
-  { key: "proy_neuquen", label: "Cupo Link Neuquén", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($30,80M)", group: "cupos", pctEgreso: 3.77, pctProy: 5.26 },
-
+  { key: "proy_300", label: "Cupo Link # 300", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($53,97M)", group: "cupos", pctEgreso: 6.53, pctProy: 8.88 },
+  { key: "proy_boulevard", label: "Cupo Link Boulevard", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($49,31M)", group: "cupos", pctEgreso: 5.96, pctProy: 8.11 },
+  { key: "proy_neuquen", label: "Cupo Link Neuquén", tag: "Cupo Fijo", sublabel: "Aporte mensual societario ($30,80M)", group: "cupos", pctEgreso: 3.72, pctProy: 5.07 },
   // Curvas de Obras Activas y Gastos Administrativos de Obra
-  { key: "proy_torre-green", label: "Torre Green Proyecto", tag: "Curva S", sublabel: "Obra activa en ejecución", group: "obras", pctEgreso: 19.52, pctProy: 27.27 },
-  { key: "proy_gastos-admin-green", label: "Gastos Admin Green", tag: "Admin Obra", sublabel: "Gastos administrativos Torre Green", group: "obras", pctEgreso: 0.28, pctProy: 0.39 },
-  { key: "proy_mas-duo", label: "+ DUO Proyecto", tag: "Curva S", sublabel: "Obra activa en expansión", group: "obras", pctEgreso: 26.48, pctProy: 36.99 },
-  { key: "proy_gastos-admin-duo", label: "Gastos Admin + DUO", tag: "Admin Obra", sublabel: "Gastos administrativos + DUO", group: "obras", pctEgreso: 0.12, pctProy: 0.17 },
-  { key: "proy_auria", label: "Auria Proyecto", tag: "Nueva Obra", sublabel: "Inicio proyectado en junio", group: "obras", pctEgreso: 7.78, pctProy: 10.87 },
-  { key: "proy_gastos-admin-auria", label: "Gastos Admin Auria", tag: "Admin Obra", sublabel: "Gastos administrativos Auria", group: "obras", pctEgreso: 0.22, pctProy: 0.31 },
-  { key: "proy_tdys", label: "Tdys (ET)", tag: "Técnica", sublabel: "Gastos y ensayos técnicos", group: "obras", pctEgreso: 0.78, pctProy: 1.09 },
-
+  { key: "proy_torre-green", label: "Torre Green Proyecto", tag: "Curva S", sublabel: "Obra activa en ejecución", group: "obras", pctEgreso: 19.31, pctProy: 26.27 },
+  { key: "proy_gastos-admin-green", label: "Gastos Admin Green", tag: "Admin Obra", sublabel: "Gastos administrativos Torre Green", group: "obras", pctEgreso: 0.28, pctProy: 0.38 },
+  { key: "proy_mas-duo", label: "+ DUO Proyecto", tag: "Curva S", sublabel: "Obra activa en expansión", group: "obras", pctEgreso: 26.18, pctProy: 35.63 },
+  { key: "proy_gastos-admin-duo", label: "Gastos Admin + DUO", tag: "Admin Obra", sublabel: "Gastos administrativos + DUO", group: "obras", pctEgreso: 0.12, pctProy: 0.16 },
+  { key: "proy_auria", label: "Auria Proyecto", tag: "Nueva Obra", sublabel: "Inicio proyectado en junio", group: "obras", pctEgreso: 7.70, pctProy: 10.47 },
+  { key: "proy_gastos-admin-auria", label: "Gastos Admin Auria", tag: "Admin Obra", sublabel: "Gastos administrativos Auria", group: "obras", pctEgreso: 0.22, pctProy: 0.30 },
+  { key: "proy_tdys", label: "Tdys (ET)", tag: "Técnica", sublabel: "Gastos y ensayos técnicos", group: "obras", pctEgreso: 0.77, pctProy: 1.05 },
   // Obras anteriores sin desembolso 2027
   { key: "proy_duo", label: "DUO", tag: "Cierre", sublabel: "Finalizada dic 2026", group: "obras", pctEgreso: 0, pctProy: 0 },
   { key: "proy_torre-blue", label: "Torre Blue", tag: "Finalizada", sublabel: "Sin desembolsos 2027", group: "obras", pctEgreso: 0, pctProy: 0 },
@@ -123,18 +123,15 @@ export const PLAN_PROJECT_CATS = PLAN_PROJECT_CATS_2027;
 
 // ESTRUCTURA 2027
 export const PLAN_ESTRUCTURA_CATS_2027 = [
-  { key: "est_rrhh", label: "RRHH", sublabel: "Recursos humanos y capacitaciones", group: "estructura", pctEgreso: 1.02, pctEstructura: 4.16 },
-  { key: "est_sueldos-azlepi", label: "Sueldos Azlepi", sublabel: "Nómina fija Azlepi ($95,05M/mes, jun/dic SAC $142,57M)", group: "estructura", pctEgreso: 12.59, pctEstructura: 51.17 },
-  { key: "est_sueldos-comercial", label: "Sueldos Comercial", sublabel: "Nómina comercial ($10,83M/mes, jun/dic SAC $16,24M)", group: "estructura", pctEgreso: 1.43, pctEstructura: 5.83 },
-  { key: "est_cargas-sociales-azlepi", label: "Cargas Sociales Azlepi", sublabel: "Aportes patronales Azlepi ($11,48M/mes, jun/dic $17,22M)", group: "estructura", pctEgreso: 1.52, pctEstructura: 6.18 },
-  { key: "est_cargas-sociales-comercial", label: "Cargas Sociales Comercial", sublabel: "Aportes patronales comercial ($1,31M/mes, jun/dic $1,96M)", group: "estructura", pctEgreso: 0.17, pctEstructura: 0.70 },
-  { key: "est_impuestos", label: "Impuestos", sublabel: "Obligaciones impositivas mensuales ($36,44M/mes)", group: "estructura", pctEgreso: 4.46, pctEstructura: 18.11 },
-  { key: "est_gastos-admin-link", label: "Gastos Admin Link", sublabel: "Operación general y suministros Link", group: "estructura", pctEgreso: 2.15, pctEstructura: 8.73 },
-  { key: "est_gastos-admin-comercial", label: "Gastos Admin Comercial", sublabel: "Gastos comerciales operativos ($0)", group: "estructura", pctEgreso: 0.00, pctEstructura: 0.00 },
-  { key: "est_gastos-admin-otros", label: "Gastos Admin Otros", sublabel: "Otros gastos administrativos corrientes", group: "estructura", pctEgreso: 1.08, pctEstructura: 4.38 },
-  { key: "est_cx", label: "CX", sublabel: "Experiencia de clientes y fidelización ($0,39M/mes)", group: "estructura", pctEgreso: 0.05, pctEstructura: 0.19 },
-  { key: "est_post-venta", label: "Post Venta", sublabel: "Garantías y atención post entrega ($0,97M/mes)", group: "estructura", pctEgreso: 0.12, pctEstructura: 0.48 },
-  { key: "est_renta-anticipada", label: "Renta Anticipada", sublabel: "Renta comprometida a inversores (Enero)", group: "estructura", pctEgreso: 0.02, pctEstructura: 0.06 }
+  { key: "est_rrhh", label: "RRHH", sublabel: "Recursos humanos y capacitaciones", group: "estructura", pctEgreso: 1.01, pctEstructura: 4.45 },
+  { key: "est_sueldos-azlepi", label: "Sueldos Azlepi", sublabel: "Nómina fija Azlepi ($95,05M/mes, jun/dic SAC $142,57M)", group: "estructura", pctEgreso: 12.45, pctEstructura: 54.74 },
+  { key: "est_cargas-sociales-azlepi", label: "Cargas Sociales Azlepi", sublabel: "Aportes patronales Azlepi ($11,48M/mes, jun/dic $17,22M)", group: "estructura", pctEgreso: 1.50, pctEstructura: 6.61 },
+  { key: "est_impuestos", label: "Impuestos", sublabel: "Obligaciones impositivas mensuales ($36,44M/mes)", group: "estructura", pctEgreso: 4.41, pctEstructura: 19.37 },
+  { key: "est_gastos-admin-link", label: "Gastos Admin Link", sublabel: "Operación general y suministros Link", group: "estructura", pctEgreso: 2.13, pctEstructura: 9.34 },
+  { key: "est_gastos-admin-otros", label: "Gastos Admin Otros", sublabel: "Otros gastos administrativos corrientes", group: "estructura", pctEgreso: 1.07, pctEstructura: 4.69 },
+  { key: "est_cx", label: "CX", sublabel: "Experiencia de clientes y fidelización ($0,39M/mes)", group: "estructura", pctEgreso: 0.05, pctEstructura: 0.21 },
+  { key: "est_post-venta", label: "Post Venta", sublabel: "Garantías y atención post entrega ($0,97M/mes)", group: "estructura", pctEgreso: 0.12, pctEstructura: 0.51 },
+  { key: "est_renta-anticipada", label: "Renta Anticipada", sublabel: "Renta comprometida a inversores (Enero)", group: "estructura", pctEgreso: 0.02, pctEstructura: 0.07 }
 ];
 
 // INVERSIONES Y PASIVOS FINANCIEROS 2027
@@ -198,12 +195,12 @@ export const DEFAULT_PLAN_2026 = {
 // 2. Honorarios Proyectos ($652.860.000,00)
 // 3. SIGMA Proy Propios ($256.133.494,00)
 // 4. SIGMA Proy Socios ($215.088.221,60)
-// 5. Comercializacion ($267.945.766,64)
-// 6. Gestión Comercial ($7.387.647.565,86)
+// 5. Comercialización ($267.945.766,68)
+// 6. Gestión Comercial ($7.655.593.332,48)
 //    - Ventas Paquetes ($2.253.086.150,40)
-//    - Ventas Canjes ($1.147.995.381,14)
+//    - Ventas Canjes ($1.147.995.381,12)
 //    - Ventas Mostrador ($4.254.511.800,96)
-// TOTAL INGRESOS: $9.972.210.207,10 | TOTAL EGRESOS: $9.814.044.828,79 | POSICION NETA: $158.165.378,31 (102.042,18 USD)
+// TOTAL INGRESOS: $10.240.155.973,74 | TOTAL EGRESOS: $9.924.228.737,92 | POSICION NETA: +$315.927.235,82 (203.824,02 USD)
 export const DEFAULT_PLAN_2027 = {
   "ingreso": {
     // 1. CC CLIENTES
@@ -212,42 +209,36 @@ export const DEFAULT_PLAN_2027 = {
       "05": 105735735.00, "06": 102862746.00, "07": 97833898.00, "08": 97833898.00,
       "09": 93118900.00, "10": 92547465.00, "11": 90134803.00, "12": 78152291.00
     },
-
     // 2. HONORARIOS PROYECTOS
     "custom_honorarios-proyectos": {
       "01": 54405000.00, "02": 54405000.00, "03": 54405000.00, "04": 54405000.00,
       "05": 54405000.00, "06": 54405000.00, "07": 54405000.00, "08": 54405000.00,
       "09": 54405000.00, "10": 54405000.00, "11": 54405000.00, "12": 54405000.00
     },
-
     // 3. SIGMA PROY PROPIOS
     "custom_sigma-propios": {
       "01": 8871983.80, "02": 10422572.40, "03": 12132390.00, "04": 13977725.10,
       "05": 15920550.10, "06": 20885174.30, "07": 23150559.00, "08": 25666563.50,
       "09": 28104777.40, "10": 30387159.40, "11": 32436007.60, "12": 34178031.40
     },
-
     // 4. SIGMA PROY SOCIOS
     "custom_sigma-socios": {
       "01": 16998334.80, "02": 17643958.20, "03": 20024414.20, "04": 20252842.00,
       "05": 20266145.30, "06": 19865001.30, "07": 19109616.50, "08": 18122663.40,
       "09": 17051978.30, "10": 16029550.70, "11": 15142621.40, "12": 14581095.50
     },
-
-    // 5. COMERCIALIZACION
+    // 5. COMERCIALIZACION (Facturación de comisiones comerciales de obras)
     "custom_comercializacion": {
       "01": 22328813.89, "02": 22328813.89, "03": 22328813.89, "04": 22328813.89,
       "05": 22328813.89, "06": 22328813.89, "07": 22328813.89, "08": 22328813.89,
       "09": 22328813.89, "10": 22328813.89, "11": 22328813.89, "12": 22328813.89
     },
-
-    // 6. GESTION COMERCIAL
+    // 6. GESTION COMERCIAL ($637.966.111,04 / mes)
     "custom_gestion-comercial": {
-      "01": 615637297.16, "02": 615637297.16, "03": 615637297.16, "04": 615637297.16,
-      "05": 615637297.16, "06": 615637297.16, "07": 615637297.16, "08": 615637297.16,
-      "09": 615637297.16, "10": 615637297.16, "11": 615637297.16, "12": 615637297.16
+      "01": 637966111.04, "02": 637966111.04, "03": 637966111.04, "04": 637966111.04,
+      "05": 637966111.04, "06": 637966111.04, "07": 637966111.04, "08": 637966111.04,
+      "09": 637966111.04, "10": 637966111.04, "11": 637966111.04, "12": 637966111.04
     },
-
     // Subdesglose de Gestión Comercial (Paquetes, Canjes, Mostrador)
     "custom_ventas-paquetes": {
       "01": 187757179.20, "02": 187757179.20, "03": 187757179.20, "04": 187757179.20,
@@ -264,7 +255,6 @@ export const DEFAULT_PLAN_2027 = {
       "05": 354542650.08, "06": 354542650.08, "07": 354542650.08, "08": 354542650.08,
       "09": 354542650.08, "10": 354542650.08, "11": 354542650.08, "12": 354542650.08
     },
-
     // Llaves anteriores inicializadas en 0 para retrocompatibilidad
     "custom_sigma": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "custom_ventas-cdo": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
@@ -273,7 +263,12 @@ export const DEFAULT_PLAN_2027 = {
     "custom_aportes": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 }
   },
   "egreso": {
-    // PROYECTOS
+    // PROYECTOS (Comercialización como 1er rubro oficial)
+    "proy_comercializacion": {
+      "01": 22328813.89, "02": 22328813.89, "03": 22328813.89, "04": 22328813.89,
+      "05": 22328813.89, "06": 22328813.89, "07": 22328813.89, "08": 22328813.89,
+      "09": 22328813.89, "10": 22328813.89, "11": 22328813.89, "12": 22328813.89
+    },
     "proy_300": {
       "01": 53971118.99, "02": 53971118.99, "03": 53971118.99, "04": 53971118.99,
       "05": 53971118.99, "06": 53971118.99, "07": 53971118.99, "08": 53971118.99,
@@ -324,8 +319,7 @@ export const DEFAULT_PLAN_2027 = {
       "06": 200980.00, "07": 9500.00, "08": 9843178.85, "09": 888419.50,
       "10": 3488880.00, "11": 2830414.43, "12": 5349505.07
     },
-
-    // ESTRUCTURA (Incluye SAC Aguinaldo en junio y diciembre)
+    // ESTRUCTURA (Nómina Azlepi con SAC junio y diciembre, Gastos Admin e Impuestos)
     "est_rrhh": {
       "01": 8368943.51, "02": 8368943.51, "03": 8368943.51, "04": 8368943.51,
       "05": 8368943.51, "06": 8368943.51, "07": 8368943.51, "08": 8368943.51,
@@ -336,20 +330,10 @@ export const DEFAULT_PLAN_2027 = {
       "05": 95046765.21, "06": 142570147.82, "07": 95046765.21, "08": 95046765.21,
       "09": 95046765.21, "10": 95046765.21, "11": 95046765.21, "12": 142570147.82
     },
-    "est_sueldos-comercial": {
-      "01": 10827526.21, "02": 10827526.21, "03": 10827526.21, "04": 10827526.21,
-      "05": 10827526.21, "06": 16241289.32, "07": 10827526.21, "08": 10827526.21,
-      "09": 10827526.21, "10": 10827526.21, "11": 10827526.21, "12": 16241289.32
-    },
     "est_cargas-sociales-azlepi": {
       "01": 11481966.35, "02": 11481966.35, "03": 11481966.35, "04": 11481966.35,
       "05": 11481966.35, "06": 17222949.52, "07": 11481966.35, "08": 11481966.35,
       "09": 11481966.35, "10": 11481966.35, "11": 11481966.35, "12": 17222949.52
-    },
-    "est_cargas-sociales-comercial": {
-      "01": 1308001.29, "02": 1308001.29, "03": 1308001.29, "04": 1308001.29,
-      "05": 1308001.29, "06": 1962001.94, "07": 1308001.29, "08": 1308001.29,
-      "09": 1308001.29, "10": 1308001.29, "11": 1308001.29, "12": 1962001.94
     },
     "est_impuestos": {
       "01": 36437033.58, "02": 36437033.58, "03": 36437033.58, "04": 36437033.58,
@@ -360,11 +344,6 @@ export const DEFAULT_PLAN_2027 = {
       "01": 15069529.41, "02": 16021815.06, "03": 15622432.11, "04": 16599500.39,
       "05": 21848062.79, "06": 17194810.85, "07": 16926983.93, "08": 17957386.22,
       "09": 17558340.98, "10": 18607291.38, "11": 18218461.12, "12": 19296037.89
-    },
-    "est_gastos-admin-comercial": {
-      "01": 0.00, "02": 0.00, "03": 0.00, "04": 0.00,
-      "05": 0.00, "06": 0.00, "07": 0.00, "08": 0.00,
-      "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
     },
     "est_gastos-admin-otros": {
       "01": 9245212.25, "02": 14220116.44, "03": 9615941.64, "04": 7407386.05,
@@ -386,6 +365,10 @@ export const DEFAULT_PLAN_2027 = {
       "05": 0.00, "06": 0.00, "07": 0.00, "08": 0.00,
       "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
     },
+    // Sueldos comercial unificados en comercialización de proyectos
+    "est_sueldos-comercial": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "est_cargas-sociales-comercial": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
+    "est_gastos-admin-comercial": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
 
     // INVERSIONES
     "inv_colonia": {
@@ -411,7 +394,7 @@ export const DEFAULT_PLAN_2027 = {
       "09": 0.00, "10": 0.00, "11": 0.00, "12": 0.00
     },
 
-    // Llaves anteriores inicializadas en 0 para retrocompatibilidad (sin duplicar sueldos)
+    // Llaves anteriores inicializadas en 0 para retrocompatibilidad
     "est_sueldos": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "est_cargas-sociales": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
     "est_gastos-admin": { "01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 0, "07": 0, "08": 0, "09": 0, "10": 0, "11": 0, "12": 0 },
