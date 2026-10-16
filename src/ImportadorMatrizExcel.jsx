@@ -144,7 +144,7 @@ export default function ImportadorMatrizExcel({
   const [errorMsg, setErrorMsg] = useState(null);
   const [soloDesdeHoy, setSoloDesdeHoy] = useState(true);
   const [fechaCorte, setFechaCorte] = useState(todayISO());
-  const [modoReemplazo, setModoReemplazo] = useState("conceptos"); // "conceptos" | "completo" | "fusionar"
+  const [modoReemplazo, setModoReemplazo] = useState("completo"); // "completo" | "conceptos" | "fusionar"
   const [rawParsedData, setRawParsedData] = useState(null);
   const [saldoManual, setSaldoManual] = useState(null);
   const [hojasDisponibles, setHojasDisponibles] = useState([]);
@@ -167,85 +167,122 @@ export default function ImportadorMatrizExcel({
     // Ingresos
     "cuposneuquen": "cuposNeuquen",
     "cuposnqn": "cuposNeuquen",
+    "cuponeuquen": "cuposNeuquen",
+    "cuponqn": "cuposNeuquen",
     "neuquen": "cuposNeuquen",
+    "nqn": "cuposNeuquen",
     "cuposboulevard": "cuposBoulevard",
     "cuposblvd": "cuposBoulevard",
+    "cupoboulevard": "cuposBoulevard",
+    "cupoblvd": "cuposBoulevard",
     "boulevard": "cuposBoulevard",
+    "blvd": "cuposBoulevard",
     "cupoduo": "cupoDuo",
     "cuposduo": "cupoDuo",
     "duo": "cupoDuo",
     "cupos300": "cupos300",
+    "cupo300": "cupos300",
     "torre300": "cupos300",
+    "link300": "cupos300",
     "300": "cupos300",
     "otrosingresos": "otrosIngresos",
     "otrosingreso": "otrosIngresos",
     "ingresosvarios": "otrosIngresos",
+    "ingresovarios": "otrosIngresos",
+    "variosingresos": "otrosIngresos",
+    "otrosingresosvarios": "otrosIngresos",
     "varios": "otrosIngresos",
     "posiblesventas": "posiblesVentas",
     "posibleventa": "posiblesVentas",
     "ventas": "posiblesVentas",
     "ventasproyectadas": "posiblesVentas",
+    "ventaproyectada": "posiblesVentas",
     "venta": "posiblesVentas",
     "cobranzascuotas": "cobranzasCuotas",
     "cobranzascuota": "cobranzasCuotas",
+    "cobranzacuotas": "cobranzasCuotas",
+    "cobranzacuota": "cobranzasCuotas",
     "cobranzas": "cobranzasCuotas",
     "cobranza": "cobranzasCuotas",
     "cuotas": "cobranzasCuotas",
+    "cuota": "cobranzasCuotas",
+    "cuotasclientes": "cobranzasCuotas",
     "cuotaclientes": "cobranzasCuotas",
+    "cuotascliente": "cobranzasCuotas",
     "cuentascorrientes": "cobranzasCuotas",
     "cuentacorriente": "cobranzasCuotas",
+    "ccclientes": "cobranzasCuotas",
 
     // Egresos
     "socios": "socios",
     "socio": "socios",
     "retirosocios": "socios",
     "retirossocios": "socios",
+    "retirodesocios": "socios",
     "honorariossocios": "socios",
     "chequesemitidos": "chequesEmitidos",
     "cheques": "chequesEmitidos",
     "cheque": "chequesEmitidos",
+    "chequese": "chequesEmitidos",
+    "chemitidos": "chequesEmitidos",
     "prestamos": "prestamos",
     "prestamo": "prestamos",
     "creditos": "prestamos",
+    "credito": "prestamos",
+    "prestamosbancarios": "prestamos",
     "sueldosoficina": "sueldosOficina",
     "sueldosdeoficina": "sueldosOficina",
     "sueldooficina": "sueldosOficina",
     "sueldos": "sueldosOficina",
     "sueldo": "sueldosOficina",
     "haberes": "sueldosOficina",
+    "haberesoficina": "sueldosOficina",
     "cargassocialesazlepiysigma": "cargasSociales",
     "cargassociales": "cargasSociales",
     "cargasocial": "cargasSociales",
     "f931": "cargasSociales",
     "931": "cargasSociales",
+    "afip931": "cargasSociales",
     "quincenaobra": "quincenaObra",
     "quincenadeobra": "quincenaObra",
     "quincenas": "quincenaObra",
     "quincena": "quincenaObra",
     "jornales": "quincenaObra",
+    "jornal": "quincenaObra",
+    "operarios": "quincenaObra",
     "planesdepagoimpuestos": "planesImpuestos",
     "planesdepago": "planesImpuestos",
     "planespago": "planesImpuestos",
+    "plandepago": "planesImpuestos",
     "impuestos": "planesImpuestos",
     "impuesto": "planesImpuestos",
     "afip": "planesImpuestos",
     "arba": "planesImpuestos",
+    "dgr": "planesImpuestos",
     "tarjetas": "tarjetas",
     "tarjeta": "tarjetas",
     "tarjetascredito": "tarjetas",
+    "tarjetasdecredito": "tarjetas",
     "externos": "externos",
     "honorarios": "externos",
     "honorariosexternos": "externos",
+    "profesionales": "externos",
     "seguros": "seguros",
     "seguro": "seguros",
     "polizas": "seguros",
+    "poliza": "seguros",
     "mensuales": "mensuales",
     "gastosmensuales": "mensuales",
+    "servicios": "mensuales",
     "rentaanticipada": "rentaAnticipada",
     "rentasanticipadas": "rentaAnticipada",
+    "rentas": "rentaAnticipada",
+    "renta": "rentaAnticipada",
     "bajaclientes": "bajaClientes",
     "bajasclientes": "bajaClientes",
     "devoluciones": "bajaClientes",
+    "devolucion": "bajaClientes",
+    "rescisiones": "bajaClientes",
     "terrenoneuquen": "terrenoNeuquen",
     "terrenonqn": "terrenoNeuquen",
     "terreno": "terrenoNeuquen",
@@ -253,8 +290,13 @@ export default function ImportadorMatrizExcel({
     "pagosdeldia": "pagosDia",
     "pagosdia": "pagosDia",
     "pagodia": "pagosDia",
+    "pagos": "pagosDia",
+    "salidasdeldia": "pagosDia",
     "otros": "otros",
     "otrosgastos": "otros",
+    "otrosegresos": "otros",
+    "gastosvarios": "otros",
+    "egresosvarios": "otros",
     "rrhh": "rrhh",
     "recursoshumanos": "rrhh",
     "mkt": "mkt",
@@ -266,13 +308,17 @@ export default function ImportadorMatrizExcel({
     "customerexperience": "cx",
     "postventa": "postVenta",
     "postventas": "postVenta",
+    "post-venta": "postVenta",
     "contratistas": "contratistas",
     "contratista": "contratistas",
     "obras": "contratistas",
     "obra": "contratistas",
+    "subcontratistas": "contratistas",
+    "certificaciones": "contratistas",
     "proveedores": "proveedores",
     "proveedor": "proveedores",
-    "pagosproveedores": "proveedores"
+    "pagosproveedores": "proveedores",
+    "compras": "proveedores"
   };
 
   const buscarConcepto = (nombreFila) => {
@@ -502,7 +548,7 @@ export default function ImportadorMatrizExcel({
       filasConceptos.push({ rowIdx: r, fila, match });
     }
 
-    // 2. Precargar semanas y aplicar política de reemplazo a futuro
+    // 2. Precargar semanas y aplicar política de reemplazo
     columnasAProcesar.forEach(cf => {
       const wExistente = weeks.find(w => w.week_start === cf.fechaIso);
       if (wExistente) {
@@ -522,25 +568,38 @@ export default function ImportadorMatrizExcel({
         };
       }
 
-      // Si la fecha es proyectada (desde fechaCorte en adelante) y está activo el reemplazo:
-      const esFechaFutura = cf.fechaIso >= fechaCorte;
-      if (esFechaFutura) {
-        if (modoReemplazo === "completo") {
-          // Reemplazo total: vacía todo lo proyectado previamente en esta fecha para reflejar 100% el Excel
-          semanasDict[cf.fechaIso].income = {};
-          semanasDict[cf.fechaIso].expense = {};
-        } else if (modoReemplazo === "conceptos") {
-          // Reemplazo de conceptos: limpia los conceptos que están en el Excel en esta fecha,
-          // de forma que si el Excel trae un importe nuevo se sobrescribe, y si en esa fecha
-          // el Excel tiene 0 o vacío, no deja importes viejos obsoletos ("fantasmas").
-          Object.keys(mapaConceptosTipo).forEach(conceptKey => {
-            const field = mapaConceptosTipo[conceptKey] === "ingreso" ? "income" : "expense";
-            delete semanasDict[cf.fechaIso][field][conceptKey];
-          });
-        }
-        // En modo "fusionar", se preservan los valores previos tal cual
+      // Aplicar política de reemplazo sobre las fechas a procesar
+      if (modoReemplazo === "completo") {
+        // Reemplazo total: vacía completamente los movimientos previos en esta fecha para reflejar 100% el Excel
+        semanasDict[cf.fechaIso].income = {};
+        semanasDict[cf.fechaIso].expense = {};
+      } else if (modoReemplazo === "conceptos") {
+        // Reemplazo de conceptos: limpia los conceptos que están en el Excel en esta fecha,
+        // de forma que si el Excel trae un importe nuevo se sobrescribe, y si en esa fecha
+        // el Excel tiene 0 o vacío, no deja importes viejos obsoletos ("fantasmas").
+        Object.keys(mapaConceptosTipo).forEach(conceptKey => {
+          const field = mapaConceptosTipo[conceptKey] === "ingreso" ? "income" : "expense";
+          delete semanasDict[cf.fechaIso][field][conceptKey];
+        });
       }
+      // En modo "fusionar", se preservan los valores previos tal cual
     });
+
+    // En reemplazo total, si en la base existen fechas intermedias dentro del rango [primeraFecha, ultimaFecha]
+    // que el nuevo Excel ya no incluye, vaciar sus movimientos para que no queden registros obsoletos
+    if (modoReemplazo === "completo" && columnasAProcesar.length > 0) {
+      const pFecha = columnasAProcesar[0].fechaIso;
+      const uFecha = columnasAProcesar[columnasAProcesar.length - 1].fechaIso;
+      weeks.forEach(w => {
+        if (w.week_start >= pFecha && w.week_start <= uFecha && !semanasDict[w.week_start]) {
+          semanasDict[w.week_start] = {
+            ...w,
+            income: {},
+            expense: {}
+          };
+        }
+      });
+    }
 
     // 3. Procesar importes de cada fila de conceptos para cada columna de fecha
     let totalMovimientosProcesados = 0;
@@ -773,34 +832,22 @@ export default function ImportadorMatrizExcel({
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <RefreshCw size={15} color={modoReemplazo !== "fusionar" ? "#15803D" : tokens.textMuted} />
             <span style={{ fontSize: 13, fontWeight: 700, color: modoReemplazo !== "fusionar" ? "#166534" : tokens.ink }}>
-              Movimientos existentes a futuro:
+              Tratamiento de movimientos preexistentes:
             </span>
           </div>
           <span style={{
             fontSize: 11,
-            background: modoReemplazo !== "fusionar" ? "#DCFCE7" : "#E2E8F0",
-            color: modoReemplazo !== "fusionar" ? "#15803D" : tokens.textMuted,
+            background: modoReemplazo === "completo" ? "#DCFCE7" : modoReemplazo === "conceptos" ? "#FEF9C3" : "#E2E8F0",
+            color: modoReemplazo === "completo" ? "#15803D" : modoReemplazo === "conceptos" ? "#854D0E" : tokens.textMuted,
             padding: "2px 8px",
             borderRadius: 4,
             fontWeight: 700
           }}>
-            {modoReemplazo === "conceptos" ? "✓ Reemplaza existentes en cada concepto" : modoReemplazo === "completo" ? "✓ Reemplazo total de proyecciones" : "Fusionar"}
+            {modoReemplazo === "completo" ? "✓ Reemplazo total (Sobrescribe todo al 100%)" : modoReemplazo === "conceptos" ? "Reemplazar solo conceptos presentes" : "Fusionar / Acumular"}
           </span>
         </div>
 
         <div style={{ display: "flex", gap: 18, flexWrap: "wrap", paddingTop: 2 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12.5, color: tokens.ink }}>
-            <input
-              type="radio"
-              name="modoReemplazo"
-              value="conceptos"
-              checked={modoReemplazo === "conceptos"}
-              onChange={() => setModoReemplazo("conceptos")}
-              style={{ accentColor: tokens.gold, cursor: "pointer" }}
-            />
-            <span><strong>Reemplazar conceptos existentes</strong> <span style={{ color: tokens.textMuted }}>(Recomendado: actualiza los valores existentes en cada concepto con el nuevo Excel)</span></span>
-          </label>
-
           <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12.5, color: tokens.ink }}>
             <input
               type="radio"
@@ -810,7 +857,19 @@ export default function ImportadorMatrizExcel({
               onChange={() => setModoReemplazo("completo")}
               style={{ accentColor: tokens.gold, cursor: "pointer" }}
             />
-            <span><strong>Reemplazo total</strong> <span style={{ color: tokens.textMuted }}>(Limpia proyecciones previas en esas fechas para reflejar 100% el archivo)</span></span>
+            <span><strong>Reemplazo total</strong> <span style={{ color: "#166534", fontWeight: 600 }}>(Recomendado: los movimientos se reemplazan 100% con los importes del Excel)</span></span>
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12.5, color: tokens.ink }}>
+            <input
+              type="radio"
+              name="modoReemplazo"
+              value="conceptos"
+              checked={modoReemplazo === "conceptos"}
+              onChange={() => setModoReemplazo("conceptos")}
+              style={{ accentColor: tokens.gold, cursor: "pointer" }}
+            />
+            <span><strong>Reemplazar conceptos detectados</strong> <span style={{ color: tokens.textMuted }}>(Solo actualiza los conceptos que figuran en el archivo)</span></span>
           </label>
 
           <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12.5, color: tokens.ink }}>
@@ -822,7 +881,7 @@ export default function ImportadorMatrizExcel({
               onChange={() => setModoReemplazo("fusionar")}
               style={{ accentColor: tokens.gold, cursor: "pointer" }}
             />
-            <span><strong>Solo fusionar</strong> <span style={{ color: tokens.textMuted }}>(No reemplaza nada previo)</span></span>
+            <span><strong>Solo fusionar / sumar</strong> <span style={{ color: tokens.textMuted }}>(Suma a lo que ya existe sin borrar nada)</span></span>
           </label>
         </div>
       </div>
@@ -1005,13 +1064,13 @@ export default function ImportadorMatrizExcel({
               </div>
             </div>
 
-            <div style={{ background: modoReemplazo !== "fusionar" ? "#F0FDF4" : "#F8FAFC", padding: "12px 14px", borderRadius: 6, border: `1px solid ${modoReemplazo !== "fusionar" ? "#BBF7D0" : "#E2E8F0"}` }}>
-              <div style={{ fontSize: 11, color: modoReemplazo !== "fusionar" ? "#166534" : tokens.textMuted, textTransform: "uppercase", fontWeight: 700 }}>Modo a Futuro</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: modoReemplazo !== "fusionar" ? "#15803D" : tokens.ink, marginTop: 3 }}>
-                {modoReemplazo === "conceptos" ? "Reemplazo activo" : modoReemplazo === "completo" ? "Reemplazo 100%" : "Fusión"}
+            <div style={{ background: modoReemplazo === "completo" ? "#F0FDF4" : modoReemplazo === "conceptos" ? "#FEFCE8" : "#F8FAFC", padding: "12px 14px", borderRadius: 6, border: `1px solid ${modoReemplazo === "completo" ? "#BBF7D0" : modoReemplazo === "conceptos" ? "#FEF08A" : "#E2E8F0"}` }}>
+              <div style={{ fontSize: 11, color: modoReemplazo === "completo" ? "#166534" : modoReemplazo === "conceptos" ? "#854D0E" : tokens.textMuted, textTransform: "uppercase", fontWeight: 700 }}>Modo de Importación</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: modoReemplazo === "completo" ? "#15803D" : modoReemplazo === "conceptos" ? "#A16207" : tokens.ink, marginTop: 3 }}>
+                {modoReemplazo === "completo" ? "Reemplazo 100%" : modoReemplazo === "conceptos" ? "Reemplazo parcial" : "Fusión"}
               </div>
-              <div style={{ fontSize: 11, color: modoReemplazo !== "fusionar" ? "#166534" : tokens.textMuted, marginTop: 2 }}>
-                {modoReemplazo !== "fusionar" ? "Sobrescribe lo existente en cada concepto" : "Mantiene proyecciones previas"}
+              <div style={{ fontSize: 11, color: modoReemplazo === "completo" ? "#166534" : modoReemplazo === "conceptos" ? "#854D0E" : tokens.textMuted, marginTop: 2 }}>
+                {modoReemplazo === "completo" ? "Sobrescribe 100% los movimientos" : modoReemplazo === "conceptos" ? "Solo conceptos detectados" : "Suma a lo preexistente"}
               </div>
             </div>
 

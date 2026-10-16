@@ -422,6 +422,7 @@ export const supabase = {
             console.warn(`[AI Studio] Supabase upsert error on ${table}:`, res.error);
             return createMockQueryBuilder(table).upsert(...args);
           }
+          createMockQueryBuilder(table).upsert(...args);
           return res;
         } catch (err) {
           console.warn(`[AI Studio] Supabase upsert network error on ${table}:`, err);
