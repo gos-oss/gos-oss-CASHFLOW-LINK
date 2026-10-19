@@ -158,7 +158,7 @@ export default function PresupuestoAnualTab({
           };
         }
       });
-      // Sincronizar siempre custom_gestion-comercial deduciendo comercialización para evitar doble cómputo
+      // Sincronizar siempre custom_gestion-comercial como suma directa de Mostrador + Canjes + Paquetes
       const hasSubcats = cloned.ingreso["custom_ventas-mostrador"] || cloned.ingreso["custom_ventas-canjes"] || cloned.ingreso["custom_ventas-paquetes"];
       if (hasSubcats) {
         cloned.ingreso["custom_gestion-comercial"] = cloned.ingreso["custom_gestion-comercial"] || {};
@@ -166,8 +166,7 @@ export default function PresupuestoAnualTab({
           const vm = Number(cloned.ingreso["custom_ventas-mostrador"]?.[m.k] || 0);
           const vc = Number(cloned.ingreso["custom_ventas-canjes"]?.[m.k] || 0);
           const vp = Number(cloned.ingreso["custom_ventas-paquetes"]?.[m.k] || 0);
-          const vcom = Number(cloned.ingreso["custom_comercializacion"]?.[m.k] || DEFAULT_PLAN_2027.ingreso["custom_comercializacion"]?.[m.k] || 0);
-          cloned.ingreso["custom_gestion-comercial"][m.k] = Math.max(0, vm + vc + vp - vcom);
+          cloned.ingreso["custom_gestion-comercial"][m.k] = vm + vc + vp;
         });
       }
       PLAN_EXPENSE_CATS_2027.forEach(cat => {
@@ -199,14 +198,13 @@ export default function PresupuestoAnualTab({
       if (!newState[tipo][conceptoKey]) newState[tipo][conceptoKey] = {};
       newState[tipo][conceptoKey][mesKey] = Number(value) || 0;
 
-      // Si se edita una subcategoría de Gestión Comercial, recalcular automáticamente el consolidado del mes deduciendo comercialización
+      // Si se edita una subcategoría de Gestión Comercial, recalcular automáticamente el consolidado del mes
       if (tipo === "ingreso" && ["custom_ventas-mostrador", "custom_ventas-canjes", "custom_ventas-paquetes"].includes(conceptoKey)) {
         if (!newState.ingreso["custom_gestion-comercial"]) newState.ingreso["custom_gestion-comercial"] = {};
         const vm = conceptoKey === "custom_ventas-mostrador" ? (Number(value) || 0) : Number(newState.ingreso["custom_ventas-mostrador"]?.[mesKey] || 0);
         const vc = conceptoKey === "custom_ventas-canjes" ? (Number(value) || 0) : Number(newState.ingreso["custom_ventas-canjes"]?.[mesKey] || 0);
         const vp = conceptoKey === "custom_ventas-paquetes" ? (Number(value) || 0) : Number(newState.ingreso["custom_ventas-paquetes"]?.[mesKey] || 0);
-        const vcom = Number(newState.ingreso["custom_comercializacion"]?.[mesKey] || DEFAULT_PLAN_2027.ingreso["custom_comercializacion"]?.[mesKey] || 0);
-        newState.ingreso["custom_gestion-comercial"][mesKey] = Math.max(0, vm + vc + vp - vcom);
+        newState.ingreso["custom_gestion-comercial"][mesKey] = vm + vc + vp;
       }
 
       return newState;
@@ -219,13 +217,12 @@ export default function PresupuestoAnualTab({
 
   // MATEMÁTICA DEL SIMULADOR
   const getSimVal = (tipo, conceptoKey, mesKey) => {
-    // Si es Gestión Comercial consolidado, devolver la suma exacta deduciendo comercialización
+    // Si es Gestión Comercial consolidado, devolver la suma exacta de sus subcategorías
     if (tipo === "ingreso" && conceptoKey === "custom_gestion-comercial") {
       const vm = getSimVal("ingreso", "custom_ventas-mostrador", mesKey);
       const vc = getSimVal("ingreso", "custom_ventas-canjes", mesKey);
       const vp = getSimVal("ingreso", "custom_ventas-paquetes", mesKey);
-      const vcom = getSimVal("ingreso", "custom_comercializacion", mesKey);
-      if (vm > 0 || vc > 0 || vp > 0) return Math.max(0, vm + vc + vp - vcom);
+      if (vm > 0 || vc > 0 || vp > 0) return vm + vc + vp;
     }
 
     const baseVal = planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
@@ -253,8 +250,7 @@ export default function PresupuestoAnualTab({
       const vm = Number(planDraft?.ingreso?.["custom_ventas-mostrador"]?.[mesKey] || 0);
       const vc = Number(planDraft?.ingreso?.["custom_ventas-canjes"]?.[mesKey] || 0);
       const vp = Number(planDraft?.ingreso?.["custom_ventas-paquetes"]?.[mesKey] || 0);
-      const vcom = Number(planDraft?.ingreso?.["custom_comercializacion"]?.[mesKey] || 0);
-      if (vm > 0 || vc > 0 || vp > 0) return Math.max(0, vm + vc + vp - vcom);
+      if (vm > 0 || vc > 0 || vp > 0) return vm + vc + vp;
     }
     return planDraft?.[tipo]?.[conceptoKey]?.[mesKey] || 0;
   };
@@ -727,8 +723,7 @@ export default function PresupuestoAnualTab({
               const vm = Number(planToSave.ingreso["custom_ventas-mostrador"]?.[m.k] || 0);
               const vc = Number(planToSave.ingreso["custom_ventas-canjes"]?.[m.k] || 0);
               const vp = Number(planToSave.ingreso["custom_ventas-paquetes"]?.[m.k] || 0);
-              const vcom = Number(planToSave.ingreso["custom_comercializacion"]?.[m.k] || 0);
-              planToSave.ingreso["custom_gestion-comercial"][m.k] = Math.max(0, vm + vc + vp - vcom);
+              planToSave.ingreso["custom_gestion-comercial"][m.k] = vm + vc + vp;
             });
           }
         }
@@ -781,13 +776,12 @@ export default function PresupuestoAnualTab({
             nuevoPlan.ingreso[sub.key][m.k] = Math.round(getSimVal("ingreso", sub.key, m.k));
           });
         });
-        // Asegurar que custom_gestion-comercial sea la suma de sus subcategorías deduciendo comercialización
+        // Asegurar que custom_gestion-comercial sea la suma directa de sus subcategorías
         meses.forEach(m => {
           const vm = Number(nuevoPlan.ingreso["custom_ventas-mostrador"]?.[m.k] || 0);
           const vc = Number(nuevoPlan.ingreso["custom_ventas-canjes"]?.[m.k] || 0);
           const vp = Number(nuevoPlan.ingreso["custom_ventas-paquetes"]?.[m.k] || 0);
-          const vcom = Number(nuevoPlan.ingreso["custom_comercializacion"]?.[m.k] || 0);
-          nuevoPlan.ingreso["custom_gestion-comercial"][m.k] = Math.max(0, vm + vc + vp - vcom);
+          nuevoPlan.ingreso["custom_gestion-comercial"][m.k] = vm + vc + vp;
         });
       }
       activeExpenseCats.forEach(cat => {

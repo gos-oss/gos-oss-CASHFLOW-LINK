@@ -684,12 +684,12 @@ export default function App() {
         await supabase.from("cashflow_plan").upsert({ id: "2026", data: DEFAULT_PLAN_2026 });
       }
 
-      // Inicialización y Migración 2027: si el registro no existe en Supabase o todavía tiene el esquema
-      // anterior (sin 'custom_gestion-comercial' o sin 'est_sueldos-azlepi'), migra a la proyección oficial 2027
+      // Inicialización y Migración 2027: sincroniza y asegura la proyección oficial Link 2027
       const necesitaInicializacion2027 = !planesTemporales["2027"]
         || !planesTemporales["2027"].ingreso
         || !planesTemporales["2027"].egreso
-        || !planesTemporales["2027"].ingreso["custom_gestion-comercial"]
+        || !planesTemporales["2027"].egreso["proy_comercializacion"]
+        || !planesTemporales["2027"].ingreso["custom_comercializacion"]
         || !planesTemporales["2027"].egreso["est_sueldos-azlepi"]
         || Object.keys(planesTemporales["2027"].egreso || {}).length === 0;
       if (necesitaInicializacion2027) {
