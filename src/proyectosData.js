@@ -1,5 +1,5 @@
 // MODELO DE DATOS DE OBRAS Y CURVAS DE EJECUCIÓN - LINK INVERSIONES
-// Basado fielmente en la planilla oficial de Obras (Costos de desarrollo, presupuestos totales, ejecutado, saldos y curvas mensuales Dic 2024 - Nov 2029)
+// Cartera Oficial de Proyectos: DUO, T2, Corporativo, Green, Auria (Ex Marcos Paz) y + DUO.
 
 export const OBRAS_DATA_SUMMARY = [
   {
@@ -16,12 +16,12 @@ export const OBRAS_DATA_SUMMARY = [
     duracion_meses: 23,
     color: "#3B82F6", // Azul
     estado: "Fase Final / Entrega",
-    tipologia: "Edificio Residencial",
+    tipologia: "Edificio Residencial DUO",
     descripcion: "Edificio residencial en fase final de terminaciones y posesión. 84% de avance físico/financiero ejecutado."
   },
   {
     id: "300_t2_am",
-    nombre: "#300 - T2 + AM",
+    nombre: "T2",
     avance_pct: 41,
     saldo_presupuesto: 1131830357.45,
     presupuesto_total: 1925523948.42,
@@ -37,42 +37,8 @@ export const OBRAS_DATA_SUMMARY = [
     descripcion: "Torre 2 y áreas de amenidades del complejo #300. Ritmo de obra con 41% de avance."
   },
   {
-    id: "300_t3_am",
-    nombre: "#300 - T3 + AM",
-    avance_pct: 0,
-    saldo_presupuesto: 3348824267.22,
-    presupuesto_total: 3348824267.22,
-    ejecutado: 0.00,
-    fecha_inicio: "2026-07",
-    fecha_fin: "2028-03",
-    fecha_inicio_label: "jul-26",
-    fecha_fin_label: "mar-28",
-    duracion_meses: 20,
-    color: "#8B5CF6", // Púrpura
-    estado: "Programada",
-    tipologia: "Torre 3 + Amenidades",
-    descripcion: "Torre 3 del masterplan #300 con inicio de desembolsos previsto para Julio 2026."
-  },
-  {
-    id: "300_t4_am",
-    nombre: "#300 - T4 + AM",
-    avance_pct: 0,
-    saldo_presupuesto: 3646633513.94,
-    presupuesto_total: 3646633513.94,
-    ejecutado: 0.00,
-    fecha_inicio: "2027-03",
-    fecha_fin: "2029-06",
-    fecha_inicio_label: "mar-27",
-    fecha_fin_label: "jun-29",
-    duracion_meses: 27,
-    color: "#A855F7", // Morado claro
-    estado: "Programada",
-    tipologia: "Torre 4 + Amenidades",
-    descripcion: "Torre 4 con inicio de obra programado en Marzo 2027 y entrega prevista para Junio 2029."
-  },
-  {
     id: "300_corp",
-    nombre: "#300 - CORPORATIVO",
+    nombre: "Corporativo",
     avance_pct: 47,
     saldo_presupuesto: 1153749721.25,
     presupuesto_total: 2175370966.50,
@@ -88,42 +54,8 @@ export const OBRAS_DATA_SUMMARY = [
     descripcion: "Edificio de oficinas corporativas #300 con 47% de ejecución y finalización hacia fin de 2026."
   },
   {
-    id: "300_infra",
-    nombre: "#300 - INFRA",
-    avance_pct: 10,
-    saldo_presupuesto: 708193877.22,
-    presupuesto_total: 789026346.74,
-    ejecutado: 80832469.52,
-    fecha_inicio: "2025-01",
-    fecha_fin: "2026-12",
-    fecha_inicio_label: "ene-25",
-    fecha_fin_label: "dic-26",
-    duracion_meses: 24,
-    color: "#F43F5E", // Rosa rojizo
-    estado: "En Ejecución",
-    tipologia: "Infraestructura & Urbanización",
-    descripcion: "Obras de infraestructura central, redes de servicios y vialidad interna del predio #300."
-  },
-  {
-    id: "boulevard",
-    nombre: "BOULEVARD",
-    avance_pct: 16,
-    saldo_presupuesto: 3511689640.33,
-    presupuesto_total: 4183292847.35,
-    ejecutado: 671603207.01,
-    fecha_inicio: "2025-05",
-    fecha_fin: "2027-12",
-    fecha_inicio_label: "may-25",
-    fecha_fin_label: "dic-27",
-    duracion_meses: 31,
-    color: "#F97316", // Naranja
-    estado: "En Ejecución",
-    tipologia: "Edificio Boulevard Residencial",
-    descripcion: "Desarrollo residencial sobre Boulevard. 31 meses de curva de ejecución hasta diciembre 2027."
-  },
-  {
     id: "torre_green",
-    nombre: "TORRE GREEN",
+    nombre: "Green",
     avance_pct: 1,
     saldo_presupuesto: 3224016133.52,
     presupuesto_total: 3255621885.96,
@@ -135,12 +67,29 @@ export const OBRAS_DATA_SUMMARY = [
     duracion_meses: 28,
     color: "#10B981", // Esmeralda
     estado: "En Despegue",
-    tipologia: "Torre Residencial Premium",
+    tipologia: "Torre Green Residencial",
     descripcion: "Torre sustentable de alta gama. Desembolsos iniciales en curso con aceleración fuerte en 2027."
   },
   {
+    id: "auria",
+    nombre: "Auria",
+    avance_pct: 0,
+    saldo_presupuesto: 5895457891.22,
+    presupuesto_total: 5895457891.22,
+    ejecutado: 0.00,
+    fecha_inicio: "2027-06",
+    fecha_fin: "2029-11",
+    fecha_inicio_label: "jun-27",
+    fecha_fin_label: "nov-29",
+    duracion_meses: 29,
+    color: "#EAB308", // Amarillo dorado
+    estado: "Programada",
+    tipologia: "Edificio Residencial & Comercial Auria",
+    descripcion: "Emprendimiento Auria (anteriormente Marcos Paz 82). Presupuesto total de $5.895 millones de pesos a ejecutarse entre Junio 2027 y Noviembre 2029."
+  },
+  {
     id: "mas_duo",
-    nombre: "+DUO",
+    nombre: "+ DUO",
     avance_pct: 0,
     saldo_presupuesto: 7975823542.89,
     presupuesto_total: 7975823542.89,
@@ -154,40 +103,6 @@ export const OBRAS_DATA_SUMMARY = [
     estado: "Programada",
     tipologia: "Ampliación Complejo +DUO",
     descripcion: "Ampliación de gran escala del proyecto DUO. Presupuesto de $7.975 millones de pesos a ejecutar entre Dic 2026 y Mayo 2029."
-  },
-  {
-    id: "marcos_paz",
-    nombre: "MARCOS PAZ 82",
-    avance_pct: 0,
-    saldo_presupuesto: 5895457891.22,
-    presupuesto_total: 5895457891.22,
-    ejecutado: 0.00,
-    fecha_inicio: "2027-06",
-    fecha_fin: "2029-11",
-    fecha_inicio_label: "jun-27",
-    fecha_fin_label: "nov-29",
-    duracion_meses: 29,
-    color: "#EAB308", // Amarillo dorado
-    estado: "Programada",
-    tipologia: "Edificio Residencial & Comercial",
-    descripcion: "Emprendimiento en Marcos Paz 82. Presupuesto total de $5.895 millones de pesos a ejecutarse entre Junio 2027 y Noviembre 2029."
-  },
-  {
-    id: "neuquen",
-    nombre: "NEUQUEN",
-    avance_pct: 0,
-    saldo_presupuesto: 12310662000.00,
-    presupuesto_total: 12310662000.00,
-    ejecutado: 0.00,
-    fecha_inicio: "2026-11",
-    fecha_fin: "2029-05",
-    fecha_inicio_label: "nov-26",
-    fecha_fin_label: "may-29",
-    duracion_meses: 30,
-    color: "#14B8A6", // Teal
-    estado: "Programada",
-    tipologia: "Gran Desarrollo Urbano Neuquén",
-    descripcion: "Mayor inversión de la cartera ($12.310 millones). 30 meses de obra desde Noviembre 2026 a Mayo 2029."
   }
 ];
 
@@ -268,59 +183,6 @@ export const CURVAS_MENSUALES_OBRAS = {
     "2026-11": 29824880,
     "2026-12": 26561767
   },
-  "300_t3_am": {
-    "2026-07": 56550482,
-    "2026-08": 65010527,
-    "2026-09": 83881880,
-    "2026-10": 106714703,
-    "2026-11": 133358356,
-    "2026-12": 162993876,
-    "2027-01": 193912215,
-    "2027-02": 223453266,
-    "2027-03": 248256774,
-    "2027-04": 264896075,
-    "2027-05": 270767960,
-    "2027-06": 264896075,
-    "2027-07": 248256774,
-    "2027-08": 223453266,
-    "2027-09": 193912215,
-    "2027-10": 162993876,
-    "2027-11": 133358356,
-    "2027-12": 106714703,
-    "2028-01": 83881880,
-    "2028-02": 65010527,
-    "2028-03": 56550482
-  },
-  "300_t4_am": {
-    "2027-03": 44220947,
-    "2027-04": 49009204,
-    "2027-05": 59425643,
-    "2027-06": 71573622,
-    "2027-07": 85511510,
-    "2027-08": 101184435,
-    "2027-09": 118376255,
-    "2027-10": 136663320,
-    "2027-11": 155382578,
-    "2027-12": 173630544,
-    "2028-01": 190309595,
-    "2028-02": 204230840,
-    "2028-03": 214267297,
-    "2028-04": 219530967,
-    "2028-05": 219530967,
-    "2028-06": 214267297,
-    "2028-07": 204230840,
-    "2028-08": 190309595,
-    "2028-09": 173630544,
-    "2028-10": 155382578,
-    "2028-11": 136663320,
-    "2028-12": 118376255,
-    "2029-01": 101184435,
-    "2029-02": 85511510,
-    "2029-03": 71573622,
-    "2029-04": 59425643,
-    "2029-05": 49009204,
-    "2029-06": 44220947
-  },
   "300_corp": {
     "2024-12": 30008298,
     "2025-01": 33694817,
@@ -347,62 +209,6 @@ export const CURVAS_MENSUALES_OBRAS = {
     "2026-10": 41789578,
     "2026-11": 33694817,
     "2026-12": 30008298
-  },
-  "300_infra": {
-    "2025-01": 28000000,
-    "2025-02": 32000000,
-    "2025-03": 35000000,
-    "2025-04": 38000000,
-    "2025-05": 42000000,
-    "2025-06": 45000000,
-    "2025-07": 48000000,
-    "2025-08": 50000000,
-    "2025-09": 52000000,
-    "2025-10": 54000000,
-    "2025-11": 55000000,
-    "2025-12": 56000000,
-    "2026-01": 54000000,
-    "2026-02": 50000000,
-    "2026-03": 45000000,
-    "2026-04": 38000000,
-    "2026-05": 28000000,
-    "2026-06": 20000000,
-    "2026-07": 15000000,
-    "2026-08": 12000000
-  },
-  boulevard: {
-    "2025-05": 43679098,
-    "2025-06": 47761764,
-    "2025-07": 56555043,
-    "2025-08": 66644379,
-    "2025-09": 78088151,
-    "2025-10": 90889860,
-    "2025-11": 104974775,
-    "2025-12": 120165182,
-    "2026-01": 136157876,
-    "2026-02": 152509263,
-    "2026-03": 168634693,
-    "2026-04": 183828557,
-    "2026-05": 197309458,
-    "2026-06": 208289944,
-    "2026-07": 216063525,
-    "2026-08": 220094856,
-    "2026-09": 220094856,
-    "2026-10": 216063525,
-    "2026-11": 208289944,
-    "2026-12": 197309458,
-    "2027-01": 183828557,
-    "2027-02": 168634693,
-    "2027-03": 152509263,
-    "2027-04": 136157876,
-    "2027-05": 120165182,
-    "2027-06": 104974775,
-    "2027-07": 90889860,
-    "2027-08": 78088151,
-    "2027-09": 66644379,
-    "2027-10": 56555043,
-    "2027-11": 47761764,
-    "2027-12": 43679098
   },
   torre_green: {
     "2026-07": 37948729,
@@ -435,39 +241,7 @@ export const CURVAS_MENSUALES_OBRAS = {
     "2028-10": 41901366,
     "2028-11": 37948729
   },
-  mas_duo: {
-    "2026-12": 89498346,
-    "2027-01": 98478147,
-    "2027-02": 117909833,
-    "2027-03": 140378962,
-    "2027-04": 166008889,
-    "2027-05": 194764406,
-    "2027-06": 226384076,
-    "2027-07": 260311146,
-    "2027-08": 295636652,
-    "2027-09": 331073836,
-    "2027-10": 364985593,
-    "2027-11": 395482916,
-    "2027-12": 420599617,
-    "2028-01": 438527457,
-    "2028-02": 447871895,
-    "2028-03": 447871895,
-    "2028-04": 438527457,
-    "2028-05": 420599617,
-    "2028-06": 395482916,
-    "2028-07": 364985593,
-    "2028-08": 331073836,
-    "2028-09": 295636652,
-    "2028-10": 260311146,
-    "2028-11": 226384076,
-    "2028-12": 194764406,
-    "2029-01": 166008889,
-    "2029-02": 140378962,
-    "2029-03": 117909833,
-    "2029-04": 98478147,
-    "2029-05": 89498346
-  },
-  marcos_paz: {
+  auria: {
     "2027-06": 66154138,
     "2027-07": 72791702,
     "2027-08": 87154944,
@@ -499,40 +273,42 @@ export const CURVAS_MENSUALES_OBRAS = {
     "2029-10": 72791702,
     "2029-11": 66154138
   },
-  neuquen: {
-    "2026-11": 133167715,
-    "2026-12": 146055863,
-    "2027-01": 173877710,
-    "2027-02": 205921125,
-    "2027-03": 242367957,
-    "2027-04": 283201961,
-    "2027-05": 328124288,
-    "2027-06": 376465420,
-    "2027-07": 427108470,
-    "2027-08": 478445410,
-    "2027-09": 528391816,
-    "2027-10": 574483616,
-    "2027-11": 614067771,
-    "2027-12": 644577070,
-    "2028-01": 663851702,
-    "2028-02": 670446211,
-    "2028-03": 663851702,
-    "2028-04": 644577070,
-    "2028-05": 614067771,
-    "2028-06": 574483616,
-    "2028-07": 528391816,
-    "2028-08": 478445410,
-    "2028-09": 427108470,
-    "2028-10": 376465420,
-    "2028-11": 328124288,
-    "2028-12": 283201961,
-    "2029-01": 242367957,
-    "2029-02": 205921125,
-    "2029-03": 173877710,
-    "2029-04": 146055863,
-    "2029-05": 133167715
+  mas_duo: {
+    "2026-12": 89498346,
+    "2027-01": 98478147,
+    "2027-02": 117909833,
+    "2027-03": 140378962,
+    "2027-04": 166008889,
+    "2027-05": 194764406,
+    "2027-06": 226384076,
+    "2027-07": 260311146,
+    "2027-08": 295636652,
+    "2027-09": 331073836,
+    "2027-10": 364985593,
+    "2027-11": 395482916,
+    "2027-12": 420599617,
+    "2028-01": 438527457,
+    "2028-02": 447871895,
+    "2028-03": 447871895,
+    "2028-04": 438527457,
+    "2028-05": 420599617,
+    "2028-06": 395482916,
+    "2028-07": 364985593,
+    "2028-08": 331073836,
+    "2028-09": 295636652,
+    "2028-10": 260311146,
+    "2028-11": 226384076,
+    "2028-12": 194764406,
+    "2029-01": 166008889,
+    "2029-02": 140378962,
+    "2029-03": 117909833,
+    "2029-04": 98478147,
+    "2029-05": 89498346
   }
 };
+
+// Alias de retrocompatibilidad
+CURVAS_MENSUALES_OBRAS["marcos_paz"] = CURVAS_MENSUALES_OBRAS["auria"];
 
 export const MESES_HORIZONTE = MESES_HORIZONTE_OBRAS;
 
@@ -565,7 +341,7 @@ export const getProyectosObrasCompletos = () => {
       unidades_totales: Math.round(obra.presupuesto_total / 85000000) || 1,
       hitos: generarHitosObra(obra.fecha_inicio, obra.fecha_fin, obra.nombre),
       rubros: RUBROS_OBRA_ESTANDAR,
-      costos_mensuales: CURVAS_MENSUALES_OBRAS[obra.id] || {}
+      costos_mensuales: CURVAS_MENSUALES_OBRAS[obra.id] || CURVAS_MENSUALES_OBRAS[obra.id === "auria" ? "marcos_paz" : obra.id] || {}
     };
   });
 };

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
-const LOCAL_STORAGE_KEY = "cf_link_obras_curvas_v2";
+const LOCAL_STORAGE_KEY = "cf_link_obras_curvas_v6";
 
 export default function ProyectosTab({
   tcList = [],
@@ -42,13 +42,13 @@ export default function ProyectosTab({
   const [viewTab, setViewTab] = useState("curva-s"); // "curva-s" | "mensual" | "comparativa" | "matriz" | "fichas"
   const [filtroAnio, setFiltroAnio] = useState("todos"); // "todos" | "2025" | "2026" | "2027" | "2028-2029"
 
-  // Estado de proyectos persistible en localStorage
+  // Estado de proyectos persistible en localStorage (6 proyectos oficiales: DUO, T2, Corporativo, Green, Auria, + DUO)
   const [proyectos, setProyectos] = useState(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(p => p.id === "duo")) {
+        if (Array.isArray(parsed) && parsed.length === 6 && parsed.some(p => p.id === "duo") && parsed.some(p => p.nombre.toLowerCase().includes("auria"))) {
           return parsed;
         }
       }
