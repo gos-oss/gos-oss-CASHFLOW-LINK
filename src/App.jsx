@@ -28,6 +28,7 @@ import { PWAInstallButton } from "./PWAInstallButton";
 import PresupuestoAnualTab from "./PresupuestoAnualTab";
 import StockDisponibleTab from "./StockDisponibleTab";
 import ProyectosTab from "./ProyectosTab";
+import DashboardGlassflow from "./DashboardGlassflow";
 import {
   PLAN_INCOME_CATS,
   PLAN_PROJECT_CATS,
@@ -529,14 +530,14 @@ const DEFAULT_REAL_WEEKS = [
 
 // NAVEGACIÓN
 const NAV = [
-  { id: "resumen", label: "Resumen", icon: Compass },
-  { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
-  { id: "proyectos", label: "Proyectos", icon: HardHat },
-  { id: "stock", label: "Stock Disponible", icon: Building2 },
-  { id: "movimientos", label: "Movimientos", icon: ListChecks },
-  { id: "monitor", label: "Monitor Financiero", icon: Activity },
-  { id: "conceptos", label: "Conceptos", icon: Tag },
-  { id: "configuracion", label: "Configuración", icon: SlidersHorizontal },
+  { id: "resumen", label: "Resumen", sublabel: "Dashboard Glassflow", icon: Compass },
+  { id: "presupuesto", label: "Proyecciones", sublabel: "Presupuesto Anual", icon: BarChart3 },
+  { id: "proyectos", label: "Prepuestos Proyectos", sublabel: "Proyectos Link", icon: HardHat },
+  { id: "stock", label: "Stock Proyectos", sublabel: "Stock Disponible", icon: Building2 },
+  { id: "movimientos", label: "Movimientos", sublabel: "Carga Diaria & Arqueos", icon: ListChecks },
+  { id: "monitor", label: "Monitor Financiero", sublabel: "Tablero de Control", icon: Activity },
+  { id: "conceptos", label: "Conceptos", sublabel: "Categorías", icon: Tag },
+  { id: "configuracion", label: "Configuración", sublabel: "Ajustes & TC", icon: SlidersHorizontal },
 ];
 
 export default function App() {
@@ -545,6 +546,7 @@ export default function App() {
   const [mapping, setMapping] = useState({ ingreso: {}, egreso: {} });
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("resumen");
+  const [modoResumen, setModoResumen] = useState("glassmorphism"); // "glassmorphism" | "clasico"
   
   const [mostrarPanel, setMostrarPanel] = useState(true);
   const [mostrarImportadorMatriz, setMostrarImportadorMatriz] = useState(false);
@@ -1361,7 +1363,7 @@ export default function App() {
           <div style={{ fontFamily: tokens.fontMono, fontSize: 18, fontWeight: 600, color: kpis?.deficitActual ? "#E0897A" : (kpis?.sinQuemaNeta || (kpis?.diasDeCaja != null && kpis?.diasDeCaja > 90)) ? "#7FD9BE" : "#fff" }}>{!kpis ? "—" : kpis.deficitActual ? "Déficit" : (kpis.sinQuemaNeta || (kpis.diasDeCaja != null && kpis.diasDeCaja > 90)) ? "Sin déficit próx 90 d" : `${kpis.diasDeCaja} d.`}</div>
         </div>
 
-        <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
+        <nav style={{ flex: 1, padding: "14px 10px", display: "flex", flexDirection: "column", gap: 3, overflowY: "auto" }}>
           {NAV.map((n) => {
             const Icon = n.icon;
             const active = tab === n.id;
@@ -1376,19 +1378,30 @@ export default function App() {
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  padding: "10px 12px",
-                  borderRadius: 6,
+                  padding: "9px 12px",
+                  borderRadius: 8,
                   border: "none",
                   cursor: "pointer",
                   textAlign: "left",
                   fontFamily: tokens.fontBody,
-                  fontSize: 13.5,
+                  fontSize: 13,
                   fontWeight: active ? 600 : 500,
-                  background: active ? tokens.inkSoft : "transparent",
-                  color: active ? "#fff" : "#9AA3B8"
+                  background: active ? "linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 100%)" : "transparent",
+                  borderLeft: active ? `3px solid ${tokens.gold}` : "3px solid transparent",
+                  color: active ? "#fff" : "#9AA3B8",
+                  boxShadow: active ? "0 2px 8px rgba(0,0,0,0.2)" : "none",
+                  transition: "all 0.15s ease"
                 }}
               >
-                <Icon size={16} /> {n.label}
+                <Icon size={16} style={{ flexShrink: 0, color: active ? tokens.gold : "currentColor" }} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ lineHeight: 1.25 }}>{n.label}</div>
+                  {n.sublabel && (
+                    <div style={{ fontSize: 10, color: active ? "rgba(255,255,255,0.65)" : "#64748B", fontWeight: 400, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {n.sublabel}
+                    </div>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -1463,35 +1476,119 @@ export default function App() {
         </header>
 
         {/* ---------- CANVAS ---------- */}
-        <main className="main-canvas" style={{ flex: 1, minWidth: 0, padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <main
+          className="main-canvas"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: tab === "resumen" ? 0 : "32px 40px",
+            display: "flex",
+            flexDirection: "column",
+            gap: tab === "resumen" ? 0 : 24,
+            background: tab === "resumen" ? "transparent" : undefined
+          }}
+        >
         
         {tab === "resumen" && (
-          <ResumenTab
-            procesadas={procesadas}
-            kpis={kpis}
-            fmt={fmt}
-            formatDate={formatDate}
-            weeks={weeks}
-            tcList={tcList}
-            arqueosList={arqueosList}
-            expenseCats={expenseCats}
-            incomeCats={incomeCats}
-            onIrAMovimientos={() => {
-              setTab("movimientos");
-            }}
-            onNuevoMovimiento={() => {
-              setTab("movimientos");
-              setMostrarPanel(true);
-            }}
-            onAbrirImportadorMatriz={() => {
-              setTab("movimientos");
-              setMostrarImportadorMatriz(true);
-            }}
-            onIrAConfig={() => setTab("configuracion")}
-            onIrAMonitor={() => setTab("monitor")}
-            onIrAPresupuesto={() => setTab("presupuesto")}
-            onCargarDemo={handleRestaurarDatosImagen}
-          />
+          <div style={{ display: "flex", flexDirection: "column", width: "100%", minHeight: "100%" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "10px 24px", background: "rgba(15, 23, 42, 0.95)", borderBottom: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 40 }}>
+              <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.06)", padding: 3, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", gap: 4 }}>
+                <button
+                  onClick={() => setModoResumen("glassmorphism")}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                    background: modoResumen === "glassmorphism" ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "transparent",
+                    color: modoResumen === "glassmorphism" ? "#FFFFFF" : "#94A3B8",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: modoResumen === "glassmorphism" ? "0 2px 10px rgba(99,102,241,0.4)" : "none",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  <Sparkles size={13} /> Dashboard Glassmorphism
+                </button>
+                <button
+                  onClick={() => setModoResumen("clasico")}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                    background: modoResumen === "clasico" ? "rgba(255,255,255,0.18)" : "transparent",
+                    color: modoResumen === "clasico" ? "#FFFFFF" : "#94A3B8",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  <Layers size={13} /> Vista Clásica Detallada
+                </button>
+              </div>
+            </div>
+
+            {modoResumen === "glassmorphism" ? (
+              <DashboardGlassflow
+                procesadas={procesadas}
+                kpis={kpis}
+                fmt={fmt}
+                formatDate={formatDate}
+                weeks={weeks}
+                tcList={tcList}
+                arqueosList={arqueosList}
+                expenseCats={expenseCats}
+                incomeCats={incomeCats}
+                onIrAMovimientos={() => setTab("movimientos")}
+                onNuevoMovimiento={() => {
+                  setTab("movimientos");
+                  setMostrarPanel(true);
+                }}
+                onAbrirImportadorMatriz={() => {
+                  setTab("movimientos");
+                  setMostrarImportadorMatriz(true);
+                }}
+                onIrAProyecciones={() => setTab("presupuesto")}
+                onIrAProyectos={() => setTab("proyectos")}
+              />
+            ) : (
+              <div style={{ padding: "28px 36px" }}>
+                <ResumenTab
+                  procesadas={procesadas}
+                  kpis={kpis}
+                  fmt={fmt}
+                  formatDate={formatDate}
+                  weeks={weeks}
+                  tcList={tcList}
+                  arqueosList={arqueosList}
+                  expenseCats={expenseCats}
+                  incomeCats={incomeCats}
+                  onIrAMovimientos={() => {
+                    setTab("movimientos");
+                  }}
+                  onNuevoMovimiento={() => {
+                    setTab("movimientos");
+                    setMostrarPanel(true);
+                  }}
+                  onAbrirImportadorMatriz={() => {
+                    setTab("movimientos");
+                    setMostrarImportadorMatriz(true);
+                  }}
+                  onIrAConfig={() => setTab("configuracion")}
+                  onIrAMonitor={() => setTab("monitor")}
+                  onIrAPresupuesto={() => setTab("presupuesto")}
+                  onCargarDemo={handleRestaurarDatosImagen}
+                />
+              </div>
+            )}
+          </div>
         )}
         
         {/* MÓDULO: MONITOR FINANCIERO */}
@@ -2036,10 +2133,10 @@ export default function App() {
             background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
             color: tab === "resumen" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
           }}
-          title="Resumen Ejecutivo"
+          title="Resumen Ejecutivo Glassflow"
         >
-          <Compass size={18} />
-          <span style={{ fontSize: 9.5, fontWeight: tab === "resumen" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Resumen</span>
+          <Compass size={17} />
+          <span style={{ fontSize: 9, fontWeight: tab === "resumen" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Resumen</span>
         </button>
 
         <button
@@ -2050,10 +2147,52 @@ export default function App() {
             background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
             color: tab === "presupuesto" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
           }}
-          title="Presupuesto Anual"
+          title="Proyecciones (Presupuesto Anual)"
         >
-          <BarChart3 size={18} />
-          <span style={{ fontSize: 9.5, fontWeight: tab === "presupuesto" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Presupuesto anual</span>
+          <BarChart3 size={17} />
+          <span style={{ fontSize: 9, fontWeight: tab === "presupuesto" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Proyecciones</span>
+        </button>
+
+        <button
+          onClick={() => { setTab("proyectos"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "proyectos" ? "active" : ""}`}
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
+            color: tab === "proyectos" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
+          }}
+          title="Prepuestos Proyectos (Proyectos Link)"
+        >
+          <HardHat size={17} />
+          <span style={{ fontSize: 9, fontWeight: tab === "proyectos" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Proyectos</span>
+        </button>
+
+        <button
+          onClick={() => { setTab("stock"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "stock" ? "active" : ""}`}
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
+            color: tab === "stock" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
+          }}
+          title="Stock Proyectos (Stock Disponible)"
+        >
+          <Building2 size={17} />
+          <span style={{ fontSize: 9, fontWeight: tab === "stock" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Stock</span>
+        </button>
+
+        <button
+          onClick={() => { setTab("movimientos"); setMobileMenuOpen(false); }}
+          className={`mobile-bottomnav-btn ${tab === "movimientos" ? "active" : ""}`}
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
+            color: tab === "movimientos" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
+          }}
+          title="Movimientos y Carga Diaria"
+        >
+          <ListChecks size={17} />
+          <span style={{ fontSize: 9, fontWeight: tab === "movimientos" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Movimientos</span>
         </button>
 
         <button
@@ -2066,36 +2205,8 @@ export default function App() {
           }}
           title="Monitor Financiero"
         >
-          <Activity size={18} />
-          <span style={{ fontSize: 9.5, fontWeight: tab === "monitor" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Monitor</span>
-        </button>
-
-        <button
-          onClick={() => { setTab("proyectos"); setMobileMenuOpen(false); }}
-          className={`mobile-bottomnav-btn ${tab === "proyectos" ? "active" : ""}`}
-          style={{
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
-            color: tab === "proyectos" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
-          }}
-          title="Curvas y Costos de Obras"
-        >
-          <HardHat size={18} />
-          <span style={{ fontSize: 9.5, fontWeight: tab === "proyectos" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Proyectos</span>
-        </button>
-
-        <button
-          onClick={() => { setTab("stock"); setMobileMenuOpen(false); }}
-          className={`mobile-bottomnav-btn ${tab === "stock" ? "active" : ""}`}
-          style={{
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-            background: "transparent", border: "none", padding: "5px 2px", borderRadius: 8,
-            color: tab === "stock" ? tokens.gold : "#94A3B8", cursor: "pointer", flex: 1, minWidth: 0
-          }}
-          title="Stock Disponible"
-        >
-          <Building2 size={18} />
-          <span style={{ fontSize: 9.5, fontWeight: tab === "stock" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Stock</span>
+          <Activity size={17} />
+          <span style={{ fontSize: 9, fontWeight: tab === "monitor" ? 700 : 500, textAlign: "center", lineHeight: 1.1 }}>Monitor</span>
         </button>
       </nav>
     </div>
