@@ -76,7 +76,8 @@ export default function MonitorFinancieroTab({
   const [actualizandoTodo, setActualizandoTodo] = useState(false);
   
   // Estado para el indicador de Ritmo de Venta ($ y Unidades)
-  const [criterioRitmo, setCriterioRitmo] = useState("plazo_total"); // "plazo_total" | "anio_presupuesto"
+  const [fechaHoyCorte, setFechaHoyCorte] = useState("2026-11"); // Fecha de corte 'Hoy' (YYYY-MM)
+  const [criterioRitmo, setCriterioRitmo] = useState("plazo_restante"); // "plazo_restante" | "curva_futura" | "anio_presupuesto" | "plazo_total"
   const [pctAnticipoSimulado, setPctAnticipoSimulado] = useState(100); // 100 | 50 | 30
   const [filtroProyectoRitmo, setFiltroProyectoRitmo] = useState("todos"); // "todos" | id de obra
 
@@ -443,30 +444,77 @@ export default function MonitorFinancieroTab({
 
       const saldoObraARS = Number(obra.saldo_presupuesto || 0);
       const saldoObraUSD = tcReferencia > 0 ? saldoObraARS / tcReferencia : 0;
-      const mesesPlazo = Math.max(1, Number(obra.duracion_meses || 12));
 
-      // Costo mensual por plazo total
-      const costoMensualTotalARS = saldoObraARS / mesesPlazo;
-      const costoMensualTotalUSD = saldoObraUSD / mesesPlazo;
+      // ── 1. CÁLCULO DE MESES RESTANTES REALES DESDE LA FECHA DE HOY ──
+      const [aFin, mFin] = (obra.fecha_fin || "2026-12").split("-").map(Number);
+      const [aHoy, mHoy] = (fechaHoyCorte || "2026-11").split("-").map(Number);
+      const diffMeses = (aFin - aHoy) * 12 + (mFin - mHoy) + 1;
+      // Si la fecha de fin es anterior o igual a hoy, queda 1 mes (fase final o entrega en curso)
+      const mesesRestantesDesdeHoy = Math.max(1, diffMeses);
+      const mesesNominalesTotal = Math.max(1, Number(obra.duracion_meses || 12));
+      const mesesTranscurridos = Math.max(0, mesesNominalesTotal - mesesRestantesDesdeHoy);
 
-      // Costo en el ejercicio seleccionado según curva
+      // ── 2. CURVA MENSUAL OFICIAL COMPLETA Y DESEMBOLSOS FUTUROS ──
       const curva = CURVAS_MENSUALES_OBRAS[obra.id] || CURVAS_MENSUALES_OBRAS[obra.id === "auria" ? "marcos_paz" : obra.id] || {};
+      let desembolsosFuturosARS = 0;
+      let mesesFuturosConGasto = 0;
+      Object.entries(curva).forEach(([mesKey, val]) => {
+        if (mesKey >= fechaHoyCorte) {
+          const mVal = Number(val || 0);
+          desembolsosFuturosARS += mVal;
+          if (mVal > 0) mesesFuturosConGasto++;
+        }
+      });
+      const desembolsosFuturosUSD = tcReferencia > 0 ? desembolsosFuturosARS / tcReferencia : 0;
+      const divisorFuturo = Math.max(1, mesesFuturosConGasto > 0 ? mesesFuturosConGasto : mesesRestantesDesdeHoy);
+      const costoMensualCurvaFuturaARS = desembolsosFuturosARS > 0 ? desembolsosFuturosARS / divisorFuturo : saldoObraARS / mesesRestantesDesdeHoy;
+      const costoMensualCurvaFuturaUSD = tcReferencia > 0 ? costoMensualCurvaFuturaARS / tcReferencia : 0;
+
+      // ── 3. COSTO MENSUAL POR PLAZO RESTANTE DESDE HOY (RECOMENDADO) ──
+      const costoMensualRestanteARS = saldoObraARS / mesesRestantesDesdeHoy;
+      const costoMensualRestanteUSD = saldoObraUSD / mesesRestantesDesdeHoy;
+
+      // ── 4. COSTO MENSUAL POR PLAZO TOTAL HISTÓRICO (NOMINAL) ──
+      const costoMensualTotalARS = saldoObraARS / mesesNominalesTotal;
+      const costoMensualTotalUSD = saldoObraUSD / mesesNominalesTotal;
+
+      // ── 5. COSTO EN EL EJERCICIO PRESUPUESTADO (EJ. 2027) ──
       let costoAnioARS = 0;
-      let mesesConDesembolso = 0;
+      let mesesConDesembolsoAnio = 0;
       Object.entries(curva).forEach(([mesKey, val]) => {
         if (mesKey.startsWith(ejercicio)) {
           const mVal = Number(val || 0);
           costoAnioARS += mVal;
-          if (mVal > 0) mesesConDesembolso++;
+          if (mVal > 0) mesesConDesembolsoAnio++;
         }
       });
       const costoAnioUSD = tcReferencia > 0 ? costoAnioARS / tcReferencia : 0;
-      const mesesDivisor = mesesConDesembolso > 0 ? mesesConDesembolso : 12;
-      const costoMensualAnioARS = costoAnioARS / mesesDivisor;
-      const costoMensualAnioUSD = costoAnioUSD / mesesDivisor;
+      const mesesDivisorAnio = mesesConDesembolsoAnio > 0 ? mesesConDesembolsoAnio : 12;
+      const costoMensualAnioARS = costoAnioARS / mesesDivisorAnio;
+      const costoMensualAnioUSD = costoAnioUSD / mesesDivisorAnio;
 
-      const costoMensualElegidoARS = (criterioRitmo === "anio_presupuesto" && costoAnioARS > 0) ? costoMensualAnioARS : costoMensualTotalARS;
-      const costoMensualElegidoUSD = (criterioRitmo === "anio_presupuesto" && costoAnioUSD > 0) ? costoMensualAnioUSD : costoMensualTotalUSD;
+      // ── DETERMINAR COSTO Y PLAZO SEGÚN CRITERIO ACTIVO ──
+      let costoMensualElegidoARS = costoMensualRestanteARS;
+      let costoMensualElegidoUSD = costoMensualRestanteUSD;
+      let mesesPlazoElegido = mesesRestantesDesdeHoy;
+      let etiquetaCriterio = `${mesesRestantesDesdeHoy} meses restantes`;
+
+      if (criterioRitmo === "curva_futura") {
+        costoMensualElegidoARS = costoMensualCurvaFuturaARS;
+        costoMensualElegidoUSD = costoMensualCurvaFuturaUSD;
+        mesesPlazoElegido = divisorFuturo;
+        etiquetaCriterio = `${divisorFuturo} m (curva futura)`;
+      } else if (criterioRitmo === "anio_presupuesto" && costoAnioARS > 0) {
+        costoMensualElegidoARS = costoMensualAnioARS;
+        costoMensualElegidoUSD = costoMensualAnioUSD;
+        mesesPlazoElegido = mesesDivisorAnio;
+        etiquetaCriterio = `${mesesDivisorAnio} m (${ejercicio})`;
+      } else if (criterioRitmo === "plazo_total") {
+        costoMensualElegidoARS = costoMensualTotalARS;
+        costoMensualElegidoUSD = costoMensualTotalUSD;
+        mesesPlazoElegido = mesesNominalesTotal;
+        etiquetaCriterio = `${mesesNominalesTotal} m (total nominal)`;
+      }
 
       const ritmoRequeridoARS = costoMensualElegidoARS;
       const ritmoRequeridoUSD = costoMensualElegidoUSD;
@@ -491,25 +539,25 @@ export default function MonitorFinancieroTab({
         estadoColor = "#64748B";
         estadoBg = "#F1F5F9";
         estadoBorder = "#CBD5E1";
-        detalleDiagnostico = "Obra en fase final financiada con cobranza de cuotas.";
+        detalleDiagnostico = "Obra en fase final financiada con cobranza pactada de cuotas.";
       } else if (coberturaPct >= 120) {
         estadoBadge = "Superávit de Stock";
         estadoColor = "#059669";
         estadoBg = "#ECFDF5";
         estadoBorder = "#A7F3D0";
-        detalleDiagnostico = `Stock cubre el ${coberturaPct.toFixed(0)}% del saldo con superávit de U$D ${fmt(superavitUSD)}.`;
+        detalleDiagnostico = `Stock cubre el ${coberturaPct.toFixed(0)}% del saldo con superávit de U$D ${fmt(superavitUSD)}. En ${mesesRestantesDesdeHoy} meses restantes requiere ${ritmoUnidadesMes.toFixed(2)} u/mes.`;
       } else if (coberturaPct >= 75) {
         estadoBadge = "Equilibrado";
         estadoColor = "#2563EB";
         estadoBg = "#EFF6FF";
         estadoBorder = "#BFDBFE";
-        detalleDiagnostico = `Cobertura del ${coberturaPct.toFixed(0)}%. Ritmo de ${ritmoUnidadesMes.toFixed(2)} u/mes.`;
+        detalleDiagnostico = `Cobertura del ${coberturaPct.toFixed(0)}%. Ritmo de ${ritmoUnidadesMes.toFixed(2)} u/mes en los ${mesesRestantesDesdeHoy} meses restantes.`;
       } else {
         estadoBadge = "Requiere Pre-ventas";
         estadoColor = "#D97706";
         estadoBg = "#FFFBEB";
         estadoBorder = "#FDE68A";
-        detalleDiagnostico = `Cobertura del ${coberturaPct.toFixed(0)}%. Acelerar comercialización.`;
+        detalleDiagnostico = `Cobertura del ${coberturaPct.toFixed(0)}%. Stock disponible cubre parte del saldo; el remanente requiere cobranzas de cuotas o nuevas preventas.`;
       }
 
       return {
@@ -520,9 +568,18 @@ export default function MonitorFinancieroTab({
         tipologia: obra.tipologia,
         fecha_inicio: obra.fecha_inicio_label,
         fecha_fin: obra.fecha_fin_label,
-        mesesPlazo,
+        fecha_fin_raw: obra.fecha_fin,
+        mesesNominalesTotal,
+        mesesRestantesDesdeHoy,
+        mesesTranscurridos,
+        mesesPlazoElegido,
+        etiquetaCriterio,
         saldoObraARS,
         saldoObraUSD,
+        costoMensualRestanteARS,
+        costoMensualRestanteUSD,
+        costoMensualCurvaFuturaARS,
+        costoMensualCurvaFuturaUSD,
         costoMensualTotalARS,
         costoMensualTotalUSD,
         costoAnioARS,
@@ -531,6 +588,8 @@ export default function MonitorFinancieroTab({
         costoMensualAnioUSD,
         costoMensualElegidoARS,
         costoMensualElegidoUSD,
+        desembolsosFuturosARS,
+        desembolsosFuturosUSD,
         stockUnidades,
         disponibles,
         reservadas,
@@ -592,7 +651,7 @@ export default function MonitorFinancieroTab({
         totalSuperavitUSD
       }
     };
-  }, [unidadesStock, tcReferencia, ejercicio, criterioRitmo, pctAnticipoSimulado, fmt]);
+  }, [unidadesStock, tcReferencia, ejercicio, criterioRitmo, fechaHoyCorte, pctAnticipoSimulado, fmt]);
 
   // ── 4. CUADRO 4: PRINCIPALES INDICADORES FINANCIEROS Y ECONÓMICOS ──
   const [dolares, setDolares] = useState([]);
@@ -1756,137 +1815,257 @@ export default function MonitorFinancieroTab({
           background: colorTablaBg,
           border: `1px solid ${colorLineaSuave}`,
           borderRadius: 8,
-          padding: "12px 16px",
+          padding: "14px 18px",
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
+          flexDirection: "column",
           gap: 14
         }}>
-          {/* Criterio de Plazo */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-              <Clock size={14} /> Criterio de Plazo:
-            </span>
-            <div style={{ display: "inline-flex", background: "#FFFFFF", padding: 2, borderRadius: 6, border: `1px solid ${colorLineaSuave}` }}>
-              <button
-                onClick={() => setCriterioRitmo("plazo_total")}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: 11,
-                  fontWeight: criterioRitmo === "plazo_total" ? 700 : 500,
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  background: criterioRitmo === "plazo_total" ? tokens.ink : "transparent",
-                  color: criterioRitmo === "plazo_total" ? "#FFFFFF" : tokens.textMuted,
-                  transition: "all 0.15s"
+          {/* LÍNEA 1: FECHA DE HOY (CORTE) Y CRITERIO DE PLAZO */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            {/* Fecha de Hoy / Corte */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 5 }}>
+                <Calendar size={14} color="#2563EB" /> Fecha de Hoy (Corte):
+              </span>
+              <div style={{ display: "inline-flex", background: "#FFFFFF", padding: 2, borderRadius: 6, border: `1px solid ${colorLineaSuave}` }}>
+                <button
+                  onClick={() => setFechaHoyCorte("2026-11")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: fechaHoyCorte === "2026-11" ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: fechaHoyCorte === "2026-11" ? "#2563EB" : "transparent",
+                    color: fechaHoyCorte === "2026-11" ? "#FFFFFF" : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="Mes actual del sistema (Noviembre 2026)"
+                >
+                  Nov 2026 (Hoy)
+                </button>
+                <button
+                  onClick={() => setFechaHoyCorte("2026-12")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: fechaHoyCorte === "2026-12" ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: fechaHoyCorte === "2026-12" ? "#2563EB" : "transparent",
+                    color: fechaHoyCorte === "2026-12" ? "#FFFFFF" : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="Corte a Diciembre 2026"
+                >
+                  Dic 2026
+                </button>
+                <button
+                  onClick={() => setFechaHoyCorte("2027-01")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: fechaHoyCorte === "2027-01" ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: fechaHoyCorte === "2027-01" ? "#2563EB" : "transparent",
+                    color: fechaHoyCorte === "2027-01" ? "#FFFFFF" : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="Corte a Enero 2027 (Inicio de Plan Anual)"
+                >
+                  Ene 2027 (Plan)
+                </button>
+              </div>
+              <input
+                type="month"
+                value={fechaHoyCorte}
+                onChange={(e) => {
+                  if (e.target.value) setFechaHoyCorte(e.target.value);
                 }}
-              >
-                Plazo Total de Obra (Duración Completa)
-              </button>
-              <button
-                onClick={() => setCriterioRitmo("anio_presupuesto")}
                 style={{
-                  padding: "4px 10px",
                   fontSize: 11,
-                  fontWeight: criterioRitmo === "anio_presupuesto" ? 700 : 500,
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  background: criterioRitmo === "anio_presupuesto" ? tokens.ink : "transparent",
-                  color: criterioRitmo === "anio_presupuesto" ? "#FFFFFF" : tokens.textMuted,
-                  transition: "all 0.15s"
+                  fontFamily: tokens.fontMono,
+                  fontWeight: 600,
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  border: `1px solid ${colorLineaFuerte}`,
+                  background: "#FFFFFF",
+                  color: tokens.ink,
+                  outline: "none",
+                  cursor: "pointer"
                 }}
-              >
-                Curva Anual {ejercicio} (Presupuesto)
-              </button>
+                title="Seleccionar cualquier mes de corte para simular"
+              />
+            </div>
+
+            {/* Criterio de Plazo */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 4 }}>
+                <Clock size={14} color={tokens.gold} /> Criterio de Plazo:
+              </span>
+              <div style={{ display: "inline-flex", background: "#FFFFFF", padding: 2, borderRadius: 6, border: `1px solid ${colorLineaSuave}` }}>
+                <button
+                  onClick={() => setCriterioRitmo("plazo_restante")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: criterioRitmo === "plazo_restante" ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: criterioRitmo === "plazo_restante" ? tokens.ink : "transparent",
+                    color: criterioRitmo === "plazo_restante" ? "#FFFFFF" : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="Calcula sobre los meses restantes reales desde la fecha de hoy hasta la fecha de fin de obra"
+                >
+                  Plazo Restante desde Hoy (Recomendado)
+                </button>
+                <button
+                  onClick={() => setCriterioRitmo("curva_futura")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: criterioRitmo === "curva_futura" ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: criterioRitmo === "curva_futura" ? tokens.ink : "transparent",
+                    color: criterioRitmo === "curva_futura" ? "#FFFFFF" : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="Calcula sobre los meses futuros con desembolso programado en la curva de obra"
+                >
+                  Curva Desembolsos Futura
+                </button>
+                <button
+                  onClick={() => setCriterioRitmo("anio_presupuesto")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: criterioRitmo === "anio_presupuesto" ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: criterioRitmo === "anio_presupuesto" ? tokens.ink : "transparent",
+                    color: criterioRitmo === "anio_presupuesto" ? "#FFFFFF" : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="Calcula sobre los meses con desembolso en el ejercicio anual presupuestado"
+                >
+                  Curva Anual {ejercicio}
+                </button>
+                <button
+                  onClick={() => setCriterioRitmo("plazo_total")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: criterioRitmo === "plazo_total" ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: criterioRitmo === "plazo_total" ? tokens.ink : "transparent",
+                    color: criterioRitmo === "plazo_total" ? "#FFFFFF" : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="Duración total nominal histórica de obra (desde inicio de obra)"
+                >
+                  Duración Total Nominal
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Simulador de Anticipo al Boleto */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-              <SlidersHorizontal size={14} /> Anticipo Comercial:
-            </span>
-            <div style={{ display: "inline-flex", background: "#FFFFFF", padding: 2, borderRadius: 6, border: `1px solid ${colorLineaSuave}` }}>
-              <button
-                onClick={() => setPctAnticipoSimulado(100)}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: 11,
-                  fontWeight: pctAnticipoSimulado === 100 ? 700 : 500,
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  background: pctAnticipoSimulado === 100 ? tokens.gold : "transparent",
-                  color: pctAnticipoSimulado === 100 ? tokens.ink : tokens.textMuted,
-                  transition: "all 0.15s"
-                }}
-                title="100% de valor unitario ingresado"
-              >
-                100% Contado / Cuotas
-              </button>
-              <button
-                onClick={() => setPctAnticipoSimulado(50)}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: 11,
-                  fontWeight: pctAnticipoSimulado === 50 ? 700 : 500,
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  background: pctAnticipoSimulado === 50 ? tokens.gold : "transparent",
-                  color: pctAnticipoSimulado === 50 ? tokens.ink : tokens.textMuted,
-                  transition: "all 0.15s"
-                }}
-                title="50% de anticipo inicial al boleto"
-              >
-                50% Anticipo
-              </button>
-              <button
-                onClick={() => setPctAnticipoSimulado(30)}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: 11,
-                  fontWeight: pctAnticipoSimulado === 30 ? 700 : 500,
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  background: pctAnticipoSimulado === 30 ? tokens.gold : "transparent",
-                  color: pctAnticipoSimulado === 30 ? tokens.ink : tokens.textMuted,
-                  transition: "all 0.15s"
-                }}
-                title="30% de anticipo inicial al boleto"
-              >
-                30% Anticipo
-              </button>
+          {/* LÍNEA 2: ANTICIPO COMERCIAL Y FILTRO PROYECTO */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, paddingTop: 4, borderTop: `1px solid ${colorLineaSuave}` }}>
+            {/* Simulador de Anticipo al Boleto */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                <SlidersHorizontal size={14} /> Anticipo Comercial al Boleto:
+              </span>
+              <div style={{ display: "inline-flex", background: "#FFFFFF", padding: 2, borderRadius: 6, border: `1px solid ${colorLineaSuave}` }}>
+                <button
+                  onClick={() => setPctAnticipoSimulado(100)}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: pctAnticipoSimulado === 100 ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: pctAnticipoSimulado === 100 ? tokens.gold : "transparent",
+                    color: pctAnticipoSimulado === 100 ? tokens.ink : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="100% de valor unitario ingresado"
+                >
+                  100% Contado / Cuotas
+                </button>
+                <button
+                  onClick={() => setPctAnticipoSimulado(50)}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: pctAnticipoSimulado === 50 ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: pctAnticipoSimulado === 50 ? tokens.gold : "transparent",
+                    color: pctAnticipoSimulado === 50 ? tokens.ink : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="50% de anticipo inicial al boleto"
+                >
+                  50% Anticipo
+                </button>
+                <button
+                  onClick={() => setPctAnticipoSimulado(30)}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: pctAnticipoSimulado === 30 ? 700 : 500,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: pctAnticipoSimulado === 30 ? tokens.gold : "transparent",
+                    color: pctAnticipoSimulado === 30 ? tokens.ink : tokens.textMuted,
+                    transition: "all 0.15s"
+                  }}
+                  title="30% de anticipo inicial al boleto"
+                >
+                  30% Anticipo
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Filtro Proyecto */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Proyecto:</span>
-            <select
-              value={filtroProyectoRitmo}
-              onChange={(e) => setFiltroProyectoRitmo(e.target.value)}
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: `1px solid ${colorLineaFuerte}`,
-                background: "#FFFFFF",
-                color: tokens.ink,
-                outline: "none",
-                cursor: "pointer"
-              }}
-            >
-              <option value="todos">Todos los Proyectos (Consolidado)</option>
-              {ritmoVentaAnalisis.proyectos.map(p => (
-                <option key={p.id} value={p.id}>{p.nombre}</option>
-              ))}
-            </select>
+            {/* Filtro Proyecto */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Filtrar Proyecto:</span>
+              <select
+                value={filtroProyectoRitmo}
+                onChange={(e) => setFiltroProyectoRitmo(e.target.value)}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${colorLineaFuerte}`,
+                  background: "#FFFFFF",
+                  color: tokens.ink,
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="todos">Todos los Proyectos (Consolidado)</option>
+                {ritmoVentaAnalisis.proyectos.map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1917,7 +2096,7 @@ export default function MonitorFinancieroTab({
               }
             </div>
             <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
-              {criterioRitmo === "plazo_total" ? "Costo medio por mes de obra" : `Desembolso promedio mensual ${ejercicio}`}
+              Costo medio mensual · {criterioRitmo === "plazo_restante" ? `Meses restantes desde ${fechaHoyCorte}` : criterioRitmo === "curva_futura" ? "Curva desembolsos futura" : criterioRitmo === "anio_presupuesto" ? `Curva ${ejercicio}` : "Plazo total nominal"}
             </div>
             <div style={{ fontSize: 11, color: tokens.ink, marginTop: 6, fontWeight: 600 }}>
               Saldo Obra: {moneda === "USD"
@@ -2058,7 +2237,7 @@ export default function MonitorFinancieroTab({
                 Ritmo Requerido por Proyecto (Unidades / Mes)
               </div>
               <span style={{ fontSize: 11, color: tokens.textMuted }}>
-                {pctAnticipoSimulado === 100 ? "Base: 100% contado" : `Base: ${pctAnticipoSimulado}% anticipo`}
+                {pctAnticipoSimulado === 100 ? "Base: 100% contado" : `Base: ${pctAnticipoSimulado}% anticipo`} · Corte: {fechaHoyCorte}
               </span>
             </div>
             <div style={{ width: "100%", height: 230 }}>
@@ -2095,7 +2274,12 @@ export default function MonitorFinancieroTab({
                           fontSize: 12
                         }}>
                           <div style={{ fontWeight: 800, color: tokens.ink, marginBottom: 4 }}>{d.nombre}</div>
-                          <div style={{ color: tokens.textMuted }}>Plazo restante: <strong>{d.mesesPlazo} meses</strong></div>
+                          <div style={{ color: tokens.textMuted }}>
+                            Plazo restante desde hoy ({fechaHoyCorte}): <strong style={{ color: tokens.ink }}>{d.mesesRestantesDesdeHoy} meses</strong>
+                          </div>
+                          <div style={{ fontSize: 10.5, color: tokens.textMuted, marginBottom: 4 }}>
+                            (Fin: {d.fecha_fin} · {d.mesesTranscurridos}m ya transcurridos de {d.mesesNominalesTotal}m nominales)
+                          </div>
                           <div style={{ color: "#2563EB", fontWeight: 700 }}>
                             Ritmo (100%): {fmtNum(d.ritmoUnidadesMes, 2)} u / mes
                           </div>
@@ -2105,7 +2289,7 @@ export default function MonitorFinancieroTab({
                             </div>
                           )}
                           <div style={{ color: tokens.textMuted, marginTop: 4 }}>
-                            Costo mensual: U$D {fmt(d.costoMensualElegidoUSD)} / mes
+                            Costo mensual: U$D {fmt(d.costoMensualElegidoUSD)} / mes (${fmt(d.costoMensualElegidoARS)} / mes)
                           </div>
                           <div style={{ color: tokens.textMuted }}>
                             Stock disponible: {d.stockUnidades} unidades (U$D {fmt(d.stockValUSD)})
@@ -2185,7 +2369,7 @@ export default function MonitorFinancieroTab({
                             {d.superavitUSD >= 0 ? `Superávit: +U$D ${fmt(d.superavitUSD)}` : `Déficit: -U$D ${fmt(Math.abs(d.superavitUSD))}`}
                           </div>
                           <div style={{ fontSize: 11, color: tokens.textMuted, marginTop: 2 }}>
-                            Cobertura: {d.coberturaPct.toFixed(1)}%
+                            Cobertura: {d.coberturaPct.toFixed(1)}% · Restan {d.mesesRestantesDesdeHoy} meses a fin de obra
                           </div>
                         </div>
                       );
@@ -2220,7 +2404,9 @@ export default function MonitorFinancieroTab({
             <thead>
               <tr style={{ background: colorTablaBg, borderBottom: `2px solid ${colorLineaFuerte}`, color: tokens.textMuted }}>
                 <th style={{ textAlign: "left", padding: "12px 14px", fontWeight: 700 }}>PROYECTO</th>
-                <th style={{ textAlign: "center", padding: "12px 10px", fontWeight: 700 }}>PLAZO / FIN</th>
+                <th style={{ textAlign: "center", padding: "12px 10px", fontWeight: 700 }}>
+                  PLAZO RESTANTE (DESDE HOY)
+                </th>
                 <th style={{ textAlign: "right", padding: "12px 12px", fontWeight: 700 }}>SALDO OBRA (ARS / U$D)</th>
                 <th style={{ textAlign: "right", padding: "12px 12px", fontWeight: 700 }}>COSTO OBRA / MES</th>
                 <th style={{ textAlign: "center", padding: "12px 10px", fontWeight: 700 }}>STOCK DISP.</th>
@@ -2257,10 +2443,23 @@ export default function MonitorFinancieroTab({
                       </div>
                     </td>
 
-                    {/* PLAZO RESTANTE Y FECHA FIN */}
+                    {/* PLAZO RESTANTE DESDE HOY Y FECHA FIN */}
                     <td style={{ textAlign: "center", padding: "12px 10px" }}>
-                      <div style={{ fontWeight: 700, color: tokens.ink }}>{p.mesesPlazo} meses</div>
-                      <div style={{ fontSize: 10, color: tokens.textMuted }}>Fin: {p.fecha_fin}</div>
+                      <div style={{
+                        display: "inline-block",
+                        padding: "2px 8px",
+                        borderRadius: 6,
+                        background: p.mesesRestantesDesdeHoy <= 2 ? "#FEF3C7" : "#F1F5F9",
+                        color: p.mesesRestantesDesdeHoy <= 2 ? "#B45309" : tokens.ink,
+                        fontWeight: 800,
+                        fontSize: 12.5,
+                        fontFamily: tokens.fontMono
+                      }}>
+                        {p.mesesPlazoElegido} meses
+                      </div>
+                      <div style={{ fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
+                        Fin: <strong>{p.fecha_fin}</strong> · ({p.mesesTranscurridos}m ya de {p.mesesNominalesTotal}m)
+                      </div>
                     </td>
 
                     {/* SALDO DE OBRA */}
@@ -2275,11 +2474,11 @@ export default function MonitorFinancieroTab({
 
                     {/* COSTO OBRA / MES */}
                     <td style={{ textAlign: "right", padding: "12px 12px", fontFamily: tokens.fontMono }}>
-                      <div style={{ fontWeight: 700, color: tokens.ink }}>
+                      <div style={{ fontWeight: 800, color: tokens.ink }}>
                         {moneda === "USD" ? `U$D ${fmt(p.costoMensualElegidoUSD)}` : `$ ${fmt(p.costoMensualElegidoARS)}`}
                       </div>
                       <div style={{ fontSize: 10, color: tokens.textMuted }}>
-                        {criterioRitmo === "plazo_total" ? "Plazo total" : `Curva ${ejercicio}`}
+                        {p.etiquetaCriterio}
                       </div>
                     </td>
 
@@ -2325,7 +2524,7 @@ export default function MonitorFinancieroTab({
                       padding: "12px 14px",
                       fontFamily: tokens.fontMono,
                       background: "#FEF3C7",
-                      fontWeight: 700,
+                      fontWeight: 800,
                       color: tokens.ink
                     }}>
                       <div>
@@ -2407,7 +2606,7 @@ export default function MonitorFinancieroTab({
                   TOTAL CARTERA CONSOLIDADA
                 </td>
                 <td style={{ textAlign: "center", padding: "14px 10px", color: tokens.textMuted }}>
-                  6 Obras
+                  6 Obras (Corte {fechaHoyCorte})
                 </td>
                 <td style={{ textAlign: "right", padding: "14px 12px", fontFamily: tokens.fontMono, color: tokens.ink }}>
                   {moneda === "USD" ? `U$D ${fmt(ritmoVentaAnalisis.totales.totalSaldoObraUSD)}` : `$ ${fmt(ritmoVentaAnalisis.totales.totalSaldoObraARS)}`}
@@ -2468,23 +2667,26 @@ export default function MonitorFinancieroTab({
           background: "#F8FAFC",
           border: `1px solid ${colorLineaSuave}`,
           borderRadius: 8,
-          padding: "14px 18px",
+          padding: "16px 20px",
           display: "flex",
           alignItems: "flex-start",
           gap: 12
         }}>
-          <Info size={18} color="#2563EB" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: 12, color: tokens.textMuted, lineHeight: 1.5 }}>
-            <strong style={{ color: tokens.ink }}>Pautas de Absorción Financiera:</strong>
-            <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+          <Info size={20} color="#2563EB" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 12, color: tokens.textMuted, lineHeight: 1.6 }}>
+            <strong style={{ color: tokens.ink, fontSize: 13 }}>Pautas de Absorción Financiera y Plazos Restantes:</strong>
+            <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
               <li>
-                <strong>Fórmula de Cálculo:</strong> <code>Ritmo Requerido ($/mes) = Saldo Obra / Meses Plazo</code> · <code>Ritmo (u/mes) = Ritmo ($/mes) / Ticket Promedio</code>.
+                <strong>Cálculo desde la Fecha Actual:</strong> Las obras <strong>T2 (Torre 2)</strong> y <strong>Corporativo</strong> iniciaron en Diciembre 2024 y tienen fecha prevista de finalización en <strong>Diciembre 2026</strong>. Al tomar la fecha de corte actual (Noviembre 2026), <strong>restan únicamente 2 meses de ejecución</strong> (habiendo transcurrido 22 meses de los 24 nominales). Por tanto, para T2 el saldo restante de U$D 730k se distribuye en los 2 meses restantes (U$D 365k/mes), requiriendo un ritmo de <strong>3,15 u/mes</strong> sobre su inventario de 24 unidades (cobertura superavitaria del 381%).
               </li>
               <li>
-                <strong>Anticipo vs Cuotas:</strong> Cuando el cliente abona un porcentaje al boleto (ej. 30% o 50%) y el saldo en cuotas CAC, el ritmo inicial de absorción comercial en unidades aumenta para abastecer la caja de desembolsos mensuales inmediata de las constructoras.
+                <strong>DUO (Fase Posesión):</strong> Inició en Diciembre 2024 con finalización en <strong>Noviembre 2026</strong> (1 mes restante / entrega). Al estar 100% vendido, el saldo de obra se cubre íntegramente mediante la cobranza de cuotas a clientes.
               </li>
               <li>
-                <strong>Superávit y Calce:</strong> <strong>Auria</strong> (85 u. por U$D 5.34M) y <strong>T2</strong> (24 u. por U$D 2.78M) cuentan con superávit de stock respecto al saldo de obra (coberturas de 140.5% y 381.1%), actuando como anclas de solvencia y liquidez para el grupo desarrollador.
+                <strong>Obras de Largo Plazo:</strong> <strong>Green</strong> (25 meses restantes hasta nov-28, ritmo 1,30 u/mes), <strong>+ DUO</strong> (31 meses restantes hasta may-29, ritmo 1,94 u/mes) y <strong>Auria</strong> (37 meses restantes hasta entrega en nov-29 con 29 meses de obra activa, ritmo 1,64 u/mes).
+              </li>
+              <li>
+                <strong>Flexibilidad de Criterios:</strong> Utilice los selectores superiores para alternar entre el <em>Plazo Restante Real desde Hoy</em> (recomendado), la <em>Curva de Desembolsos Futura</em>, la <em>Curva Anual {ejercicio}</em> o la <em>Duración Total Nominal</em>.
               </li>
             </ul>
           </div>
