@@ -123,15 +123,15 @@ export const PLAN_PROJECT_CATS = PLAN_PROJECT_CATS_2027;
 
 // ESTRUCTURA 2027
 export const PLAN_ESTRUCTURA_CATS_2027 = [
-  { key: "est_rrhh", label: "RRHH", sublabel: "Recursos humanos y capacitaciones", group: "estructura", pctEgreso: 1.01, pctEstructura: 4.45 },
-  { key: "est_sueldos-azlepi", label: "Sueldos Azlepi", sublabel: "Nómina fija Azlepi ($95,05M/mes, jun/dic SAC $142,57M)", group: "estructura", pctEgreso: 12.45, pctEstructura: 54.74 },
-  { key: "est_cargas-sociales-azlepi", label: "Cargas Sociales Azlepi", sublabel: "Aportes patronales Azlepi ($11,48M/mes, jun/dic $17,22M)", group: "estructura", pctEgreso: 1.50, pctEstructura: 6.61 },
-  { key: "est_impuestos", label: "Impuestos", sublabel: "Obligaciones impositivas mensuales ($36,44M/mes)", group: "estructura", pctEgreso: 4.41, pctEstructura: 19.37 },
-  { key: "est_gastos-admin-link", label: "Gastos Admin Link", sublabel: "Operación general y suministros Link", group: "estructura", pctEgreso: 2.13, pctEstructura: 9.34 },
-  { key: "est_gastos-admin-otros", label: "Gastos Admin Otros", sublabel: "Otros gastos administrativos corrientes", group: "estructura", pctEgreso: 1.07, pctEstructura: 4.69 },
-  { key: "est_cx", label: "CX", sublabel: "Experiencia de clientes y fidelización ($0,39M/mes)", group: "estructura", pctEgreso: 0.05, pctEstructura: 0.21 },
-  { key: "est_post-venta", label: "Post Venta", sublabel: "Garantías y atención post entrega ($0,97M/mes)", group: "estructura", pctEgreso: 0.12, pctEstructura: 0.51 },
-  { key: "est_renta-anticipada", label: "Renta Anticipada", sublabel: "Renta comprometida a inversores (Enero)", group: "estructura", pctEgreso: 0.02, pctEstructura: 0.07 }
+  { key: "est_rrhh", label: "RRHH", sublabel: "Recursos humanos y capacitaciones", group: "estructura", pctEgreso: 0.97, pctEstructura: 3.68 },
+  { key: "est_sueldos-azlepi", label: "Sueldos Azlepi", sublabel: "Nómina fija Azlepi ($131,50M/mes, jun/dic SAC $197,25M)", group: "estructura", pctEgreso: 16.44, pctEstructura: 62.60 },
+  { key: "est_cargas-sociales-azlepi", label: "Cargas Sociales Azlepi", sublabel: "Aportes patronales Azlepi ($11,48M/mes, jun/dic $17,22M)", group: "estructura", pctEgreso: 1.44, pctEstructura: 5.47 },
+  { key: "est_impuestos", label: "Impuestos", sublabel: "Obligaciones impositivas mensuales ($36,44M/mes)", group: "estructura", pctEgreso: 4.21, pctEstructura: 16.01 },
+  { key: "est_gastos-admin-link", label: "Gastos Admin Link", sublabel: "Operación general y suministros Link", group: "estructura", pctEgreso: 2.03, pctEstructura: 7.72 },
+  { key: "est_gastos-admin-otros", label: "Gastos Admin Otros", sublabel: "Otros gastos administrativos corrientes", group: "estructura", pctEgreso: 1.02, pctEstructura: 3.88 },
+  { key: "est_cx", label: "CX", sublabel: "Experiencia de clientes y fidelización ($0,39M/mes)", group: "estructura", pctEgreso: 0.04, pctEstructura: 0.17 },
+  { key: "est_post-venta", label: "Post Venta", sublabel: "Garantías y atención post entrega ($0,97M/mes)", group: "estructura", pctEgreso: 0.11, pctEstructura: 0.43 },
+  { key: "est_renta-anticipada", label: "Renta Anticipada", sublabel: "Renta comprometida a inversores (Enero)", group: "estructura", pctEgreso: 0.01, pctEstructura: 0.06 }
 ];
 
 // INVERSIONES Y PASIVOS FINANCIEROS 2027
@@ -200,7 +200,7 @@ export const DEFAULT_PLAN_2026 = {
 //    - Ventas Paquetes ($2.253.086.150,40)
 //    - Ventas Canjes ($1.147.995.381,12)
 //    - Ventas Mostrador ($4.254.511.800,96)
-// TOTAL INGRESOS: $10.240.155.973,74 | TOTAL EGRESOS: $9.924.228.737,92 | POSICION NETA: +$315.927.235,82 (203.824,02 USD)
+// TOTAL INGRESOS: $10.240.155.973,74 | TOTAL EGRESOS: $10.398.120.790,19 | POSICION NETA: +$157.964.816,45 (101.912,78 USD)
 export const DEFAULT_PLAN_2027 = {
   "ingreso": {
     // 1. CC CLIENTES
@@ -326,9 +326,9 @@ export const DEFAULT_PLAN_2027 = {
       "09": 8368943.51, "10": 8368943.51, "11": 8368943.51, "12": 8368943.51
     },
     "est_sueldos-azlepi": {
-      "01": 95046765.21, "02": 95046765.21, "03": 95046765.21, "04": 95046765.21,
-      "05": 95046765.21, "06": 142570147.82, "07": 95046765.21, "08": 95046765.21,
-      "09": 95046765.21, "10": 95046765.21, "11": 95046765.21, "12": 142570147.82
+      "01": 131500000.00, "02": 131500000.00, "03": 131500000.00, "04": 131500000.00,
+      "05": 131500000.00, "06": 197250000.00, "07": 131500000.00, "08": 131500000.00,
+      "09": 131500000.00, "10": 131500000.00, "11": 131500000.00, "12": 197250000.00
     },
     "est_cargas-sociales-azlepi": {
       "01": 11481966.35, "02": 11481966.35, "03": 11481966.35, "04": 11481966.35,

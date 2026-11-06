@@ -138,8 +138,7 @@ export default function MonitorFinancieroTab({
           const vm = Number(cloned.ingreso["custom_ventas-mostrador"]?.[m.id] || 0);
           const vc = Number(cloned.ingreso["custom_ventas-canjes"]?.[m.id] || 0);
           const vp = Number(cloned.ingreso["custom_ventas-paquetes"]?.[m.id] || 0);
-          const vcom = Number(cloned.ingreso["custom_comercializacion"]?.[m.id] || DEFAULT_PLAN_2027.ingreso["custom_comercializacion"]?.[m.id] || 0);
-          cloned.ingreso["custom_gestion-comercial"][m.id] = Math.max(0, vm + vc + vp - vcom);
+          cloned.ingreso["custom_gestion-comercial"][m.id] = vm + vc + vp;
         });
       }
 

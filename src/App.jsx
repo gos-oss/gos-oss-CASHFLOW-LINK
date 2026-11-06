@@ -685,12 +685,14 @@ export default function App() {
       }
 
       // Inicialización y Migración 2027: sincroniza y asegura la proyección oficial Link 2027
+      const sueldosVal2027 = Number(planesTemporales["2027"]?.egreso?.["est_sueldos-azlepi"]?.["01"] || 0);
       const necesitaInicializacion2027 = !planesTemporales["2027"]
         || !planesTemporales["2027"].ingreso
         || !planesTemporales["2027"].egreso
         || !planesTemporales["2027"].egreso["proy_comercializacion"]
         || !planesTemporales["2027"].ingreso["custom_comercializacion"]
         || !planesTemporales["2027"].egreso["est_sueldos-azlepi"]
+        || sueldosVal2027 !== 131500000
         || Object.keys(planesTemporales["2027"].egreso || {}).length === 0;
       if (necesitaInicializacion2027) {
         planesTemporales["2027"] = DEFAULT_PLAN_2027;
