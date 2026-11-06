@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import { tokens } from "./tokens";
 import { DEFAULT_STOCK_UNITS, PROYECTOS_STOCK, normalizarNombreProyecto } from "./stockData";
+import { OBRAS_DATA_SUMMARY, CURVAS_MENSUALES_OBRAS } from "./proyectosData";
 import {
   DEFAULT_PLAN_2026,
   DEFAULT_PLAN_2027,
@@ -20,7 +21,8 @@ import {
   Building2, DollarSign, Activity, TrendingUp, TrendingDown, Wallet,
   Calendar, AlertTriangle, CheckCircle2, ArrowUpRight, Sparkles, Layers,
   Eye, RefreshCw, Cloud, ChevronRight, Scale, Plus, Pencil, X, Save,
-  HardHat, FileText, BarChart3, HelpCircle
+  HardHat, FileText, BarChart3, HelpCircle, Target, Clock, SlidersHorizontal,
+  Info, Award
 } from "lucide-react";
 
 const colorLineaSuave = "#E2E8F0";
@@ -72,6 +74,11 @@ export default function MonitorFinancieroTab({
   const [ejercicio, setEjercicio] = useState("2027"); // "2027" | "2026"
   const [toast, setToast] = useState("");
   const [actualizandoTodo, setActualizandoTodo] = useState(false);
+  
+  // Estado para el indicador de Ritmo de Venta ($ y Unidades)
+  const [criterioRitmo, setCriterioRitmo] = useState("plazo_total"); // "plazo_total" | "anio_presupuesto"
+  const [pctAnticipoSimulado, setPctAnticipoSimulado] = useState(100); // 100 | 50 | 30
+  const [filtroProyectoRitmo, setFiltroProyectoRitmo] = useState("todos"); // "todos" | id de obra
 
   // Tipo de Cambio oficial de cálculo
   const tcReferencia = useMemo(() => {
@@ -375,6 +382,217 @@ export default function MonitorFinancieroTab({
       precioM2PromedioUSD
     };
   }, [unidadesStock, tcReferencia]);
+
+  // ── 3.B. INDICADOR DE RITMO DE VENTA REQUERIDO ($ Y UNIDADES) PARA CUBRIR COSTO DE OBRA ──
+  const ritmoVentaAnalisis = useMemo(() => {
+    const stockMap = {
+      "duo": { count: 0, disponibles: 0, reservadas: 0, valUSD: 0, m2: 0, unidades: [] },
+      "300_t2_am": { count: 0, disponibles: 0, reservadas: 0, valUSD: 0, m2: 0, unidades: [] },
+      "300_corp": { count: 0, disponibles: 0, reservadas: 0, valUSD: 0, m2: 0, unidades: [] },
+      "torre_green": { count: 0, disponibles: 0, reservadas: 0, valUSD: 0, m2: 0, unidades: [] },
+      "auria": { count: 0, disponibles: 0, reservadas: 0, valUSD: 0, m2: 0, unidades: [] },
+      "mas_duo": { count: 0, disponibles: 0, reservadas: 0, valUSD: 0, m2: 0, unidades: [] }
+    };
+
+    unidadesStock.forEach(u => {
+      const norm = normalizarNombreProyecto(u.proyecto).toLowerCase();
+      const rawP = (u.proyecto || "").toLowerCase();
+      const rawA = (u.asignado || "").toLowerCase();
+      const usd = Number(u.precio_usd || 0);
+      const m2 = Number(u.m2_totales || u.m2_propios || 0);
+      const isDisp = u.estado === "Disponible";
+      const isRes = u.estado === "Reservado" || u.estado === "En Negociación";
+
+      let targetKey = null;
+      if (norm.includes("corporativ") || rawA.includes("300tc") || rawP.includes("corporativ")) {
+        targetKey = "300_corp";
+      } else if (norm.includes("torre 2") || rawA.includes("300t2") || rawP.includes("torre 2")) {
+        targetKey = "300_t2_am";
+      } else if (norm.includes("torre 4") || rawA.includes("300t4") || rawP.includes("torre 4")) {
+        targetKey = "300_t2_am";
+      } else if (norm.includes("green") || rawA.includes("green")) {
+        targetKey = "torre_green";
+      } else if (norm.includes("auria") || rawA.includes("auria") || norm.includes("marcos paz")) {
+        targetKey = "auria";
+      } else if (norm.includes("duo") || rawA.includes("duo")) {
+        targetKey = "mas_duo";
+      }
+
+      if (targetKey && stockMap[targetKey]) {
+        stockMap[targetKey].count++;
+        if (isDisp) stockMap[targetKey].disponibles++;
+        if (isRes) stockMap[targetKey].reservadas++;
+        stockMap[targetKey].valUSD += usd;
+        stockMap[targetKey].m2 += m2;
+        stockMap[targetKey].unidades.push(u);
+      }
+    });
+
+    const factorAnticipo = Math.max(0.01, (Number(pctAnticipoSimulado) || 100) / 100);
+
+    const listaObras = OBRAS_DATA_SUMMARY.map(obra => {
+      const st = stockMap[obra.id] || { count: 0, disponibles: 0, reservadas: 0, valUSD: 0, m2: 0, unidades: [] };
+      const stockValUSD = st.valUSD;
+      const stockValARS = stockValUSD * tcReferencia;
+      const stockUnidades = st.count;
+      const disponibles = st.disponibles;
+      const reservadas = st.reservadas;
+
+      const ticketPromUSD = stockUnidades > 0 ? stockValUSD / stockUnidades : 0;
+      const ticketPromARS = ticketPromUSD * tcReferencia;
+
+      const saldoObraARS = Number(obra.saldo_presupuesto || 0);
+      const saldoObraUSD = tcReferencia > 0 ? saldoObraARS / tcReferencia : 0;
+      const mesesPlazo = Math.max(1, Number(obra.duracion_meses || 12));
+
+      // Costo mensual por plazo total
+      const costoMensualTotalARS = saldoObraARS / mesesPlazo;
+      const costoMensualTotalUSD = saldoObraUSD / mesesPlazo;
+
+      // Costo en el ejercicio seleccionado según curva
+      const curva = CURVAS_MENSUALES_OBRAS[obra.id] || CURVAS_MENSUALES_OBRAS[obra.id === "auria" ? "marcos_paz" : obra.id] || {};
+      let costoAnioARS = 0;
+      let mesesConDesembolso = 0;
+      Object.entries(curva).forEach(([mesKey, val]) => {
+        if (mesKey.startsWith(ejercicio)) {
+          const mVal = Number(val || 0);
+          costoAnioARS += mVal;
+          if (mVal > 0) mesesConDesembolso++;
+        }
+      });
+      const costoAnioUSD = tcReferencia > 0 ? costoAnioARS / tcReferencia : 0;
+      const mesesDivisor = mesesConDesembolso > 0 ? mesesConDesembolso : 12;
+      const costoMensualAnioARS = costoAnioARS / mesesDivisor;
+      const costoMensualAnioUSD = costoAnioUSD / mesesDivisor;
+
+      const costoMensualElegidoARS = (criterioRitmo === "anio_presupuesto" && costoAnioARS > 0) ? costoMensualAnioARS : costoMensualTotalARS;
+      const costoMensualElegidoUSD = (criterioRitmo === "anio_presupuesto" && costoAnioUSD > 0) ? costoMensualAnioUSD : costoMensualTotalUSD;
+
+      const ritmoRequeridoARS = costoMensualElegidoARS;
+      const ritmoRequeridoUSD = costoMensualElegidoUSD;
+
+      const ritmoUnidadesMes = ticketPromUSD > 0 ? ritmoRequeridoUSD / ticketPromUSD : 0;
+      const ritmoUnidadesConAnticipo = (ticketPromUSD > 0 && factorAnticipo > 0) ? ritmoRequeridoUSD / (ticketPromUSD * factorAnticipo) : 0;
+
+      const coberturaPct = saldoObraARS > 0 ? (stockValARS / saldoObraARS) * 100 : (stockValARS > 0 ? 999 : 0);
+      const superavitARS = stockValARS - saldoObraARS;
+      const superavitUSD = stockValUSD - saldoObraUSD;
+
+      const mesesParaAgotarStock = ritmoUnidadesMes > 0 ? stockUnidades / ritmoUnidadesMes : 0;
+
+      let estadoBadge = "Equilibrado";
+      let estadoColor = "#10B981";
+      let estadoBg = "#ECFDF5";
+      let estadoBorder = "#A7F3D0";
+      let detalleDiagnostico = "";
+
+      if (stockUnidades === 0) {
+        estadoBadge = "100% Vendido";
+        estadoColor = "#64748B";
+        estadoBg = "#F1F5F9";
+        estadoBorder = "#CBD5E1";
+        detalleDiagnostico = "Obra en fase final financiada con cobranza de cuotas.";
+      } else if (coberturaPct >= 120) {
+        estadoBadge = "Superávit de Stock";
+        estadoColor = "#059669";
+        estadoBg = "#ECFDF5";
+        estadoBorder = "#A7F3D0";
+        detalleDiagnostico = `Stock cubre el ${coberturaPct.toFixed(0)}% del saldo con superávit de U$D ${fmt(superavitUSD)}.`;
+      } else if (coberturaPct >= 75) {
+        estadoBadge = "Equilibrado";
+        estadoColor = "#2563EB";
+        estadoBg = "#EFF6FF";
+        estadoBorder = "#BFDBFE";
+        detalleDiagnostico = `Cobertura del ${coberturaPct.toFixed(0)}%. Ritmo de ${ritmoUnidadesMes.toFixed(2)} u/mes.`;
+      } else {
+        estadoBadge = "Requiere Pre-ventas";
+        estadoColor = "#D97706";
+        estadoBg = "#FFFBEB";
+        estadoBorder = "#FDE68A";
+        detalleDiagnostico = `Cobertura del ${coberturaPct.toFixed(0)}%. Acelerar comercialización.`;
+      }
+
+      return {
+        id: obra.id,
+        nombre: obra.nombre,
+        color: obra.color,
+        estadoObra: obra.estado,
+        tipologia: obra.tipologia,
+        fecha_inicio: obra.fecha_inicio_label,
+        fecha_fin: obra.fecha_fin_label,
+        mesesPlazo,
+        saldoObraARS,
+        saldoObraUSD,
+        costoMensualTotalARS,
+        costoMensualTotalUSD,
+        costoAnioARS,
+        costoAnioUSD,
+        costoMensualAnioARS,
+        costoMensualAnioUSD,
+        costoMensualElegidoARS,
+        costoMensualElegidoUSD,
+        stockUnidades,
+        disponibles,
+        reservadas,
+        stockValUSD,
+        stockValARS,
+        ticketPromUSD,
+        ticketPromARS,
+        ritmoRequeridoARS,
+        ritmoRequeridoUSD,
+        ritmoUnidadesMes,
+        ritmoUnidadesConAnticipo,
+        coberturaPct,
+        superavitARS,
+        superavitUSD,
+        mesesParaAgotarStock,
+        estadoBadge,
+        estadoColor,
+        estadoBg,
+        estadoBorder,
+        detalleDiagnostico
+      };
+    });
+
+    const totalSaldoObraARS = listaObras.reduce((a, b) => a + b.saldoObraARS, 0);
+    const totalSaldoObraUSD = listaObras.reduce((a, b) => a + b.saldoObraUSD, 0);
+    const totalCostoMensualARS = listaObras.reduce((a, b) => a + b.costoMensualElegidoARS, 0);
+    const totalCostoMensualUSD = listaObras.reduce((a, b) => a + b.costoMensualElegidoUSD, 0);
+    const totalStockUnidades = listaObras.reduce((a, b) => a + b.stockUnidades, 0);
+    const totalDisponibles = listaObras.reduce((a, b) => a + b.disponibles, 0);
+    const totalReservadas = listaObras.reduce((a, b) => a + b.reservadas, 0);
+    const totalStockValUSD = listaObras.reduce((a, b) => a + b.stockValUSD, 0);
+    const totalStockValARS = listaObras.reduce((a, b) => a + b.stockValARS, 0);
+    const ticketPromedioGlobalUSD = totalStockUnidades > 0 ? totalStockValUSD / totalStockUnidades : 0;
+    const ticketPromedioGlobalARS = ticketPromedioGlobalUSD * tcReferencia;
+    const totalRitmoUnidadesMes = listaObras.reduce((a, b) => a + b.ritmoUnidadesMes, 0);
+    const totalRitmoUnidadesConAnticipo = listaObras.reduce((a, b) => a + b.ritmoUnidadesConAnticipo, 0);
+    const totalCoberturaPct = totalSaldoObraARS > 0 ? (totalStockValARS / totalSaldoObraARS) * 100 : 0;
+    const totalSuperavitARS = totalStockValARS - totalSaldoObraARS;
+    const totalSuperavitUSD = totalStockValUSD - totalSaldoObraUSD;
+
+    return {
+      proyectos: listaObras,
+      totales: {
+        totalSaldoObraARS,
+        totalSaldoObraUSD,
+        totalCostoMensualARS,
+        totalCostoMensualUSD,
+        totalStockUnidades,
+        totalDisponibles,
+        totalReservadas,
+        totalStockValUSD,
+        totalStockValARS,
+        ticketPromedioGlobalUSD,
+        ticketPromedioGlobalARS,
+        totalRitmoUnidadesMes,
+        totalRitmoUnidadesConAnticipo,
+        totalCoberturaPct,
+        totalSuperavitARS,
+        totalSuperavitUSD
+      }
+    };
+  }, [unidadesStock, tcReferencia, ejercicio, criterioRitmo, pctAnticipoSimulado, fmt]);
 
   // ── 4. CUADRO 4: PRINCIPALES INDICADORES FINANCIEROS Y ECONÓMICOS ──
   const [dolares, setDolares] = useState([]);
@@ -760,13 +978,25 @@ export default function MonitorFinancieroTab({
               </span>
             </div>
           </div>
+
+          {/* BARRA DE NAVEGACIÓN RÁPIDA POR CUADROS */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", paddingTop: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ir a:</span>
+            <a href="#cuadro-caja" style={{ textDecoration: "none", fontSize: 11, fontWeight: 600, padding: "4px 9px", borderRadius: 6, background: "#F1F5F9", color: tokens.ink }}>1. Caja</a>
+            <a href="#cuadro-necesidad" style={{ textDecoration: "none", fontSize: 11, fontWeight: 600, padding: "4px 9px", borderRadius: 6, background: "#F1F5F9", color: tokens.ink }}>2. Necesidad de Caja</a>
+            <a href="#cuadro-stock" style={{ textDecoration: "none", fontSize: 11, fontWeight: 600, padding: "4px 9px", borderRadius: 6, background: "#F1F5F9", color: tokens.ink }}>3. Stock & Valuación</a>
+            <a href="#cuadro-ritmo" style={{ textDecoration: "none", fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 6, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <Target size={12} color="#B45309" /> 4. Ritmo de Venta ($ y Unidades)
+            </a>
+            <a href="#cuadro-mercado" style={{ textDecoration: "none", fontSize: 11, fontWeight: 600, padding: "4px 9px", borderRadius: 6, background: "#F1F5F9", color: tokens.ink }}>5. Indicadores Macro</a>
+          </div>
         </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           CUADRO 1: SITUACIÓN ACTUAL (POSICIÓN DE CAJA Y LIQUIDEZ)
           ══════════════════════════════════════════════════════════════════════ */}
-      <div style={{
+      <div id="cuadro-caja" style={{
         background: "#FFFFFF",
         border: `1px solid ${colorLineaSuave}`,
         borderRadius: 12,
@@ -928,7 +1158,7 @@ export default function MonitorFinancieroTab({
       {/* ══════════════════════════════════════════════════════════════════════
           CUADRO 2: INGRESOS, EGRESOS & NECESIDAD DE CAJA MENSUAL
           ══════════════════════════════════════════════════════════════════════ */}
-      <div style={{
+      <div id="cuadro-necesidad" style={{
         background: "#FFFFFF",
         border: `1px solid ${colorLineaSuave}`,
         borderRadius: 12,
@@ -1212,7 +1442,7 @@ export default function MonitorFinancieroTab({
       {/* ══════════════════════════════════════════════════════════════════════
           CUADRO 3: STOCK DE UNIDADES POR PROYECTO, VALUACIÓN & VALUACIÓN TOTAL
           ══════════════════════════════════════════════════════════════════════ */}
-      <div style={{
+      <div id="cuadro-stock" style={{
         background: "#FFFFFF",
         border: `1px solid ${colorLineaSuave}`,
         borderRadius: 12,
@@ -1411,9 +1641,860 @@ export default function MonitorFinancieroTab({
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          CUADRO 4: PRINCIPALES INDICADORES FINANCIEROS & ECONÓMICOS
+          CUADRO 4: RITMO DE VENTA REQUERIDO EN $ Y UNIDADES (ABSORCIÓN DE OBRA)
           ══════════════════════════════════════════════════════════════════════ */}
-      <div style={{
+      <div id="cuadro-ritmo" style={{
+        background: "#FFFFFF",
+        border: `1px solid ${colorLineaSuave}`,
+        borderRadius: 12,
+        padding: "24px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 20
+      }}>
+        {/* ENCABEZADO Y CONTROLES DEL INDICADOR */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <div style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: "#FEF3C7",
+              color: tokens.gold,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              marginTop: 2
+            }}>
+              <Target size={22} />
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h2 style={{
+                  margin: 0,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: tokens.ink,
+                  fontFamily: tokens.fontBody,
+                  letterSpacing: "-0.2px"
+                }}>
+                  4. Ritmo de Venta Requerido en $ y Unidades (Absorción de Obra)
+                </h2>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: 6,
+                  background: "#ECFDF5",
+                  color: tokens.positive,
+                  border: "1px solid #A7F3D0"
+                }}>
+                  Autofinanciamiento de Obras
+                </span>
+              </div>
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: tokens.textMuted }}>
+                Cálculo de facturación y unidades mensuales requeridas para cubrir el saldo del presupuesto de obra y completar la construcción en el plazo previsto.
+              </p>
+            </div>
+          </div>
+
+          {/* BARRA DE ACCIONES Y NAVEGACIÓN RÁPIDA */}
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            {onNavigateToTab && (
+              <>
+                <button
+                  onClick={() => onNavigateToTab("proyectos")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    background: "#FFFFFF",
+                    color: tokens.ink,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s"
+                  }}
+                  title="Ver detalle de saldos y curvas de obra"
+                >
+                  <HardHat size={14} color={tokens.gold} />
+                  <span>Ver Obras</span>
+                </button>
+                <button
+                  onClick={() => onNavigateToTab("stock")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    background: "#FFFFFF",
+                    color: tokens.ink,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s"
+                  }}
+                  title="Ver inventario de unidades y tipologías"
+                >
+                  <Building2 size={14} color="#2563EB" />
+                  <span>Ver Stock</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* FILTROS Y SIMULADOR DE CONDICIONES COMERCIALES */}
+        <div style={{
+          background: colorTablaBg,
+          border: `1px solid ${colorLineaSuave}`,
+          borderRadius: 8,
+          padding: "12px 16px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 14
+        }}>
+          {/* Criterio de Plazo */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+              <Clock size={14} /> Criterio de Plazo:
+            </span>
+            <div style={{ display: "inline-flex", background: "#FFFFFF", padding: 2, borderRadius: 6, border: `1px solid ${colorLineaSuave}` }}>
+              <button
+                onClick={() => setCriterioRitmo("plazo_total")}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  fontWeight: criterioRitmo === "plazo_total" ? 700 : 500,
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  background: criterioRitmo === "plazo_total" ? tokens.ink : "transparent",
+                  color: criterioRitmo === "plazo_total" ? "#FFFFFF" : tokens.textMuted,
+                  transition: "all 0.15s"
+                }}
+              >
+                Plazo Total de Obra (Duración Completa)
+              </button>
+              <button
+                onClick={() => setCriterioRitmo("anio_presupuesto")}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  fontWeight: criterioRitmo === "anio_presupuesto" ? 700 : 500,
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  background: criterioRitmo === "anio_presupuesto" ? tokens.ink : "transparent",
+                  color: criterioRitmo === "anio_presupuesto" ? "#FFFFFF" : tokens.textMuted,
+                  transition: "all 0.15s"
+                }}
+              >
+                Curva Anual {ejercicio} (Presupuesto)
+              </button>
+            </div>
+          </div>
+
+          {/* Simulador de Anticipo al Boleto */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+              <SlidersHorizontal size={14} /> Anticipo Comercial:
+            </span>
+            <div style={{ display: "inline-flex", background: "#FFFFFF", padding: 2, borderRadius: 6, border: `1px solid ${colorLineaSuave}` }}>
+              <button
+                onClick={() => setPctAnticipoSimulado(100)}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  fontWeight: pctAnticipoSimulado === 100 ? 700 : 500,
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  background: pctAnticipoSimulado === 100 ? tokens.gold : "transparent",
+                  color: pctAnticipoSimulado === 100 ? tokens.ink : tokens.textMuted,
+                  transition: "all 0.15s"
+                }}
+                title="100% de valor unitario ingresado"
+              >
+                100% Contado / Cuotas
+              </button>
+              <button
+                onClick={() => setPctAnticipoSimulado(50)}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  fontWeight: pctAnticipoSimulado === 50 ? 700 : 500,
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  background: pctAnticipoSimulado === 50 ? tokens.gold : "transparent",
+                  color: pctAnticipoSimulado === 50 ? tokens.ink : tokens.textMuted,
+                  transition: "all 0.15s"
+                }}
+                title="50% de anticipo inicial al boleto"
+              >
+                50% Anticipo
+              </button>
+              <button
+                onClick={() => setPctAnticipoSimulado(30)}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  fontWeight: pctAnticipoSimulado === 30 ? 700 : 500,
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  background: pctAnticipoSimulado === 30 ? tokens.gold : "transparent",
+                  color: pctAnticipoSimulado === 30 ? tokens.ink : tokens.textMuted,
+                  transition: "all 0.15s"
+                }}
+                title="30% de anticipo inicial al boleto"
+              >
+                30% Anticipo
+              </button>
+            </div>
+          </div>
+
+          {/* Filtro Proyecto */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: tokens.textMuted }}>Proyecto:</span>
+            <select
+              value={filtroProyectoRitmo}
+              onChange={(e) => setFiltroProyectoRitmo(e.target.value)}
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: `1px solid ${colorLineaFuerte}`,
+                background: "#FFFFFF",
+                color: tokens.ink,
+                outline: "none",
+                cursor: "pointer"
+              }}
+            >
+              <option value="todos">Todos los Proyectos (Consolidado)</option>
+              {ritmoVentaAnalisis.proyectos.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* TARJETAS DE KPIS PRINCIPALES DE RITMO */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: 16
+        }}>
+          {/* KPI 1: RITMO REQUERIDO EN $ */}
+          <div style={{
+            background: "#FFFFFF",
+            border: `1px solid ${colorLineaSuave}`,
+            borderRadius: 10,
+            padding: "16px 18px",
+            borderLeft: `4px solid ${tokens.gold}`
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Ritmo Requerido en $ / Mes
+              </span>
+              <DollarSign size={16} color={tokens.gold} />
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: tokens.ink, fontFamily: tokens.fontMono }}>
+              {moneda === "USD"
+                ? `U$D ${fmt(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalCostoMensualUSD : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.costoMensualElegidoUSD || 0))}`
+                : `$ ${fmt(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalCostoMensualARS : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.costoMensualElegidoARS || 0))}`
+              }
+            </div>
+            <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
+              {criterioRitmo === "plazo_total" ? "Costo medio por mes de obra" : `Desembolso promedio mensual ${ejercicio}`}
+            </div>
+            <div style={{ fontSize: 11, color: tokens.ink, marginTop: 6, fontWeight: 600 }}>
+              Saldo Obra: {moneda === "USD"
+                ? `U$D ${fmt(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalSaldoObraUSD : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.saldoObraUSD || 0))}`
+                : `$ ${fmt(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalSaldoObraARS : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.saldoObraARS || 0))}`
+              }
+            </div>
+          </div>
+
+          {/* KPI 2: RITMO REQUERIDO EN UNIDADES */}
+          <div style={{
+            background: "#FFFFFF",
+            border: `1px solid ${colorLineaSuave}`,
+            borderRadius: 10,
+            padding: "16px 18px",
+            borderLeft: `4px solid #2563EB`
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Ritmo Requerido en Unidades
+              </span>
+              <HardHat size={16} color="#2563EB" />
+            </div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span style={{ fontSize: 26, fontWeight: 800, color: "#2563EB", fontFamily: tokens.fontMono }}>
+                {fmtNum(
+                  filtroProyectoRitmo === "todos"
+                    ? (pctAnticipoSimulado === 100 ? ritmoVentaAnalisis.totales.totalRitmoUnidadesMes : ritmoVentaAnalisis.totales.totalRitmoUnidadesConAnticipo)
+                    : (pctAnticipoSimulado === 100
+                        ? (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.ritmoUnidadesMes || 0)
+                        : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.ritmoUnidadesConAnticipo || 0)),
+                  1
+                )}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: tokens.ink }}>unidades / mes</span>
+            </div>
+            <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
+              {pctAnticipoSimulado === 100 ? "Ventas al 100% valor de lista" : `Con anticipo comercial al ${pctAnticipoSimulado}%`}
+            </div>
+            <div style={{ fontSize: 11, color: tokens.ink, marginTop: 6, fontWeight: 600 }}>
+              {pctAnticipoSimulado !== 100 && (
+                <span style={{ color: "#D97706" }}>
+                  (Al 100% de valor: {fmtNum(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalRitmoUnidadesMes : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.ritmoUnidadesMes || 0), 1)} u/mes)
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* KPI 3: COBERTURA STOCK VS OBRA */}
+          <div style={{
+            background: "#FFFFFF",
+            border: `1px solid ${colorLineaSuave}`,
+            borderRadius: 10,
+            padding: "16px 18px",
+            borderLeft: `4px solid ${
+              (filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalCoberturaPct : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.coberturaPct || 0)) >= 100 ? tokens.positive : "#D97706"
+            }`
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Cobertura Stock vs Obra
+              </span>
+              <Scale size={16} color={
+                (filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalCoberturaPct : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.coberturaPct || 0)) >= 100 ? tokens.positive : "#D97706"
+              } />
+            </div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span style={{
+                fontSize: 26,
+                fontWeight: 800,
+                color: (filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalCoberturaPct : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.coberturaPct || 0)) >= 100 ? tokens.positive : "#D97706",
+                fontFamily: tokens.fontMono
+              }}>
+                {fmtNum(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalCoberturaPct : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.coberturaPct || 0), 1)}%
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
+              Valuación Stock vs Saldo Presupuesto
+            </div>
+            <div style={{
+              fontSize: 11,
+              marginTop: 6,
+              fontWeight: 700,
+              color: (filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalSuperavitUSD : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.superavitUSD || 0)) >= 0 ? tokens.positive : "#DC2626"
+            }}>
+              {(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalSuperavitUSD : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.superavitUSD || 0)) >= 0
+                ? `Superávit: U$D ${fmt(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalSuperavitUSD : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.superavitUSD || 0))}`
+                : `Brecha: U$D ${fmt(Math.abs(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalSuperavitUSD : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.superavitUSD || 0)))} (a cubrir con preventas)`
+              }
+            </div>
+          </div>
+
+          {/* KPI 4: INVENTARIO & TICKET PROMEDIO */}
+          <div style={{
+            background: "#FFFFFF",
+            border: `1px solid ${colorLineaSuave}`,
+            borderRadius: 10,
+            padding: "16px 18px",
+            borderLeft: `4px solid #8B5CF6`
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Stock en Cartera & Ticket Prom.
+              </span>
+              <Building2 size={16} color="#8B5CF6" />
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: tokens.ink, fontFamily: tokens.fontMono }}>
+              {filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalStockUnidades : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.stockUnidades || 0)} unidades
+            </div>
+            <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
+              Ticket Prom: {moneda === "USD"
+                ? `U$D ${fmt(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.ticketPromedioGlobalUSD : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.ticketPromUSD || 0))}`
+                : `$ ${fmt(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.ticketPromedioGlobalARS : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.ticketPromARS || 0))}`
+              }
+            </div>
+            <div style={{ fontSize: 11, color: tokens.ink, marginTop: 6, fontWeight: 600 }}>
+              Valuación: U$D {fmt(filtroProyectoRitmo === "todos" ? ritmoVentaAnalisis.totales.totalStockValUSD : (ritmoVentaAnalisis.proyectos.find(p => p.id === filtroProyectoRitmo)?.stockValUSD || 0))}
+            </div>
+          </div>
+        </div>
+
+        {/* GRÁFICOS VISUALES DE RITMO Y COBERTURA */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))",
+          gap: 16
+        }}>
+          {/* GRÁFICO 1: UNIDADES / MES POR PROYECTO */}
+          <div style={{
+            background: "#FFFFFF",
+            border: `1px solid ${colorLineaSuave}`,
+            borderRadius: 10,
+            padding: "16px 20px"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                <Target size={15} color={tokens.gold} />
+                Ritmo Requerido por Proyecto (Unidades / Mes)
+              </div>
+              <span style={{ fontSize: 11, color: tokens.textMuted }}>
+                {pctAnticipoSimulado === 100 ? "Base: 100% contado" : `Base: ${pctAnticipoSimulado}% anticipo`}
+              </span>
+            </div>
+            <div style={{ width: "100%", height: 230 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={ritmoVentaAnalisis.proyectos.filter(p => p.stockUnidades > 0)}
+                  margin={{ top: 10, right: 10, left: -10, bottom: 25 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis
+                    dataKey="nombre"
+                    stroke={tokens.textMuted}
+                    fontSize={11}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                  />
+                  <YAxis
+                    stroke={tokens.textMuted}
+                    fontSize={11}
+                    unit=" u"
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div style={{
+                          background: "#FFFFFF",
+                          border: `1px solid ${colorLineaFuerte}`,
+                          borderRadius: 8,
+                          padding: "10px 14px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                          fontSize: 12
+                        }}>
+                          <div style={{ fontWeight: 800, color: tokens.ink, marginBottom: 4 }}>{d.nombre}</div>
+                          <div style={{ color: tokens.textMuted }}>Plazo restante: <strong>{d.mesesPlazo} meses</strong></div>
+                          <div style={{ color: "#2563EB", fontWeight: 700 }}>
+                            Ritmo (100%): {fmtNum(d.ritmoUnidadesMes, 2)} u / mes
+                          </div>
+                          {pctAnticipoSimulado !== 100 && (
+                            <div style={{ color: tokens.gold, fontWeight: 700 }}>
+                              Ritmo ({pctAnticipoSimulado}% anticipo): {fmtNum(d.ritmoUnidadesConAnticipo, 2)} u / mes
+                            </div>
+                          )}
+                          <div style={{ color: tokens.textMuted, marginTop: 4 }}>
+                            Costo mensual: U$D {fmt(d.costoMensualElegidoUSD)} / mes
+                          </div>
+                          <div style={{ color: tokens.textMuted }}>
+                            Stock disponible: {d.stockUnidades} unidades (U$D {fmt(d.stockValUSD)})
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar
+                    dataKey={pctAnticipoSimulado === 100 ? "ritmoUnidadesMes" : "ritmoUnidadesConAnticipo"}
+                    radius={[6, 6, 0, 0]}
+                  >
+                    {ritmoVentaAnalisis.proyectos.filter(p => p.stockUnidades > 0).map((entry) => (
+                      <Cell key={`cell-${entry.id}`} fill={entry.color || tokens.gold} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* GRÁFICO 2: COMPARATIVA STOCK VS SALDO DE OBRA (U$D) */}
+          <div style={{
+            background: "#FFFFFF",
+            border: `1px solid ${colorLineaSuave}`,
+            borderRadius: 10,
+            padding: "16px 20px"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                <Scale size={15} color="#2563EB" />
+                Valuación Stock Disponible vs Saldo Obra (U$D)
+              </div>
+              <span style={{ fontSize: 11, color: tokens.textMuted }}>TC Ref: ${tcReferencia}</span>
+            </div>
+            <div style={{ width: "100%", height: 230 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={ritmoVentaAnalisis.proyectos}
+                  margin={{ top: 10, right: 10, left: 10, bottom: 25 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis
+                    dataKey="nombre"
+                    stroke={tokens.textMuted}
+                    fontSize={11}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                  />
+                  <YAxis
+                    stroke={tokens.textMuted}
+                    fontSize={11}
+                    tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div style={{
+                          background: "#FFFFFF",
+                          border: `1px solid ${colorLineaFuerte}`,
+                          borderRadius: 8,
+                          padding: "10px 14px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                          fontSize: 12
+                        }}>
+                          <div style={{ fontWeight: 800, color: tokens.ink, marginBottom: 4 }}>{d.nombre}</div>
+                          <div style={{ color: "#2563EB", fontWeight: 700 }}>Stock Disponible: U$D {fmt(d.stockValUSD)}</div>
+                          <div style={{ color: "#EF4444", fontWeight: 700 }}>Saldo Presupuesto: U$D {fmt(d.saldoObraUSD)}</div>
+                          <div style={{
+                            marginTop: 4,
+                            fontWeight: 700,
+                            color: d.superavitUSD >= 0 ? tokens.positive : "#DC2626"
+                          }}>
+                            {d.superavitUSD >= 0 ? `Superávit: +U$D ${fmt(d.superavitUSD)}` : `Déficit: -U$D ${fmt(Math.abs(d.superavitUSD))}`}
+                          </div>
+                          <div style={{ fontSize: 11, color: tokens.textMuted, marginTop: 2 }}>
+                            Cobertura: {d.coberturaPct.toFixed(1)}%
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    align="right"
+                    wrapperStyle={{ fontSize: 11, paddingBottom: 6 }}
+                  />
+                  <Bar dataKey="stockValUSD" name="Stock Disp (U$D)" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="saldoObraUSD" name="Saldo Obra (U$D)" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* TABLA ANALÍTICA DESGLOSADA POR PROYECTO */}
+        <div style={{
+          overflowX: "auto",
+          border: `1px solid ${colorLineaSuave}`,
+          borderRadius: 8
+        }}>
+          <table style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: 12,
+            fontFamily: tokens.fontBody,
+            background: "#FFFFFF"
+          }}>
+            <thead>
+              <tr style={{ background: colorTablaBg, borderBottom: `2px solid ${colorLineaFuerte}`, color: tokens.textMuted }}>
+                <th style={{ textAlign: "left", padding: "12px 14px", fontWeight: 700 }}>PROYECTO</th>
+                <th style={{ textAlign: "center", padding: "12px 10px", fontWeight: 700 }}>PLAZO / FIN</th>
+                <th style={{ textAlign: "right", padding: "12px 12px", fontWeight: 700 }}>SALDO OBRA (ARS / U$D)</th>
+                <th style={{ textAlign: "right", padding: "12px 12px", fontWeight: 700 }}>COSTO OBRA / MES</th>
+                <th style={{ textAlign: "center", padding: "12px 10px", fontWeight: 700 }}>STOCK DISP.</th>
+                <th style={{ textAlign: "right", padding: "12px 12px", fontWeight: 700 }}>TICKET PROM.</th>
+                <th style={{ textAlign: "right", padding: "12px 14px", fontWeight: 800, color: tokens.gold, background: "#FEF3C7" }}>
+                  RITMO REQ. ($/MES)
+                </th>
+                <th style={{ textAlign: "right", padding: "12px 14px", fontWeight: 800, color: "#1D4ED8", background: "#DBEAFE" }}>
+                  RITMO REQ. (U/MES)
+                </th>
+                <th style={{ textAlign: "center", padding: "12px 12px", fontWeight: 700 }}>COBERTURA</th>
+                <th style={{ textAlign: "center", padding: "12px 14px", fontWeight: 700 }}>ESTADO & ACCIÓN</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ritmoVentaAnalisis.proyectos
+                .filter(p => filtroProyectoRitmo === "todos" || p.id === filtroProyectoRitmo)
+                .map((p, idx) => (
+                  <tr
+                    key={p.id}
+                    style={{
+                      borderBottom: `1px solid ${colorLineaSuave}`,
+                      background: idx % 2 === 0 ? "#FFFFFF" : "#FCFDFF"
+                    }}
+                  >
+                    {/* NOMBRE Y TIPOLOGÍA */}
+                    <td style={{ padding: "12px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 4, height: 28, borderRadius: 2, background: p.color }} />
+                        <div>
+                          <div style={{ fontWeight: 700, color: tokens.ink, fontSize: 13 }}>{p.nombre}</div>
+                          <div style={{ fontSize: 11, color: tokens.textMuted }}>{p.tipologia} · {p.estadoObra}</div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* PLAZO RESTANTE Y FECHA FIN */}
+                    <td style={{ textAlign: "center", padding: "12px 10px" }}>
+                      <div style={{ fontWeight: 700, color: tokens.ink }}>{p.mesesPlazo} meses</div>
+                      <div style={{ fontSize: 10, color: tokens.textMuted }}>Fin: {p.fecha_fin}</div>
+                    </td>
+
+                    {/* SALDO DE OBRA */}
+                    <td style={{ textAlign: "right", padding: "12px 12px", fontFamily: tokens.fontMono }}>
+                      <div style={{ fontWeight: 700, color: tokens.ink }}>
+                        {moneda === "USD" ? `U$D ${fmt(p.saldoObraUSD)}` : `$ ${fmt(p.saldoObraARS)}`}
+                      </div>
+                      <div style={{ fontSize: 10, color: tokens.textMuted }}>
+                        {moneda === "USD" ? `$ ${fmt(p.saldoObraARS)}` : `U$D ${fmt(p.saldoObraUSD)}`}
+                      </div>
+                    </td>
+
+                    {/* COSTO OBRA / MES */}
+                    <td style={{ textAlign: "right", padding: "12px 12px", fontFamily: tokens.fontMono }}>
+                      <div style={{ fontWeight: 700, color: tokens.ink }}>
+                        {moneda === "USD" ? `U$D ${fmt(p.costoMensualElegidoUSD)}` : `$ ${fmt(p.costoMensualElegidoARS)}`}
+                      </div>
+                      <div style={{ fontSize: 10, color: tokens.textMuted }}>
+                        {criterioRitmo === "plazo_total" ? "Plazo total" : `Curva ${ejercicio}`}
+                      </div>
+                    </td>
+
+                    {/* STOCK DISPONIBLE */}
+                    <td style={{ textAlign: "center", padding: "12px 10px" }}>
+                      <span style={{
+                        display: "inline-block",
+                        padding: "2px 8px",
+                        borderRadius: 12,
+                        background: p.stockUnidades > 0 ? "#EFF6FF" : "#F1F5F9",
+                        color: p.stockUnidades > 0 ? "#1D4ED8" : "#94A3B8",
+                        fontWeight: 700,
+                        fontSize: 12
+                      }}>
+                        {p.stockUnidades} u.
+                      </span>
+                      {p.stockUnidades > 0 && (
+                        <div style={{ fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
+                          {p.disponibles} disp · {p.reservadas} res
+                        </div>
+                      )}
+                    </td>
+
+                    {/* TICKET PROMEDIO */}
+                    <td style={{ textAlign: "right", padding: "12px 12px", fontFamily: tokens.fontMono }}>
+                      {p.stockUnidades > 0 ? (
+                        <>
+                          <div style={{ fontWeight: 600, color: tokens.ink }}>
+                            {moneda === "USD" ? `U$D ${fmt(p.ticketPromUSD)}` : `$ ${fmt(p.ticketPromARS)}`}
+                          </div>
+                          <div style={{ fontSize: 10, color: tokens.textMuted }}>
+                            Val: U$D {fmt(p.stockValUSD)}
+                          </div>
+                        </>
+                      ) : (
+                        <span style={{ color: tokens.textMuted, fontSize: 11 }}>—</span>
+                      )}
+                    </td>
+
+                    {/* RITMO REQUERIDO ($ / MES) */}
+                    <td style={{
+                      textAlign: "right",
+                      padding: "12px 14px",
+                      fontFamily: tokens.fontMono,
+                      background: "#FEF3C7",
+                      fontWeight: 700,
+                      color: tokens.ink
+                    }}>
+                      <div>
+                        {moneda === "USD" ? `U$D ${fmt(p.ritmoRequeridoUSD)}` : `$ ${fmt(p.ritmoRequeridoARS)}`}
+                      </div>
+                      <div style={{ fontSize: 10, color: tokens.textMuted }}>/ mes</div>
+                    </td>
+
+                    {/* RITMO REQUERIDO (UNIDADES / MES) */}
+                    <td style={{
+                      textAlign: "right",
+                      padding: "12px 14px",
+                      fontFamily: tokens.fontMono,
+                      background: "#DBEAFE"
+                    }}>
+                      {p.stockUnidades > 0 ? (
+                        <>
+                          <div style={{ fontWeight: 800, fontSize: 14, color: "#1D4ED8" }}>
+                            {fmtNum(pctAnticipoSimulado === 100 ? p.ritmoUnidadesMes : p.ritmoUnidadesConAnticipo, 2)} u / mes
+                          </div>
+                          {pctAnticipoSimulado !== 100 && (
+                            <div style={{ fontSize: 10, color: "#D97706", fontWeight: 600 }}>
+                              Base 100%: {fmtNum(p.ritmoUnidadesMes, 2)} u/m
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 11, color: tokens.textMuted, fontStyle: "italic" }}>
+                          Obra vendida (cuotas)
+                        </div>
+                      )}
+                    </td>
+
+                    {/* COBERTURA STOCK / OBRA */}
+                    <td style={{ textAlign: "center", padding: "12px 12px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                        <span style={{
+                          fontWeight: 800,
+                          fontSize: 12,
+                          color: p.coberturaPct >= 100 ? tokens.positive : (p.coberturaPct >= 50 ? "#D97706" : "#DC2626")
+                        }}>
+                          {p.saldoObraARS > 0 ? `${fmtNum(p.coberturaPct, 1)}%` : "N/A"}
+                        </span>
+                        <div style={{ width: 64, height: 5, background: "#E2E8F0", borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{
+                            width: `${Math.min(100, p.coberturaPct)}%`,
+                            height: "100%",
+                            background: p.coberturaPct >= 100 ? tokens.positive : (p.coberturaPct >= 50 ? "#D97706" : "#DC2626")
+                          }} />
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* DIAGNÓSTICO / ESTADO */}
+                    <td style={{ textAlign: "center", padding: "12px 14px" }}>
+                      <span style={{
+                        display: "inline-block",
+                        padding: "3px 10px",
+                        borderRadius: 12,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: p.estadoBg,
+                        color: p.estadoColor,
+                        border: `1px solid ${p.estadoBorder}`
+                      }} title={p.detalleDiagnostico}>
+                        {p.estadoBadge}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+
+              {/* FILA CONSOLIDADA TOTAL CARTERA */}
+              <tr style={{
+                background: colorTablaBg,
+                fontWeight: 800,
+                borderTop: `2px solid ${colorLineaFuerte}`
+              }}>
+                <td style={{ padding: "14px", color: tokens.ink }}>
+                  TOTAL CARTERA CONSOLIDADA
+                </td>
+                <td style={{ textAlign: "center", padding: "14px 10px", color: tokens.textMuted }}>
+                  6 Obras
+                </td>
+                <td style={{ textAlign: "right", padding: "14px 12px", fontFamily: tokens.fontMono, color: tokens.ink }}>
+                  {moneda === "USD" ? `U$D ${fmt(ritmoVentaAnalisis.totales.totalSaldoObraUSD)}` : `$ ${fmt(ritmoVentaAnalisis.totales.totalSaldoObraARS)}`}
+                </td>
+                <td style={{ textAlign: "right", padding: "14px 12px", fontFamily: tokens.fontMono, color: tokens.ink }}>
+                  {moneda === "USD" ? `U$D ${fmt(ritmoVentaAnalisis.totales.totalCostoMensualUSD)}` : `$ ${fmt(ritmoVentaAnalisis.totales.totalCostoMensualARS)}`}
+                </td>
+                <td style={{ textAlign: "center", padding: "14px 10px", fontFamily: tokens.fontMono, color: "#1D4ED8" }}>
+                  {ritmoVentaAnalisis.totales.totalStockUnidades} u.
+                </td>
+                <td style={{ textAlign: "right", padding: "14px 12px", fontFamily: tokens.fontMono, color: tokens.ink }}>
+                  {moneda === "USD" ? `U$D ${fmt(ritmoVentaAnalisis.totales.ticketPromedioGlobalUSD)}` : `$ ${fmt(ritmoVentaAnalisis.totales.ticketPromedioGlobalARS)}`}
+                </td>
+                <td style={{
+                  textAlign: "right",
+                  padding: "14px",
+                  fontFamily: tokens.fontMono,
+                  color: tokens.gold,
+                  fontSize: 13,
+                  background: "#FEF3C7"
+                }}>
+                  {moneda === "USD" ? `U$D ${fmt(ritmoVentaAnalisis.totales.totalCostoMensualUSD)}` : `$ ${fmt(ritmoVentaAnalisis.totales.totalCostoMensualARS)}`}
+                </td>
+                <td style={{
+                  textAlign: "right",
+                  padding: "14px",
+                  fontFamily: tokens.fontMono,
+                  color: "#1D4ED8",
+                  fontSize: 14,
+                  background: "#DBEAFE"
+                }}>
+                  {fmtNum(pctAnticipoSimulado === 100 ? ritmoVentaAnalisis.totales.totalRitmoUnidadesMes : ritmoVentaAnalisis.totales.totalRitmoUnidadesConAnticipo, 1)} u / mes
+                </td>
+                <td style={{ textAlign: "center", padding: "14px 12px", fontFamily: tokens.fontMono, color: tokens.positive, fontSize: 13 }}>
+                  {fmtNum(ritmoVentaAnalisis.totales.totalCoberturaPct, 1)}%
+                </td>
+                <td style={{ textAlign: "center", padding: "14px" }}>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "3px 10px",
+                    borderRadius: 12,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    background: "#ECFDF5",
+                    color: tokens.positive,
+                    border: "1px solid #A7F3D0"
+                  }}>
+                    {ritmoVentaAnalisis.totales.totalCoberturaPct >= 80 ? "Cartera Solvente" : "Requiere Preventas"}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* NOTA INTERPRETATIVA EJECUTIVA Y PAUTAS FINANCIERAS */}
+        <div style={{
+          background: "#F8FAFC",
+          border: `1px solid ${colorLineaSuave}`,
+          borderRadius: 8,
+          padding: "14px 18px",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 12
+        }}>
+          <Info size={18} color="#2563EB" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 12, color: tokens.textMuted, lineHeight: 1.5 }}>
+            <strong style={{ color: tokens.ink }}>Pautas de Absorción Financiera:</strong>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              <li>
+                <strong>Fórmula de Cálculo:</strong> <code>Ritmo Requerido ($/mes) = Saldo Obra / Meses Plazo</code> · <code>Ritmo (u/mes) = Ritmo ($/mes) / Ticket Promedio</code>.
+              </li>
+              <li>
+                <strong>Anticipo vs Cuotas:</strong> Cuando el cliente abona un porcentaje al boleto (ej. 30% o 50%) y el saldo en cuotas CAC, el ritmo inicial de absorción comercial en unidades aumenta para abastecer la caja de desembolsos mensuales inmediata de las constructoras.
+              </li>
+              <li>
+                <strong>Superávit y Calce:</strong> <strong>Auria</strong> (85 u. por U$D 5.34M) y <strong>T2</strong> (24 u. por U$D 2.78M) cuentan con superávit de stock respecto al saldo de obra (coberturas de 140.5% y 381.1%), actuando como anclas de solvencia y liquidez para el grupo desarrollador.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          CUADRO 5: PRINCIPALES INDICADORES FINANCIEROS & ECONÓMICOS
+          ══════════════════════════════════════════════════════════════════════ */}
+      <div id="cuadro-mercado" style={{
         background: "#FFFFFF",
         border: `1px solid ${colorLineaSuave}`,
         borderRadius: 12,
@@ -1431,7 +2512,7 @@ export default function MonitorFinancieroTab({
               fontFamily: tokens.fontBody,
               letterSpacing: "0.2px"
             }}>
-              4. Principales Indicadores Financieros & Económicos
+              5. Principales Indicadores Financieros & Económicos
             </h2>
             <span style={{ fontSize: 12, color: tokens.textMuted }}>
               (Índice Link Inversiones, Dólares en Vivo, Costo Construcción CAC y Macro)
