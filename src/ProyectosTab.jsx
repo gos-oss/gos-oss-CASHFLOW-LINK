@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
-const LOCAL_STORAGE_KEY = "cf_link_obras_curvas_v6";
+const LOCAL_STORAGE_KEY = "cf_link_obras_curvas_v9";
 
 export default function ProyectosTab({
   tcList = [],
@@ -45,10 +45,21 @@ export default function ProyectosTab({
   // Estado de proyectos persistible en localStorage (6 proyectos oficiales: DUO, T2, Corporativo, Green, Auria, + DUO)
   const [proyectos, setProyectos] = useState(() => {
     try {
+      // Limpiar versiones anteriores obsoletas
+      ["cf_link_obras_curvas_v5", "cf_link_obras_curvas_v6", "cf_link_obras_curvas_v7", "cf_link_obras_curvas_v8"].forEach(k => {
+        try { localStorage.removeItem(k); } catch {}
+      });
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 6 && parsed.some(p => p.id === "duo") && parsed.some(p => p.nombre.toLowerCase().includes("auria"))) {
+        if (
+          Array.isArray(parsed) &&
+          parsed.length === 6 &&
+          parsed.some(p => p.id === "duo" && p.duracion_meses === 1) &&
+          parsed.some(p => p.id === "300_corp" && p.duracion_meses === 2 && (p.costos_mensuales?.["2026-11"] || 0) > 100000000) &&
+          parsed.some(p => p.id === "300_t2_am" && p.duracion_meses === 2 && (p.costos_mensuales?.["2026-11"] || 0) > 100000000) &&
+          parsed.some(p => p.nombre.toLowerCase().includes("auria"))
+        ) {
           return parsed;
         }
       }
@@ -836,7 +847,7 @@ export default function ProyectosTab({
           </div>
         </div>
 
-        {/* KPI 4: Desembolso Período Filtrado */}
+        {/* KPI 4: Desembolso Período / Plazo Restante */}
         <div className="proyectos-kpi-card" style={{
           background: tokens.surface,
           borderRadius: 10,
@@ -846,19 +857,25 @@ export default function ProyectosTab({
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              Período Seleccionado
+              {proyectoActivo ? "Plazo Restante de Obra" : "Período Seleccionado"}
             </span>
             <Calendar size={16} color="#8B5CF6" />
           </div>
           <div className="kpi-num" style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
-            {formatoMonto(metricas.totalInversionArs)}
+            {proyectoActivo 
+              ? `${proyectoActivo.duracion_meses} ${proyectoActivo.duracion_meses === 1 ? "mes" : "meses"}`
+              : formatoMonto(metricas.totalInversionArs)
+            }
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
-            En {metricas.cantMeses} meses ({filtroAnio === "todos" ? "2024-2029" : filtroAnio})
+            {proyectoActivo 
+              ? `Hasta ${proyectoActivo.fecha_fin_label} (Corte hoy: nov-26)`
+              : `En ${metricas.cantMeses} meses (${filtroAnio === "todos" ? "2024-2029" : filtroAnio})`
+            }
           </div>
         </div>
 
-        {/* KPI 5: Promedio Mensual */}
+        {/* KPI 5: Promedio Mensual / Costo Mensual Restante */}
         <div className="proyectos-kpi-card" style={{
           background: tokens.surface,
           borderRadius: 10,
@@ -868,15 +885,21 @@ export default function ProyectosTab({
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              Desembolso Promedio
+              {proyectoActivo ? "Costo Mensual Restante" : "Desembolso Promedio"}
             </span>
             <TrendingUp size={16} color="#3B82F6" />
           </div>
           <div className="kpi-num" style={{ fontFamily: tokens.fontDisplay, fontSize: 21, fontWeight: 700, color: tokens.text }}>
-            {formatoMonto(metricas.promedioMensualArs)}
+            {proyectoActivo 
+              ? formatoMonto(proyectoActivo.saldo_presupuesto / (proyectoActivo.duracion_meses || 1))
+              : formatoMonto(metricas.promedioMensualArs)
+            }
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
-            Carga mensual proyectada
+            {proyectoActivo 
+              ? `Saldo en los ${proyectoActivo.duracion_meses} ${proyectoActivo.duracion_meses === 1 ? "mes" : "meses"} restantes`
+              : "Carga mensual proyectada"
+            }
           </div>
         </div>
 
@@ -1575,8 +1598,13 @@ export default function ProyectosTab({
                       <td style={{ padding: "10px 10px", color: tokens.ink, fontWeight: 600 }}>
                         {formatoMonto(p.saldo_presupuesto)}
                       </td>
-                      <td style={{ textAlign: "center", padding: "10px 8px", fontSize: 11.5, color: tokens.textMuted }}>
-                        {p.fecha_inicio_label} - {p.fecha_fin_label}
+                      <td style={{ textAlign: "center", padding: "10px 8px", fontSize: 11.5 }}>
+                        <div style={{ fontWeight: 800, color: p.duracion_meses <= 2 ? "#B45309" : tokens.ink }}>
+                          {p.duracion_meses} {p.duracion_meses === 1 ? "mes" : "meses"}
+                        </div>
+                        <div style={{ fontSize: 10, color: tokens.textMuted }}>
+                          Fin: {p.fecha_fin_label}
+                        </div>
                       </td>
                       <td style={{ padding: "10px 12px", fontWeight: 700, color: "#4338CA", background: "#F5F3FF" }}>
                         {formatoMonto(sumaTotalArs)}
@@ -1743,8 +1771,13 @@ export default function ProyectosTab({
                       <div style={{ fontSize: 14.5, fontWeight: 700, color: tokens.ink }}>{formatoMonto(p.saldo_presupuesto, true)}</div>
                     </div>
                     <div style={{ background: "#F8FAFC", padding: "10px 12px", borderRadius: 8 }}>
-                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Plazo Oficial</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: tokens.text }}>{p.fecha_inicio_label} a {p.fecha_fin_label}</div>
+                      <div style={{ fontSize: 11.5, color: tokens.textMuted }}>Plazo Restante / Fin</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: p.duracion_meses <= 2 ? "#B45309" : tokens.text }}>
+                        {p.duracion_meses} {p.duracion_meses === 1 ? "mes" : "meses"} (Fin: {p.fecha_fin_label})
+                      </div>
+                      <div style={{ fontSize: 10.5, color: tokens.textMuted, marginTop: 2 }}>
+                        {formatoMonto(p.saldo_presupuesto / (p.duracion_meses || 1), true)} / mes
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -2275,10 +2275,10 @@ export default function MonitorFinancieroTab({
                         }}>
                           <div style={{ fontWeight: 800, color: tokens.ink, marginBottom: 4 }}>{d.nombre}</div>
                           <div style={{ color: tokens.textMuted }}>
-                            Plazo restante desde hoy ({fechaHoyCorte}): <strong style={{ color: tokens.ink }}>{d.mesesRestantesDesdeHoy} meses</strong>
+                            Plazo restante: <strong style={{ color: tokens.ink }}>{d.mesesRestantesDesdeHoy} {d.mesesRestantesDesdeHoy === 1 ? "mes" : "meses"}</strong>
                           </div>
                           <div style={{ fontSize: 10.5, color: tokens.textMuted, marginBottom: 4 }}>
-                            (Fin: {d.fecha_fin} · {d.mesesTranscurridos}m ya transcurridos de {d.mesesNominalesTotal}m nominales)
+                            Fin de obra: {d.fecha_fin}
                           </div>
                           <div style={{ color: "#2563EB", fontWeight: 700 }}>
                             Ritmo (100%): {fmtNum(d.ritmoUnidadesMes, 2)} u / mes
@@ -2455,10 +2455,10 @@ export default function MonitorFinancieroTab({
                         fontSize: 12.5,
                         fontFamily: tokens.fontMono
                       }}>
-                        {p.mesesPlazoElegido} meses
+                        {p.mesesPlazoElegido} {p.mesesPlazoElegido === 1 ? "mes" : "meses"}
                       </div>
                       <div style={{ fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
-                        Fin: <strong>{p.fecha_fin}</strong> · ({p.mesesTranscurridos}m ya de {p.mesesNominalesTotal}m)
+                        Fin: <strong>{p.fecha_fin}</strong> {p.mesesRestantesDesdeHoy <= 2 ? "· Restan " + p.mesesRestantesDesdeHoy + "m" : `· ${p.mesesRestantesDesdeHoy}m restantes`}
                       </div>
                     </td>
 

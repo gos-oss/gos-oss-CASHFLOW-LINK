@@ -13,11 +13,13 @@ export const OBRAS_DATA_SUMMARY = [
     fecha_fin: "2026-11",
     fecha_inicio_label: "dic-24",
     fecha_fin_label: "nov-26",
-    duracion_meses: 23,
+    duracion_meses: 1, // 1 mes restante (noviembre 2026, mes de posesión / entrega)
+    duracion_historica_total: 23,
+    meses_restantes: 1,
     color: "#3B82F6", // Azul
     estado: "Fase Final / Entrega",
     tipologia: "Edificio Residencial DUO",
-    descripcion: "Edificio residencial en fase final de terminaciones y posesión. 84% de avance físico/financiero ejecutado."
+    descripcion: "Edificio residencial en fase final de terminaciones y posesión. Resta 1 mes para entrega. 84% ejecutado, 100% vendido."
   },
   {
     id: "300_t2_am",
@@ -30,11 +32,13 @@ export const OBRAS_DATA_SUMMARY = [
     fecha_fin: "2026-12",
     fecha_inicio_label: "dic-24",
     fecha_fin_label: "dic-26",
-    duracion_meses: 24,
+    duracion_meses: 2, // 2 meses restantes para fin de obra en diciembre 2026
+    duracion_historica_total: 24,
+    meses_restantes: 2,
     color: "#6366F1", // Indigo
-    estado: "En Ejecución",
+    estado: "En Ejecución (Fase Final)",
     tipologia: "Torre 2 + Amenidades",
-    descripcion: "Torre 2 y áreas de amenidades del complejo #300. Ritmo de obra con 41% de avance."
+    descripcion: "Torre 2 y áreas de amenidades #300. Restan 2 meses (nov-26 y dic-26) para culminar obra."
   },
   {
     id: "300_corp",
@@ -47,11 +51,13 @@ export const OBRAS_DATA_SUMMARY = [
     fecha_fin: "2026-12",
     fecha_inicio_label: "dic-24",
     fecha_fin_label: "dic-26",
-    duracion_meses: 24,
+    duracion_meses: 2, // 2 meses restantes para fin de obra en diciembre 2026
+    duracion_historica_total: 24,
+    meses_restantes: 2,
     color: "#EC4899", // Rosa fucsia
-    estado: "En Ejecución",
+    estado: "En Ejecución (Fase Final)",
     tipologia: "Edificio Corporativo / Oficinas",
-    descripcion: "Edificio de oficinas corporativas #300 con 47% de ejecución y finalización hacia fin de 2026."
+    descripcion: "Edificio de oficinas corporativas #300. Restan 2 meses (nov-26 y dic-26) para culminar obra."
   },
   {
     id: "torre_green",
@@ -64,11 +70,13 @@ export const OBRAS_DATA_SUMMARY = [
     fecha_fin: "2028-11",
     fecha_inicio_label: "jul-26",
     fecha_fin_label: "nov-28",
-    duracion_meses: 28,
+    duracion_meses: 25, // 25 meses restantes desde nov-26 a nov-28
+    duracion_historica_total: 28,
+    meses_restantes: 25,
     color: "#10B981", // Esmeralda
     estado: "En Despegue",
     tipologia: "Torre Green Residencial",
-    descripcion: "Torre sustentable de alta gama. Desembolsos iniciales en curso con aceleración fuerte en 2027."
+    descripcion: "Torre sustentable de alta gama. Restan 25 meses hasta noviembre 2028."
   },
   {
     id: "auria",
@@ -81,11 +89,13 @@ export const OBRAS_DATA_SUMMARY = [
     fecha_fin: "2029-11",
     fecha_inicio_label: "jun-27",
     fecha_fin_label: "nov-29",
-    duracion_meses: 29,
+    duracion_meses: 29, // 29 meses de obra física (jun-27 a nov-29)
+    duracion_historica_total: 29,
+    meses_restantes: 37, // 37 meses horizonte comercial
     color: "#EAB308", // Amarillo dorado
     estado: "Programada",
     tipologia: "Edificio Residencial & Comercial Auria",
-    descripcion: "Emprendimiento Auria (anteriormente Marcos Paz 82). Presupuesto total de $5.895 millones de pesos a ejecutarse entre Junio 2027 y Noviembre 2029."
+    descripcion: "Emprendimiento Auria (ex Marcos Paz 82). Presupuesto de $5.895M en 29 meses de obra activa entre Junio 2027 y Noviembre 2029."
   },
   {
     id: "mas_duo",
@@ -98,11 +108,13 @@ export const OBRAS_DATA_SUMMARY = [
     fecha_fin: "2029-05",
     fecha_inicio_label: "dic-26",
     fecha_fin_label: "may-29",
-    duracion_meses: 29,
+    duracion_meses: 31, // 31 meses restantes desde nov-26 a mayo-29
+    duracion_historica_total: 29,
+    meses_restantes: 31,
     color: "#06B6D4", // Cyan
     estado: "Programada",
     tipologia: "Ampliación Complejo +DUO",
-    descripcion: "Ampliación de gran escala del proyecto DUO. Presupuesto de $7.975 millones de pesos a ejecutar entre Dic 2026 y Mayo 2029."
+    descripcion: "Ampliación de gran escala del proyecto DUO. Presupuesto de $7.975M en 31 meses hasta Mayo 2029."
   }
 ];
 
@@ -153,7 +165,7 @@ export const CURVAS_MENSUALES_OBRAS = {
     "2026-08": 143354697,
     "2026-09": 115726873,
     "2026-10": 92499807,
-    "2026-11": 81959122,
+    "2026-11": 891873120, // 1 mes restante (noviembre 2026): saldo total de obra a pagar
     "2026-12": 0
   },
   "300_t2_am": {
@@ -180,8 +192,8 @@ export const CURVAS_MENSUALES_OBRAS = {
     "2026-08": 55278791,
     "2026-09": 45467704,
     "2026-10": 36989936,
-    "2026-11": 29824880,
-    "2026-12": 26561767
+    "2026-11": 565915179, // Saldo restante $1.131M / 2 meses = $565.9M / mes
+    "2026-12": 565915178  // Fin de obra T2 en diciembre 2026
   },
   "300_corp": {
     "2024-12": 30008298,
@@ -207,8 +219,8 @@ export const CURVAS_MENSUALES_OBRAS = {
     "2026-08": 62451509,
     "2026-09": 51367382,
     "2026-10": 41789578,
-    "2026-11": 33694817,
-    "2026-12": 30008298
+    "2026-11": 576874861, // Saldo restante $1.153M / 2 meses = $576.9M / mes
+    "2026-12": 576874860  // Fin de obra Corporativo en diciembre 2026
   },
   torre_green: {
     "2026-07": 37948729,
