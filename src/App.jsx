@@ -21,13 +21,14 @@ import {
   CalendarDays, Calendar, Scale, Percent, TrendingDown, TrendingUp, DollarSign, Activity, Wand2, RotateCcw, Upload,
   Cpu, Building2, Users, HardHat, FileSpreadsheet, CheckCircle2, XCircle, Loader2, Clock,
   ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Sparkles, Plus,
-  Menu, X, Smartphone
+  Menu, X, Smartphone, Receipt
 } from "lucide-react";
 import { PWAInstallButton } from "./PWAInstallButton";
 
 import PresupuestoAnualTab from "./PresupuestoAnualTab";
 import StockDisponibleTab from "./StockDisponibleTab";
 import ProyectosTab from "./ProyectosTab";
+import CuentasCorrientesTab from "./CuentasCorrientesTab";
 import {
   PLAN_INCOME_CATS,
   PLAN_PROJECT_CATS,
@@ -533,6 +534,7 @@ const NAV = [
   { id: "presupuesto", label: "Presupuesto Anual", icon: BarChart3 },
   { id: "proyectos", label: "Proyectos", icon: HardHat },
   { id: "stock", label: "Stock Disponible", icon: Building2 },
+  { id: "cuentas", label: "Cuentas Corrientes", icon: Receipt },
   { id: "movimientos", label: "Movimientos", icon: ListChecks },
   { id: "monitor", label: "Monitor Financiero", icon: Activity },
   { id: "conceptos", label: "Conceptos", icon: Tag },
@@ -1012,6 +1014,46 @@ export default function App() {
 
     await supabase.from("cashflow_weeks").upsert(updates);
     await fetchData(); 
+    return true;
+  };
+
+  const registrarCobranzaDesdeCC = async ({ fecha, montoArs = 0, montoUsd = 0, nota = "" }) => {
+    if (!fecha) return false;
+    const base = weeks.find((w) => w.week_start === fecha) || {
+      id: fecha,
+      week_start: fecha,
+      status: fecha <= todayISO() ? "real" : "proyectado",
+      income: {},
+      expense: {},
+      notes: "{}"
+    };
+    const prevVal = base.income?.cobranzasCuotas;
+    const prevArs = typeof prevVal === "object" && prevVal !== null ? Number(prevVal.ars || 0) : Number(prevVal || 0);
+    const prevUsd = typeof prevVal === "object" && prevVal !== null ? Number(prevVal.usd || 0) : 0;
+
+    let currentNotes = {};
+    try { currentNotes = JSON.parse(base.notes || "{}"); } catch {}
+    if (nota) {
+      currentNotes.ingreso_cobranzasCuotas = currentNotes.ingreso_cobranzasCuotas
+        ? `${currentNotes.ingreso_cobranzasCuotas} | ${nota}`
+        : nota;
+    }
+
+    const actualizada = {
+      ...base,
+      income: {
+        ...(base.income || {}),
+        cobranzasCuotas: {
+          ars: prevArs + (Number(montoArs) || 0),
+          usd: prevUsd + (Number(montoUsd) || 0)
+        }
+      },
+      expense: { ...(base.expense || {}) },
+      notes: JSON.stringify(currentNotes)
+    };
+
+    await supabase.from("cashflow_weeks").upsert([actualizada]);
+    await fetchData();
     return true;
   };
 
@@ -1600,6 +1642,15 @@ export default function App() {
 
         {tab === "stock" && (
           <StockDisponibleTab tcList={tcList} fmt={fmt} />
+        )}
+
+        {tab === "cuentas" && (
+          <CuentasCorrientesTab
+            tcList={tcList}
+            fmt={fmt}
+            formatDate={formatDate}
+            onRegistrarCobranzaCashflow={registrarCobranzaDesdeCC}
+          />
         )}
 
         {tab === "movimientos" && (

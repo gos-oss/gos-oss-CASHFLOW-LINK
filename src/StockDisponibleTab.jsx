@@ -20,7 +20,8 @@ const ESTADOS = [
   { id: "Disponible", label: "Disponible", color: "#10B981", bg: "#ECFDF5", border: "#A7F3D0" },
   { id: "Reservado", label: "Reservado", color: "#F59E0B", bg: "#FFFBEB", border: "#FDE68A" },
   { id: "En Negociación", label: "En Negociación", color: "#3B82F6", bg: "#EFF6FF", border: "#BFDBFE" },
-  { id: "Bloqueado", label: "Bloqueado", color: "#64748B", bg: "#F1F5F9", border: "#CBD5E1" }
+  { id: "Bloqueado", label: "Bloqueado", color: "#64748B", bg: "#F1F5F9", border: "#CBD5E1" },
+  { id: "Vendido", label: "Vendido", color: "#6366F1", bg: "#EEF2FF", border: "#C7D2FE" }
 ];
 
 const COLORS_PROYECTO = [
@@ -194,39 +195,43 @@ export default function StockDisponibleTab({
     entrega_estimada: "2027"
   });
 
-  // Totales Globales
-  const totalValuacionUSD = useMemo(() => {
-    return unidades.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0);
+  const unidadesActivasStock = useMemo(() => {
+    return unidades.filter(u => u.estado !== "Vendido");
   }, [unidades]);
+
+  // Totales Globales (excluye unidades ya vendidas en Cuentas Corrientes)
+  const totalValuacionUSD = useMemo(() => {
+    return unidadesActivasStock.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0);
+  }, [unidadesActivasStock]);
 
   const totalValuacionARS = useMemo(() => {
     return totalValuacionUSD * tcReferencia;
   }, [totalValuacionUSD, tcReferencia]);
 
   const totalM2Propios = useMemo(() => {
-    return unidades.reduce((acc, u) => acc + (Number(u.m2_propios) || 0), 0);
-  }, [unidades]);
+    return unidadesActivasStock.reduce((acc, u) => acc + (Number(u.m2_propios) || 0), 0);
+  }, [unidadesActivasStock]);
 
   const totalDisponibles = useMemo(() => {
-    return unidades.filter(u => u.estado === "Disponible").length;
-  }, [unidades]);
+    return unidadesActivasStock.filter(u => u.estado === "Disponible").length;
+  }, [unidadesActivasStock]);
 
   const totalReservadas = useMemo(() => {
-    return unidades.filter(u => u.estado === "Reservado" || u.estado === "En Negociación").length;
-  }, [unidades]);
+    return unidadesActivasStock.filter(u => u.estado === "Reservado" || u.estado === "En Negociación").length;
+  }, [unidadesActivasStock]);
 
   const valorPromedioM2USD = useMemo(() => {
     return totalM2Propios > 0 ? totalValuacionUSD / totalM2Propios : 0;
   }, [totalValuacionUSD, totalM2Propios]);
 
   const ticketPromedioUSD = useMemo(() => {
-    return unidades.length > 0 ? totalValuacionUSD / unidades.length : 0;
-  }, [totalValuacionUSD, unidades]);
+    return unidadesActivasStock.length > 0 ? totalValuacionUSD / unidadesActivasStock.length : 0;
+  }, [totalValuacionUSD, unidadesActivasStock]);
 
   // Resumen Valuado por Proyecto
   const resumenPorProyecto = useMemo(() => {
     const map = {};
-    unidades.forEach(u => {
+    unidadesActivasStock.forEach(u => {
       const p = u.proyecto || "Otros";
       if (!map[p]) {
         map[p] = {

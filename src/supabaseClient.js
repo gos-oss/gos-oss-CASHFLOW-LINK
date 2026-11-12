@@ -38,6 +38,30 @@ const VIRTUAL_PLAN_TABLES = {
     idKey: 'id',
     localKey: 'cf_stock_disponible_units_v4',
   },
+  cc_clientes: {
+    planId: 'cc_clientes',
+    arrayKey: 'clientes',
+    idKey: 'id',
+    localKey: 'cf_cc_clientes_v1',
+  },
+  cc_ventas: {
+    planId: 'cc_ventas',
+    arrayKey: 'ventas',
+    idKey: 'id',
+    localKey: 'cf_cc_ventas_v1',
+  },
+  cc_cuotas: {
+    planId: 'cc_cuotas',
+    arrayKey: 'cuotas',
+    idKey: 'id',
+    localKey: 'cf_cc_cuotas_v1',
+  },
+  cc_cobranzas: {
+    planId: 'cc_cobranzas',
+    arrayKey: 'cobranzas',
+    idKey: 'id',
+    localKey: 'cf_cc_cobranzas_v1',
+  },
 };
 
 function createVirtualPlanBuilder(tableConfig, client) {

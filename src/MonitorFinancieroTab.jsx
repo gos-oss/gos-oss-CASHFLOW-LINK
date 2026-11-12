@@ -396,6 +396,7 @@ export default function MonitorFinancieroTab({
     };
 
     unidadesStock.forEach(u => {
+      if (u.estado === "Vendido") return;
       const norm = normalizarNombreProyecto(u.proyecto).toLowerCase();
       const rawP = (u.proyecto || "").toLowerCase();
       const rawA = (u.asignado || "").toLowerCase();
