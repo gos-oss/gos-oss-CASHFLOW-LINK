@@ -3,6 +3,8 @@ import { supabase } from "./supabaseClient";
 import { tokens } from "./tokens";
 import {
   PROYECTOS_CARTERA_CC,
+  ASIGNACIONES_CC,
+  SEGMENTACIONES_MOROSIDAD,
   VARIABLES_ACTUALIZACION,
   MEDIOS_PAGO_CC,
   CONDICIONES_FISCALES,
@@ -87,6 +89,8 @@ export default function CuentasCorrientesTab({
   // Filtros & selección
   const [searchQuery, setSearchQuery] = useState("");
   const [filtroProyecto, setFiltroProyecto] = useState("TODOS");
+  const [filtroAsignacion, setFiltroAsignacion] = useState("TODAS");
+  const [filtroMorosidad, setFiltroMorosidad] = useState("TODAS");
   const [filtroEstadoCuota, setFiltroEstadoCuota] = useState("PENDIENTES"); // "PENDIENTES" | "DEVENGADAS" | "COBRADAS" | "TODAS"
   const [incluirAtrasadasDevengamiento, setIncluirAtrasadasDevengamiento] = useState(true);
   const [selectedCuotaIds, setSelectedCuotaIds] = useState([]);
@@ -113,6 +117,7 @@ export default function CuentasCorrientesTab({
     unidad_id: "",
     marcarUnidadVendida: true,
     proyecto: PROYECTOS_CARTERA_CC[0],
+    asignacion: "PROYECTO",
     unidad_nombre: "",
     fecha_venta: "2026-11-12",
     fecha_primer_vencimiento: "2026-12-10",
@@ -173,8 +178,8 @@ export default function CuentasCorrientesTab({
       let ctaData = resCta.data || [];
       let cobData = resCob.data || [];
 
-      // Si es la primera vez y no hay datos en el módulo, inicializar semilla de demostración operativa
-      if (cliData.length === 0 && vtaData.length === 0) {
+      // Si es la primera vez y no hay datos en el módulo (o quedara rastro viejo), cargar cartera oficial
+      if ((cliData.length === 0 && vtaData.length === 0) || cliData.some(c => c.id === "cli_1")) {
         cliData = DEFAULT_CC_CLIENTES;
         vtaData = DEFAULT_CC_VENTAS;
         ctaData = DEFAULT_CC_CUOTAS;
@@ -286,6 +291,13 @@ export default function CuentasCorrientesTab({
     }));
   };
 
+  // Proyectos disponibles dinámicamente desde cartera
+  const proyectosDisponibles = useMemo(() => {
+    const setP = new Set(PROYECTOS_CARTERA_CC);
+    ventas.forEach(v => { if (v.proyecto) setP.add(v.proyecto); });
+    return Array.from(setP);
+  }, [ventas]);
+
   // KPIs Globales de Cartera (convertidos a monedaVista)
   const kpisCartera = useMemo(() => {
     let totalVendido = 0;
@@ -294,12 +306,16 @@ export default function CuentasCorrientesTab({
     let devengadoMes = 0;
     let cobradoMes = 0;
     let exigibleMes = 0;
+    let saldoVencidoAnterior = 0;
+    let operacionesVencidas = 0;
     let cuotasVencidasCount = 0;
     const hoyISO = new Date().toISOString().slice(0, 10);
 
     ventas.forEach(v => {
       if (v.estado !== "Rescindida") {
         totalVendido += aMonedaVista(v.precio_total, v.moneda_origen);
+        saldoVencidoAnterior += aMonedaVista(v.saldo_vencido_anterior || 0, v.moneda_origen);
+        if (v.morosidad === "VENCIDO") operacionesVencidas += 1;
       }
     });
 
@@ -316,7 +332,7 @@ export default function CuentasCorrientesTab({
         if (c.devengado) devengadoMes += impActVista;
       }
 
-      if (c.saldo_pendiente > 0.5 && c.fecha_vencimiento < hoyISO) {
+      if (c.saldo_pendiente > 0.5 && (c.fecha_vencimiento < hoyISO || c.estado === "Vencida")) {
         cuotasVencidasCount += 1;
       }
     });
@@ -327,6 +343,7 @@ export default function CuentasCorrientesTab({
       }
     });
 
+    const totalExigibleConAtraso = exigibleMes + saldoVencidoAnterior;
     const tasaCobranzaMes = devengadoMes > 0 ? Math.min(100, (cobradoMes / devengadoMes) * 100) : (cobradoMes > 0 ? 100 : 0);
 
     return {
@@ -336,6 +353,9 @@ export default function CuentasCorrientesTab({
       devengadoMes,
       cobradoMes,
       exigibleMes,
+      saldoVencidoAnterior,
+      totalExigibleConAtraso,
+      operacionesVencidas,
       tasaCobranzaMes,
       cuotasVencidasCount,
       cantClientes: clientes.length,
@@ -343,7 +363,7 @@ export default function CuentasCorrientesTab({
     };
   }, [ventas, cuotas, cobranzas, clientes.length, periodoActivo, aMonedaVista]);
 
-  // Serie mensual para gráfico Devengado vs Cobrado vs Proyectado (próximos 12 meses alrededor del período)
+  // Serie mensual para gráfico Devengado vs Cobrado vs Proyectado (próximos 14 meses)
   const chartDevengadoCobrado = useMemo(() => {
     const map = {};
     cuotas.forEach(c => {
@@ -397,33 +417,79 @@ export default function CuentasCorrientesTab({
     ventas.forEach(v => {
       const p = v.proyecto || "Sin Proyecto";
       if (!map[p]) {
-        map[p] = { proyecto: p, operaciones: 0, totalVendido: 0, cobrado: 0, pendiente: 0 };
+        map[p] = { proyecto: p, operaciones: 0, cuotaMes: 0, vencidoAnt: 0, totalVendido: 0, cobrado: 0, pendiente: 0 };
       }
       map[p].operaciones += 1;
+      map[p].cuotaMes += aMonedaVista(v.cuota_mes || 0, v.moneda_origen);
+      map[p].vencidoAnt += aMonedaVista(v.saldo_vencido_anterior || 0, v.moneda_origen);
       map[p].totalVendido += aMonedaVista(v.precio_total, v.moneda_origen);
     });
     cuotas.forEach(c => {
       const v = ventasMap[c.venta_id];
       const p = v?.proyecto || "Sin Proyecto";
       if (!map[p]) {
-        map[p] = { proyecto: p, operaciones: 0, totalVendido: 0, cobrado: 0, pendiente: 0 };
+        map[p] = { proyecto: p, operaciones: 0, cuotaMes: 0, vencidoAnt: 0, totalVendido: 0, cobrado: 0, pendiente: 0 };
       }
       map[p].cobrado += aMonedaVista(c.monto_cobrado, c.moneda);
       map[p].pendiente += aMonedaVista(c.saldo_pendiente, c.moneda);
     });
-    return Object.values(map).sort((a, b) => b.totalVendido - a.totalVendido);
+    return Object.values(map).sort((a, b) => b.pendiente - a.pendiente);
   }, [ventas, cuotas, ventasMap, aMonedaVista]);
+
+  // Resumen por Asignación y Segmentación de Morosidad
+  const resumenAsignacionYMorosidad = useMemo(() => {
+    const asigMap = {};
+    const morMap = {};
+    ventas.forEach(v => {
+      const a = v.asignacion || "SIN ASIGNAR";
+      if (!asigMap[a]) asigMap[a] = { label: a, ops: 0, cuotaMes: 0, saldoPend: 0 };
+      asigMap[a].ops += 1;
+      asigMap[a].cuotaMes += aMonedaVista(v.cuota_mes || 0, v.moneda_origen);
+      asigMap[a].saldoPend += aMonedaVista((v.saldo_a_vencer || 0) + (v.ingreso_nueva_venta || 0), v.moneda_origen);
+
+      const m = v.segmentacion || "AL DIA";
+      if (!morMap[m]) morMap[m] = { label: m, ops: 0, vencidoAnt: 0, totalCobrar: 0 };
+      morMap[m].ops += 1;
+      morMap[m].vencidoAnt += aMonedaVista(v.saldo_vencido_anterior || 0, v.moneda_origen);
+      morMap[m].totalCobrar += aMonedaVista(v.total_a_cobrar || 0, v.moneda_origen);
+    });
+    return {
+      asignaciones: Object.values(asigMap).sort((a, b) => b.saldoPend - a.saldoPend),
+      morosidad: Object.values(morMap).sort((a, b) => b.totalCobrar - a.totalCobrar)
+    };
+  }, [ventas, aMonedaVista]);
+
+  // Indexar ventas y cuotas por cliente en O(N) para renderizado instantáneo
+  const ventasPorClienteMap = useMemo(() => {
+    const map = {};
+    ventas.forEach(v => {
+      if (!map[v.cliente_id]) map[v.cliente_id] = [];
+      map[v.cliente_id].push(v);
+    });
+    return map;
+  }, [ventas]);
+
+  const cuotasPorClienteMap = useMemo(() => {
+    const map = {};
+    cuotas.forEach(c => {
+      if (!map[c.cliente_id]) map[c.cliente_id] = [];
+      map[c.cliente_id].push(c);
+    });
+    return map;
+  }, [cuotas]);
 
   // Enriquecer clientes con métricas de su cuenta corriente
   const clientesEnriquecidos = useMemo(() => {
     return clientes.map(cli => {
-      const ventasCli = ventas.filter(v => v.cliente_id === cli.id);
-      const cuotasCli = cuotas.filter(c => c.cliente_id === cli.id);
+      const ventasCli = ventasPorClienteMap[cli.id] || [];
+      const cuotasCli = cuotasPorClienteMap[cli.id] || [];
       const contratadoVista = ventasCli.reduce((s, v) => s + aMonedaVista(v.precio_total, v.moneda_origen), 0);
       const cobradoVista = cuotasCli.reduce((s, c) => s + aMonedaVista(c.monto_cobrado, c.moneda), 0);
       const saldoVista = cuotasCli.reduce((s, c) => s + aMonedaVista(c.saldo_pendiente, c.moneda), 0);
+      const totalCobrarMesVista = ventasCli.reduce((s, v) => s + aMonedaVista(v.total_a_cobrar || 0, v.moneda_origen), 0);
       const cuotasPend = cuotasCli.filter(c => c.saldo_pendiente > 0.5).length;
       const cuotasDev = cuotasCli.filter(c => c.devengado && c.saldo_pendiente > 0.5).length;
+      const segmentaciones = Array.from(new Set(ventasCli.map(v => v.segmentacion).filter(Boolean)));
 
       return {
         ...cli,
@@ -432,20 +498,50 @@ export default function CuentasCorrientesTab({
         contratadoVista,
         cobradoVista,
         saldoVista,
+        totalCobrarMesVista,
         cuotasPend,
-        cuotasDev
+        cuotasDev,
+        segmentaciones
       };
     }).filter(cli => {
+      if (filtroProyecto !== "TODOS" && !cli.ventasCli.some(v => v.proyecto === filtroProyecto)) return false;
+      if (filtroAsignacion !== "TODAS" && !cli.ventasCli.some(v => v.asignacion === filtroAsignacion)) return false;
+      if (filtroMorosidad !== "TODAS" && !cli.ventasCli.some(v => v.segmentacion === filtroMorosidad)) return false;
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
         (cli.nombre || "").toLowerCase().includes(q) ||
         (cli.dni_cuit || "").toLowerCase().includes(q) ||
         (cli.email || "").toLowerCase().includes(q) ||
-        cli.ventasCli.some(v => (v.proyecto || "").toLowerCase().includes(q) || (v.unidad_nombre || "").toLowerCase().includes(q))
+        cli.ventasCli.some(v =>
+          (v.proyecto || "").toLowerCase().includes(q) ||
+          (v.unidad_nombre || "").toLowerCase().includes(q) ||
+          (v.asignacion || "").toLowerCase().includes(q)
+        )
       );
     });
-  }, [clientes, ventas, cuotas, searchQuery, aMonedaVista]);
+  }, [clientes, ventasPorClienteMap, cuotasPorClienteMap, filtroProyecto, filtroAsignacion, filtroMorosidad, searchQuery, aMonedaVista]);
+
+  // Ventas filtradas para la pestaña Ventas y Planes
+  const ventasFiltradas = useMemo(() => {
+    return ventas.filter(v => {
+      if (filtroProyecto !== "TODOS" && v.proyecto !== filtroProyecto) return false;
+      if (filtroAsignacion !== "TODAS" && v.asignacion !== filtroAsignacion) return false;
+      if (filtroMorosidad !== "TODAS" && v.segmentacion !== filtroMorosidad) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const cli = clientesMap[v.cliente_id];
+        return (
+          (cli?.nombre || "").toLowerCase().includes(q) ||
+          (v.codigo || "").toLowerCase().includes(q) ||
+          (v.proyecto || "").toLowerCase().includes(q) ||
+          (v.unidad_nombre || "").toLowerCase().includes(q) ||
+          (v.asignacion || "").toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [ventas, clientesMap, filtroProyecto, filtroAsignacion, filtroMorosidad, searchQuery]);
 
   // Unidades disponibles del stock para vincular a nueva venta
   const unidadesDisponiblesParaVenta = useMemo(() => {
@@ -470,6 +566,7 @@ export default function CuentasCorrientesTab({
       unidad_id: "",
       marcarUnidadVendida: true,
       proyecto: PROYECTOS_CARTERA_CC[0],
+      asignacion: "PROYECTO",
       unidad_nombre: "",
       fecha_venta: "2026-11-12",
       fecha_primer_vencimiento: "2026-12-10",
@@ -572,6 +669,8 @@ export default function CuentasCorrientesTab({
       fecha_venta: ventaForm.fecha_venta,
       cliente_id: clienteIdFinal,
       proyecto: ventaForm.proyecto,
+      asignacion: ventaForm.asignacion || "PROYECTO",
+      condicion_venta: "FINANCIADO",
       unidad_id: ventaForm.vincularStock ? ventaForm.unidad_id : "",
       unidad_nombre: ventaForm.unidad_nombre.trim(),
       moneda_origen: ventaForm.moneda_origen,
@@ -579,7 +678,15 @@ export default function CuentasCorrientesTab({
       anticipo,
       saldo_financiar: Math.max(0, total - anticipo),
       cantidad_cuotas: cantCuotas,
+      cuotas_pendientes: cantCuotas,
       fecha_primer_vencimiento: ventaForm.fecha_primer_vencimiento,
+      fecha_vto_actual: ventaForm.fecha_primer_vencimiento,
+      morosidad: "NO VENCIDO",
+      segmentacion: "AL DIA",
+      saldo_vencido_anterior: 0,
+      cuota_mes: cantCuotas > 0 ? Math.round((Math.max(0, total - anticipo) / cantCuotas)) : 0,
+      total_a_cobrar: cantCuotas > 0 ? Math.round((Math.max(0, total - anticipo) / cantCuotas)) : 0,
+      saldo_a_vencer: Math.max(0, total - anticipo),
       variable_actualizacion: ventaForm.variable_actualizacion,
       indice_base: Number(ventaForm.indice_base || 1),
       tasa_mensual_fija: ventaForm.variable_actualizacion === "TASA_FIJA" ? Number(ventaForm.tasa_mensual_fija || 0) : 0,
@@ -798,18 +905,21 @@ export default function CuentasCorrientesTab({
         const cli = clientesMap[c.cliente_id];
         if (!venta || venta.estado === "Rescindida") return false;
         if (filtroProyecto !== "TODOS" && venta.proyecto !== filtroProyecto) return false;
+        if (filtroAsignacion !== "TODAS" && venta.asignacion !== filtroAsignacion) return false;
+        if (filtroMorosidad !== "TODAS" && venta.segmentacion !== filtroMorosidad) return false;
 
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const match =
             (cli?.nombre || "").toLowerCase().includes(q) ||
             (venta.codigo || "").toLowerCase().includes(q) ||
-            (venta.unidad_nombre || "").toLowerCase().includes(q);
+            (venta.unidad_nombre || "").toLowerCase().includes(q) ||
+            (venta.asignacion || "").toLowerCase().includes(q);
           if (!match) return false;
         }
 
         if (filtroEstadoCuota === "VENCIDAS") {
-          return c.saldo_pendiente > 0.5 && c.fecha_vencimiento < hoyISO;
+          return c.saldo_pendiente > 0.5 && (c.fecha_vencimiento < hoyISO || c.estado === "Vencida");
         }
         if (c.periodo !== periodoActivo) return false;
 
@@ -824,7 +934,7 @@ export default function CuentasCorrientesTab({
         cliente: clientesMap[c.cliente_id]
       }))
       .sort((a, b) => (a.cuota.fecha_vencimiento || "").localeCompare(b.cuota.fecha_vencimiento || ""));
-  }, [cuotas, ventasMap, clientesMap, periodoActivo, filtroProyecto, filtroEstadoCuota, searchQuery]);
+  }, [cuotas, ventasMap, clientesMap, periodoActivo, filtroProyecto, filtroAsignacion, filtroMorosidad, filtroEstadoCuota, searchQuery]);
 
   const abrirModalCobro = (cuota) => {
     const venta = ventasMap[cuota.venta_id];
@@ -976,19 +1086,29 @@ export default function CuentasCorrientesTab({
 
       const wsVta = XLSX.utils.json_to_sheet(vtaList.map(v => ({
         "Código": v.codigo,
-        "Fecha": v.fecha_venta,
         "Cliente": clientesMap[v.cliente_id]?.nombre || "",
         "Proyecto": v.proyecto,
         "Unidad": v.unidad_nombre,
-        "Moneda": v.moneda_origen,
-        "Importe Total": v.precio_total,
-        "Anticipo": v.anticipo,
-        "Saldo a Financiar": v.saldo_financiar,
-        "Cuotas": v.cantidad_cuotas,
-        "Variable Actualización": v.variable_actualizacion,
-        "Índice Base": v.indice_base
+        "Asignación": v.asignacion || "",
+        "Condición": v.condicion_venta || "FINANCIADO",
+        "Cuotas Totales": v.cantidad_cuotas,
+        "Cuotas Pendientes": v.cuotas_pendientes ?? v.cantidad_cuotas,
+        "Vto Anterior": v.fecha_vto_anterior || "",
+        "Vto Actual": v.fecha_vto_actual || v.fecha_primer_vencimiento || "",
+        "Fecha Cobro Ant.": v.fecha_cobro_anterior || "",
+        "Fecha Cobro Act.": v.fecha_cobro_actual || "",
+        "Retraso Total (días)": v.dias_retraso_total ?? 0,
+        "Morosidad": v.morosidad || "",
+        "Segmentación": v.segmentacion || "",
+        "Saldo Vencido Mes Ant.": v.saldo_vencido_anterior || 0,
+        "Cuota Mes": v.cuota_mes || 0,
+        "Ingreso Nva Venta": v.ingreso_nueva_venta || 0,
+        "Total a Cobrar": v.total_a_cobrar || 0,
+        "Saldo Fin de Mes": v.saldo_fin_mes || 0,
+        "Saldo a Vencer": v.saldo_a_vencer || 0,
+        "Variable Act.": v.variable_actualizacion
       })));
-      XLSX.utils.book_append_sheet(wb, wsVta, "Ventas");
+      XLSX.utils.book_append_sheet(wb, wsVta, "Cartera y Ventas");
 
       const wsCta = XLSX.utils.json_to_sheet(ctaList.map(c => ({
         "Cliente": clientesMap[c.cliente_id]?.nombre || "",
@@ -1032,9 +1152,9 @@ export default function CuentasCorrientesTab({
     }
   };
 
-  // Restaurar datos semilla de demostración
-  const handleRestaurarDemo = async () => {
-    if (!window.confirm("¿Restaurar los datos de demostración iniciales de Cuentas Corrientes?")) return;
+  // Recargar cartera oficial desde planilla
+  const handleRestaurarCartera = async () => {
+    if (!window.confirm("¿Recargar la cartera oficial completa (80 operaciones al 30/11/2026)? Se perderán cambios manuales no exportados.")) return;
     setClientes(DEFAULT_CC_CLIENTES);
     setVentas(DEFAULT_CC_VENTAS);
     setCuotas(DEFAULT_CC_CUOTAS);
@@ -1045,7 +1165,7 @@ export default function CuentasCorrientesTab({
       supabase.from("cc_cuotas").setAll(DEFAULT_CC_CUOTAS),
       supabase.from("cc_cobranzas").setAll(DEFAULT_CC_COBRANZAS)
     ]);
-    showToast("Cartera de Cuentas Corrientes restaurada.");
+    showToast("Cartera oficial de Cuentas Corrientes recargada (80 operaciones).");
   };
 
   const clienteDetalle = clienteDetalleId ? clientesEnriquecidos.find(c => c.id === clienteDetalleId) : null;
@@ -1265,8 +1385,8 @@ export default function CuentasCorrientesTab({
               />
             </label>
             <button
-              onClick={handleRestaurarDemo}
-              title="Restaurar datos iniciales de ejemplo"
+              onClick={handleRestaurarCartera}
+              title="Recargar cartera oficial al 30/11/2026"
               style={{
                 padding: "6px 10px",
                 borderRadius: 6,
@@ -1280,7 +1400,7 @@ export default function CuentasCorrientesTab({
                 fontSize: 11.5
               }}
             >
-              <RotateCcw size={13} /> Demo
+              <RotateCcw size={13} /> Recargar Cartera
             </button>
           </div>
         </div>
@@ -1289,9 +1409,9 @@ export default function CuentasCorrientesTab({
       {/* KPI STRIP SUPERIOR (4 Tarjetas limpias, tipografía tabular) */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16 }}>
         <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "18px 20px" }}>
-          <div style={{ fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>Cartera Total Contratada</div>
+          <div style={{ fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>Saldo Pendiente Total (A Vencer + Exig.)</div>
           <div style={{ fontFamily: tokens.fontMono, fontVariantNumeric: "tabular-nums", fontSize: 22, fontWeight: 600, color: tokens.ink, marginTop: 6 }}>
-            {formatoVista(kpisCartera.totalVendido, monedaVista)}
+            {formatoVista(kpisCartera.saldoPendienteTotal, monedaVista)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
             {kpisCartera.cantVentas} operaciones · {kpisCartera.cantClientes} clientes
@@ -1299,26 +1419,26 @@ export default function CuentasCorrientesTab({
         </div>
 
         <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "18px 20px" }}>
-          <div style={{ fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>Saldo a Cobrar Actualizado</div>
-          <div style={{ fontFamily: tokens.fontMono, fontVariantNumeric: "tabular-nums", fontSize: 22, fontWeight: 600, color: tokens.ink, marginTop: 6 }}>
-            {formatoVista(kpisCartera.saldoPendienteTotal, monedaVista)}
+          <div style={{ fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>
+            Exigible ({formatearPeriodoLabel(periodoActivo)}) + Vencido Ant.
           </div>
-          <div style={{ fontSize: 12, color: kpisCartera.cuotasVencidasCount > 0 ? tokens.negative : tokens.textMuted, marginTop: 4 }}>
-            {kpisCartera.cuotasVencidasCount > 0
-              ? `${kpisCartera.cuotasVencidasCount} cuotas vencidas pendientes`
-              : "Cartera sin atrasos exigibles"}
+          <div style={{ fontFamily: tokens.fontMono, fontVariantNumeric: "tabular-nums", fontSize: 22, fontWeight: 600, color: tokens.gold, marginTop: 6 }}>
+            {formatoVista(kpisCartera.devengadoMes + kpisCartera.saldoVencidoAnterior, monedaVista)}
+          </div>
+          <div style={{ fontSize: 12, color: kpisCartera.operacionesVencidas > 0 ? tokens.negative : tokens.textMuted, marginTop: 4 }}>
+            Vencido mes ant.: {formatoVista(kpisCartera.saldoVencidoAnterior, monedaVista)} ({kpisCartera.operacionesVencidas} ops. vencidas)
           </div>
         </div>
 
         <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "18px 20px" }}>
           <div style={{ fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>
-            Devengado ({formatearPeriodoLabel(periodoActivo)})
+            Cuotas Devengadas ({formatearPeriodoLabel(periodoActivo)})
           </div>
-          <div style={{ fontFamily: tokens.fontMono, fontVariantNumeric: "tabular-nums", fontSize: 22, fontWeight: 600, color: tokens.gold, marginTop: 6 }}>
+          <div style={{ fontFamily: tokens.fontMono, fontVariantNumeric: "tabular-nums", fontSize: 22, fontWeight: 600, color: tokens.ink, marginTop: 6 }}>
             {formatoVista(kpisCartera.devengadoMes, monedaVista)}
           </div>
           <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 4 }}>
-            Exigible total del mes: {formatoVista(kpisCartera.exigibleMes, monedaVista)}
+            Exigible nominal del período: {formatoVista(kpisCartera.exigibleMes, monedaVista)}
           </div>
         </div>
 
@@ -1339,115 +1459,180 @@ export default function CuentasCorrientesTab({
           VISTA 1: RESUMEN CARTERA
           ═══════════════════════════════════════════════════════════════════════ */}
       {subTab === "resumen" && (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: 18 }}>
-          {/* Gráfico Devengado vs Cobrado por mes */}
-          <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "20px 22px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div>
-                <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 17, fontWeight: 600, color: tokens.text }}>
-                  Curva de Devengamiento y Cobranza Mensual
-                </h3>
-                <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 2 }}>
-                  Cuotas proyectadas, devengadas por índice y cobranzas efectivas ({monedaVista})
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 18 }}>
+            {/* Gráfico Devengado vs Cobrado por mes */}
+            <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "20px 22px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 17, fontWeight: 600, color: tokens.text }}>
+                    Curva de Devengamiento y Cobranza Mensual
+                  </h3>
+                  <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 2 }}>
+                    Cuotas proyectadas, devengadas y cobranzas efectivas ({monedaVista})
+                  </div>
                 </div>
               </div>
+
+              {chartDevengadoCobrado.length === 0 ? (
+                <div style={{ padding: 48, textAlign: "center", color: tokens.textMuted, fontSize: 13 }}>
+                  No hay cuotas registradas en cartera.
+                </div>
+              ) : (
+                <div style={{ width: "100%", height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartDevengadoCobrado} margin={{ top: 10, right: 12, left: 6, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EBEDE7" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: tokens.textMuted }} />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: tokens.textMuted }}
+                        tickFormatter={(v) => monedaVista === "USD" ? `${Math.round(v / 1000)}k` : `${Math.round(v / 1000000)}M`}
+                      />
+                      <Tooltip
+                        formatter={(val, name) => [formatoVista(val, monedaVista), name]}
+                        contentStyle={{ background: "#FFFFFF", border: `1px solid ${colorLineaFuerte}`, borderRadius: 8, fontSize: 12 }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="Proyectado" stackId="a" fill="#CBD5E1" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="Devengado" stackId="a" fill="#B8862A" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Cobrado" fill="#0E7C66" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
 
-            {chartDevengadoCobrado.length === 0 ? (
-              <div style={{ padding: 48, textAlign: "center", color: tokens.textMuted, fontSize: 13 }}>
-                No hay cuotas registradas en cartera.
+            {/* Tabla de Cartera por Proyecto */}
+            <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "20px 22px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <h3 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 17, fontWeight: 600, color: tokens.text }}>
+                  Cartera por Proyecto
+                </h3>
+                <p style={{ margin: "0 0 14px 0", fontSize: 12, color: tokens.textMuted }}>
+                  Operaciones activas, cuota mes, vencido anterior y saldo a percibir
+                </p>
+
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted, fontSize: 11 }}>
+                        <th style={{ textAlign: "left", padding: "8px 6px", fontWeight: 600 }}>Proyecto</th>
+                        <th style={{ textAlign: "center", padding: "8px 6px", fontWeight: 600 }}>Ops.</th>
+                        <th style={{ textAlign: "right", padding: "8px 6px", fontWeight: 600 }}>Cuota Mes</th>
+                        <th style={{ textAlign: "right", padding: "8px 6px", fontWeight: 600 }}>Saldo Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resumenPorProyecto.map(r => (
+                        <tr key={r.proyecto} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
+                          <td style={{ padding: "9px 6px", fontWeight: 600, color: tokens.text }}>{r.proyecto}</td>
+                          <td style={{ padding: "9px 6px", textAlign: "center", fontFamily: tokens.fontMono }}>{r.operaciones}</td>
+                          <td style={{ padding: "9px 6px", textAlign: "right", fontFamily: tokens.fontMono }}>{formatoVista(r.cuotaMes, monedaVista)}</td>
+                          <td style={{ padding: "9px 6px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600, color: tokens.ink }}>{formatoVista(r.pendiente, monedaVista)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            ) : (
-              <div style={{ width: "100%", height: 290 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartDevengadoCobrado} margin={{ top: 10, right: 12, left: 6, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EBEDE7" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: tokens.textMuted }} />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: tokens.textMuted }}
-                      tickFormatter={(v) => monedaVista === "USD" ? `${Math.round(v / 1000)}k` : `${Math.round(v / 1000000)}M`}
-                    />
-                    <Tooltip
-                      formatter={(val, name) => [formatoVista(val, monedaVista), name]}
-                      contentStyle={{ background: "#FFFFFF", border: `1px solid ${colorLineaFuerte}`, borderRadius: 8, fontSize: 12 }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="Proyectado" stackId="a" fill="#CBD5E1" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Devengado" stackId="a" fill="#B8862A" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Cobrado" fill="#0E7C66" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+
+              <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${tokens.ruleSoft}`, display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setSubTab("devengamiento")}
+                  style={{
+                    flex: 1,
+                    padding: "9px 12px",
+                    borderRadius: 7,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    background: colorTablaBg,
+                    color: tokens.ink,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Ir a Devengamiento →
+                </button>
+                <button
+                  onClick={() => setSubTab("cobranza")}
+                  style={{
+                    flex: 1,
+                    padding: "9px 12px",
+                    borderRadius: 7,
+                    border: "none",
+                    background: tokens.ink,
+                    color: "#FFFFFF",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Ir a Cobranza →
+                </button>
               </div>
-            )}
+            </div>
           </div>
 
-          {/* Tabla de Cartera por Proyecto */}
-          <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "20px 22px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-            <div>
-              <h3 style={{ margin: "0 0 4px 0", fontFamily: tokens.fontDisplay, fontSize: 17, fontWeight: 600, color: tokens.text }}>
-                Cartera por Proyecto
+          {/* Desglose por Asignación y Segmentación de Morosidad */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18 }}>
+            <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "18px 22px" }}>
+              <h3 style={{ margin: "0 0 10px 0", fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>
+                Cartera por Asignación
               </h3>
-              <p style={{ margin: "0 0 14px 0", fontSize: 12, color: tokens.textMuted }}>
-                Distribución de contratos vendidos, cobros acumulados y saldo a percibir
-              </p>
-
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted, fontSize: 11 }}>
-                      <th style={{ textAlign: "left", padding: "8px 6px", fontWeight: 600 }}>Proyecto</th>
-                      <th style={{ textAlign: "center", padding: "8px 6px", fontWeight: 600 }}>Ops.</th>
-                      <th style={{ textAlign: "right", padding: "8px 6px", fontWeight: 600 }}>Vendido</th>
-                      <th style={{ textAlign: "right", padding: "8px 6px", fontWeight: 600 }}>Saldo</th>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted, fontSize: 11 }}>
+                    <th style={{ textAlign: "left", padding: "7px 6px" }}>Asignación</th>
+                    <th style={{ textAlign: "center", padding: "7px 6px" }}>Ops.</th>
+                    <th style={{ textAlign: "right", padding: "7px 6px" }}>Cuota Mes</th>
+                    <th style={{ textAlign: "right", padding: "7px 6px" }}>Saldo a Vencer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenAsignacionYMorosidad.asignaciones.map(a => (
+                    <tr key={a.label} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
+                      <td style={{ padding: "8px 6px", fontWeight: 600 }}>{a.label}</td>
+                      <td style={{ padding: "8px 6px", textAlign: "center", fontFamily: tokens.fontMono }}>{a.ops}</td>
+                      <td style={{ padding: "8px 6px", textAlign: "right", fontFamily: tokens.fontMono }}>{formatoVista(a.cuotaMes, monedaVista)}</td>
+                      <td style={{ padding: "8px 6px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600 }}>{formatoVista(a.saldoPend, monedaVista)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {resumenPorProyecto.map(r => (
-                      <tr key={r.proyecto} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                        <td style={{ padding: "10px 6px", fontWeight: 600, color: tokens.text }}>{r.proyecto}</td>
-                        <td style={{ padding: "10px 6px", textAlign: "center", fontFamily: tokens.fontMono }}>{r.operaciones}</td>
-                        <td style={{ padding: "10px 6px", textAlign: "right", fontFamily: tokens.fontMono }}>{formatoVista(r.totalVendido, monedaVista)}</td>
-                        <td style={{ padding: "10px 6px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600, color: tokens.ink }}>{formatoVista(r.pendiente, monedaVista)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${tokens.ruleSoft}`, display: "flex", gap: 10 }}>
-              <button
-                onClick={() => setSubTab("devengamiento")}
-                style={{
-                  flex: 1,
-                  padding: "9px 12px",
-                  borderRadius: 7,
-                  border: `1px solid ${colorLineaFuerte}`,
-                  background: colorTablaBg,
-                  color: tokens.ink,
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  cursor: "pointer"
-                }}
-              >
-                Ir a Devengamiento →
-              </button>
-              <button
-                onClick={() => setSubTab("cobranza")}
-                style={{
-                  flex: 1,
-                  padding: "9px 12px",
-                  borderRadius: 7,
-                  border: "none",
-                  background: tokens.ink,
-                  color: "#FFFFFF",
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  cursor: "pointer"
-                }}
-              >
-                Ir a Cobranza →
-              </button>
+            <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "18px 22px" }}>
+              <h3 style={{ margin: "0 0 10px 0", fontFamily: tokens.fontDisplay, fontSize: 16, fontWeight: 600 }}>
+                Segmentación de Morosidad ({formatearPeriodoLabel(periodoActivo)})
+              </h3>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted, fontSize: 11 }}>
+                    <th style={{ textAlign: "left", padding: "7px 6px" }}>Segmento</th>
+                    <th style={{ textAlign: "center", padding: "7px 6px" }}>Ops.</th>
+                    <th style={{ textAlign: "right", padding: "7px 6px" }}>Vencido Ant.</th>
+                    <th style={{ textAlign: "right", padding: "7px 6px" }}>Total a Cobrar Mes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenAsignacionYMorosidad.morosidad.map(m => (
+                    <tr key={m.label} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
+                      <td style={{
+                        padding: "8px 6px",
+                        fontWeight: 600,
+                        color: m.label === "AL DIA" ? tokens.positive : m.label.includes("30 - 60") || m.label.includes("+ 60") ? tokens.negative : tokens.gold
+                      }}>
+                        {m.label}
+                      </td>
+                      <td style={{ padding: "8px 6px", textAlign: "center", fontFamily: tokens.fontMono }}>{m.ops}</td>
+                      <td style={{ padding: "8px 6px", textAlign: "right", fontFamily: tokens.fontMono, color: m.vencidoAnt > 0 ? tokens.negative : tokens.textMuted }}>
+                        {m.vencidoAnt > 0 ? formatoVista(m.vencidoAnt, monedaVista) : "—"}
+                      </td>
+                      <td style={{ padding: "8px 6px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600 }}>{formatoVista(m.totalCobrar, monedaVista)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1466,12 +1651,12 @@ export default function CuentasCorrientesTab({
               </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <div style={{ position: "relative" }}>
                 <Search size={14} color={tokens.textFaint} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
                 <input
                   type="text"
-                  placeholder="Buscar nombre, CUIT, unidad…"
+                  placeholder="Buscar cliente, unidad, proyecto…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
@@ -1479,10 +1664,28 @@ export default function CuentasCorrientesTab({
                     borderRadius: 7,
                     border: `1px solid ${colorLineaFuerte}`,
                     fontSize: 12.5,
-                    minWidth: 230
+                    minWidth: 210
                   }}
                 />
               </div>
+
+              <select
+                value={filtroProyecto}
+                onChange={(e) => setFiltroProyecto(e.target.value)}
+                style={{ padding: "8px 10px", borderRadius: 7, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
+              >
+                <option value="TODOS">Todos los proyectos</option>
+                {proyectosDisponibles.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+
+              <select
+                value={filtroMorosidad}
+                onChange={(e) => setFiltroMorosidad(e.target.value)}
+                style={{ padding: "8px 10px", borderRadius: 7, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
+              >
+                <option value="TODAS">Toda morosidad</option>
+                {SEGMENTACIONES_MOROSIDAD.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
 
               <button
                 onClick={() => abrirModalCliente(null)}
@@ -1507,48 +1710,53 @@ export default function CuentasCorrientesTab({
 
           {clientesEnriquecidos.length === 0 ? (
             <div style={{ padding: 48, textAlign: "center", color: tokens.textMuted }}>
-              No se encontraron clientes con ese criterio. Registra una Nueva Venta para generar el cliente y su cuenta corriente.
+              No se encontraron clientes con ese criterio.
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                 <thead>
-                  <tr style={{ background: colorTablaBg, borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted, fontSize: 11.5 }}>
+                  <tr style={{ background: colorTablaBg, borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted, fontSize: 11 }}>
                     <th style={{ textAlign: "left", padding: "10px 12px" }}>Cliente / Razón Social</th>
-                    <th style={{ textAlign: "left", padding: "10px 10px" }}>DNI / CUIT</th>
-                    <th style={{ textAlign: "left", padding: "10px 10px" }}>Contacto</th>
+                    <th style={{ textAlign: "left", padding: "10px 10px" }}>Proyectos y Unidades</th>
                     <th style={{ textAlign: "center", padding: "10px 8px" }}>Ops.</th>
-                    <th style={{ textAlign: "right", padding: "10px 10px" }}>Contratado ({monedaVista})</th>
+                    <th style={{ textAlign: "right", padding: "10px 10px" }}>A Cobrar Mes ({monedaVista})</th>
                     <th style={{ textAlign: "right", padding: "10px 10px" }}>Cobrado ({monedaVista})</th>
-                    <th style={{ textAlign: "right", padding: "10px 10px" }}>Saldo Actual ({monedaVista})</th>
+                    <th style={{ textAlign: "right", padding: "10px 10px" }}>Saldo Pendiente ({monedaVista})</th>
+                    <th style={{ textAlign: "left", padding: "10px 10px" }}>Estado</th>
                     <th style={{ textAlign: "center", padding: "10px 12px" }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {clientesEnriquecidos.map(cli => (
                     <tr key={cli.id} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                      <td style={{ padding: "12px 12px" }}>
+                      <td style={{ padding: "11px 12px" }}>
                         <div style={{ fontWeight: 600, color: tokens.ink }}>{cli.nombre}</div>
-                        <div style={{ fontSize: 11.5, color: tokens.textMuted }}>
-                          {cli.condicion_fiscal} {cli.ventasCli.length > 0 ? `· ${cli.ventasCli.map(v => v.proyecto).join(", ")}` : ""}
+                        <div style={{ fontSize: 11, color: tokens.textMuted }}>
+                          {cli.dni_cuit && cli.dni_cuit !== "—" ? cli.dni_cuit : cli.condicion_fiscal}
                         </div>
                       </td>
-                      <td style={{ padding: "12px 10px", fontFamily: tokens.fontMono, fontSize: 12.5 }}>{cli.dni_cuit || "—"}</td>
-                      <td style={{ padding: "12px 10px", fontSize: 12 }}>
-                        <div>{cli.telefono || "—"}</div>
-                        <div style={{ color: tokens.textMuted }}>{cli.email || ""}</div>
+                      <td style={{ padding: "11px 10px", fontSize: 12 }}>
+                        {cli.ventasCli.map(v => `${v.proyecto} (${v.unidad_nombre})`).join(" · ") || "—"}
                       </td>
-                      <td style={{ padding: "12px 8px", textAlign: "center", fontFamily: tokens.fontMono, fontWeight: 600 }}>
+                      <td style={{ padding: "11px 8px", textAlign: "center", fontFamily: tokens.fontMono, fontWeight: 600 }}>
                         {cli.ventasCli.length}
                       </td>
-                      <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
-                        {formatoVista(cli.contratadoVista, monedaVista)}
+                      <td style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.gold, fontWeight: 600 }}>
+                        {formatoVista(cli.totalCobrarMesVista, monedaVista)}
                       </td>
-                      <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.positive }}>
-                        {formatoVista(cli.cobradoVista, monedaVista)}
+                      <td style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.positive }}>
+                        {cli.cobradoVista > 0 ? formatoVista(cli.cobradoVista, monedaVista) : "—"}
                       </td>
-                      <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.ink }}>
+                      <td style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.ink }}>
                         {formatoVista(cli.saldoVista, monedaVista)}
+                      </td>
+                      <td style={{ padding: "11px 10px", fontSize: 11.5, fontWeight: 600 }}>
+                        {cli.segmentaciones.map((s, idx) => (
+                          <div key={idx} style={{ color: s === "AL DIA" ? tokens.positive : s.includes("30 - 60") || s.includes("+ 60") ? tokens.negative : tokens.gold }}>
+                            {s}
+                          </div>
+                        ))}
                       </td>
                       <td style={{ padding: "12px 12px", textAlign: "center" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
@@ -1809,101 +2017,139 @@ export default function CuentasCorrientesTab({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
             <div>
               <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 18, fontWeight: 600 }}>
-                Operaciones de Venta y Planes de Cuotas
+                Cartera de Operaciones y Planes de Cuotas ({ventasFiltradas.length})
               </h3>
               <div style={{ fontSize: 12.5, color: tokens.textMuted, marginTop: 2 }}>
-                Contratos activos con importe, anticipo, cantidad de cuotas y variable de actualización
+                Asignación, cuotas pendientes/totales, atraso, vencido anterior, cuota mensual y saldo a vencer
               </div>
             </div>
 
-            <button
-              onClick={abrirModalNuevaVenta}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "9px 15px",
-                borderRadius: 7,
-                border: "none",
-                background: tokens.ink,
-                color: "#FFFFFF",
-                fontSize: 12.5,
-                fontWeight: 600,
-                cursor: "pointer"
-              }}
-            >
-              <Plus size={15} /> Registrar Venta
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ position: "relative" }}>
+                <Search size={14} color={tokens.textFaint} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
+                <input
+                  type="text"
+                  placeholder="Buscar cliente, unidad…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ padding: "7px 10px 7px 30px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12 }}
+                />
+              </div>
+              <select
+                value={filtroProyecto}
+                onChange={(e) => setFiltroProyecto(e.target.value)}
+                style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
+              >
+                <option value="TODOS">Todos los proyectos</option>
+                {proyectosDisponibles.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <select
+                value={filtroAsignacion}
+                onChange={(e) => setFiltroAsignacion(e.target.value)}
+                style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
+              >
+                <option value="TODAS">Todas las asignaciones</option>
+                {ASIGNACIONES_CC.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <select
+                value={filtroMorosidad}
+                onChange={(e) => setFiltroMorosidad(e.target.value)}
+                style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
+              >
+                <option value="TODAS">Toda morosidad</option>
+                {SEGMENTACIONES_MOROSIDAD.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <button
+                onClick={abrirModalNuevaVenta}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: 7,
+                  border: "none",
+                  background: tokens.ink,
+                  color: "#FFFFFF",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <Plus size={15} /> Registrar Venta
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ background: colorTablaBg, borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted, fontSize: 11 }}>
-                  <th style={{ textAlign: "left", padding: "10px 10px" }}>Operación / Fecha</th>
-                  <th style={{ textAlign: "left", padding: "10px 10px" }}>Cliente</th>
-                  <th style={{ textAlign: "left", padding: "10px 10px" }}>Proyecto / Unidad</th>
-                  <th style={{ textAlign: "right", padding: "10px 10px" }}>Importe Total</th>
-                  <th style={{ textAlign: "right", padding: "10px 10px" }}>Anticipo</th>
-                  <th style={{ textAlign: "right", padding: "10px 10px" }}>Saldo a Financiar</th>
-                  <th style={{ textAlign: "center", padding: "10px 8px" }}>Cuotas</th>
-                  <th style={{ textAlign: "left", padding: "10px 10px" }}>Variable Act.</th>
-                  <th style={{ textAlign: "center", padding: "10px 10px" }}>Acciones</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px" }}>Cliente / Op.</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px" }}>Proyecto / Unidad</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px" }}>Asignación</th>
+                  <th style={{ textAlign: "center", padding: "10px 6px" }}>Cuotas (Pend/Tot)</th>
+                  <th style={{ textAlign: "center", padding: "10px 8px" }}>Vto. Act. / Ret.</th>
+                  <th style={{ textAlign: "right", padding: "10px 8px" }}>Vencido Ant.</th>
+                  <th style={{ textAlign: "right", padding: "10px 8px" }}>Cuota Mes</th>
+                  <th style={{ textAlign: "right", padding: "10px 8px" }}>Total a Cobrar</th>
+                  <th style={{ textAlign: "right", padding: "10px 8px" }}>Saldo a Vencer</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px" }}>Morosidad</th>
+                  <th style={{ textAlign: "center", padding: "10px 8px" }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {ventas.map(v => {
+                {ventasFiltradas.map(v => {
                   const cli = clientesMap[v.cliente_id];
-                  const varObj = VARIABLES_ACTUALIZACION.find(x => x.id === v.variable_actualizacion);
+                  const seg = v.segmentacion || "AL DIA";
+                  const segColor = seg === "AL DIA" ? tokens.positive : seg.includes("30 - 60") || seg.includes("+ 60") ? tokens.negative : tokens.gold;
                   return (
                     <tr key={v.id} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                      <td style={{ padding: "11px 10px" }}>
-                        <div style={{ fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.ink }}>{v.codigo}</div>
-                        <div style={{ fontSize: 11, color: tokens.textMuted }}>{formatDate(v.fecha_venta)}</div>
+                      <td style={{ padding: "10px 8px" }}>
+                        <div style={{ fontWeight: 600, color: tokens.ink }}>{cli?.nombre || "—"}</div>
+                        <div style={{ fontSize: 10.5, fontFamily: tokens.fontMono, color: tokens.textMuted }}>{v.codigo}</div>
                       </td>
-                      <td style={{ padding: "11px 10px" }}>
-                        <div style={{ fontWeight: 600 }}>{cli?.nombre || "—"}</div>
-                        <div style={{ fontSize: 11, color: tokens.textMuted }}>{cli?.dni_cuit || ""}</div>
-                      </td>
-                      <td style={{ padding: "11px 10px" }}>
+                      <td style={{ padding: "10px 8px" }}>
                         <div style={{ fontWeight: 600 }}>{v.proyecto}</div>
-                        <div style={{ fontSize: 11.5, color: tokens.textMuted }}>{v.unidad_nombre}</div>
+                        <div style={{ fontSize: 11, color: tokens.textMuted }}>{v.unidad_nombre}</div>
                       </td>
-                      <td style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600 }}>
-                        {formatoOriginal(v.precio_total, v.moneda_origen)}
+                      <td style={{ padding: "10px 8px", fontSize: 11.5, color: tokens.text }}>{v.asignacion || "—"}</td>
+                      <td style={{ padding: "10px 6px", textAlign: "center", fontFamily: tokens.fontMono, fontWeight: 600 }}>
+                        {v.cuotas_pendientes ?? v.cantidad_cuotas} / {v.cantidad_cuotas}
                       </td>
-                      <td style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono }}>
-                        {v.anticipo > 0 ? formatoOriginal(v.anticipo, v.moneda_origen) : "—"}
+                      <td style={{ padding: "10px 8px", textAlign: "center", fontFamily: tokens.fontMono, fontSize: 11.5 }}>
+                        <div>{formatDate(v.fecha_vto_actual || v.fecha_primer_vencimiento)}</div>
+                        {Number(v.dias_retraso_total || 0) > 0 && (
+                          <div style={{ fontSize: 10.5, color: tokens.negative }}>{v.dias_retraso_total}d atraso</div>
+                        )}
                       </td>
-                      <td style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600 }}>
-                        {formatoOriginal(v.saldo_financiar, v.moneda_origen)}
+                      <td style={{ padding: "10px 8px", textAlign: "right", fontFamily: tokens.fontMono, color: v.saldo_vencido_anterior > 0 ? tokens.negative : tokens.textMuted }}>
+                        {v.saldo_vencido_anterior > 0 ? formatoOriginal(v.saldo_vencido_anterior, v.moneda_origen) : "—"}
                       </td>
-                      <td style={{ padding: "11px 8px", textAlign: "center", fontFamily: tokens.fontMono, fontWeight: 600 }}>
-                        {v.cantidad_cuotas}
+                      <td style={{ padding: "10px 8px", textAlign: "right", fontFamily: tokens.fontMono }}>
+                        {v.cuota_mes > 0 ? formatoOriginal(v.cuota_mes, v.moneda_origen) : v.ingreso_nueva_venta > 0 ? formatoOriginal(v.ingreso_nueva_venta, v.moneda_origen) : "—"}
                       </td>
-                      <td style={{ padding: "11px 10px" }}>
-                        <div style={{ fontWeight: 600, color: tokens.ink }}>{varObj?.short || v.variable_actualizacion}</div>
-                        <div style={{ fontSize: 11, fontFamily: tokens.fontMono, color: tokens.textMuted }}>
-                          {v.variable_actualizacion === "TASA_FIJA"
-                            ? `${v.tasa_mensual_fija}% mensual`
-                            : v.variable_actualizacion === "SIN_AJUSTE"
-                              ? "Nominal fija"
-                              : `Base: ${v.indice_base}`}
-                        </div>
+                      <td style={{ padding: "10px 8px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: tokens.ink }}>
+                        {formatoOriginal(v.total_a_cobrar ?? v.cuota_mes ?? 0, v.moneda_origen)}
                       </td>
-                      <td style={{ padding: "11px 10px", textAlign: "center" }}>
-                        <div style={{ display: "inline-flex", gap: 6 }}>
+                      <td style={{ padding: "10px 8px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600 }}>
+                        {formatoOriginal(v.saldo_a_vencer ?? v.saldo_financiar ?? 0, v.moneda_origen)}
+                      </td>
+                      <td style={{ padding: "10px 8px", fontSize: 11, fontWeight: 700, color: segColor }}>
+                        {seg}
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        <div style={{ display: "inline-flex", gap: 5 }}>
                           <button
                             onClick={() => {
                               setClienteDetalleId(v.cliente_id);
                               setSubTab("clientes");
                             }}
                             style={{
-                              padding: "5px 9px",
+                              padding: "5px 8px",
                               borderRadius: 5,
                               border: `1px solid ${colorLineaFuerte}`,
                               background: tokens.surface,
-                              fontSize: 11.5,
+                              fontSize: 11,
                               fontWeight: 600,
                               cursor: "pointer"
                             }}
@@ -1914,7 +2160,7 @@ export default function CuentasCorrientesTab({
                             onClick={() => handleEliminarVenta(v)}
                             title="Eliminar operación"
                             style={{
-                              padding: "5px 7px",
+                              padding: "5px 6px",
                               borderRadius: 5,
                               border: `1px solid ${tokens.ruleSoft}`,
                               background: tokens.surface,
@@ -1922,7 +2168,7 @@ export default function CuentasCorrientesTab({
                               cursor: "pointer"
                             }}
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </td>
@@ -2016,7 +2262,7 @@ export default function CuentasCorrientesTab({
                   style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12.5, background: "#FFFFFF" }}
                 >
                   <option value="TODOS">Todos los proyectos</option>
-                  {PROYECTOS_CARTERA_CC.map(p => <option key={p} value={p}>{p}</option>)}
+                  {proyectosDisponibles.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
 
                 <button
@@ -2573,11 +2819,17 @@ export default function CuentasCorrientesTab({
                   </div>
                 )}
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
                   <div>
                     <label style={labelStyle}>Proyecto</label>
                     <select value={ventaForm.proyecto} onChange={(e) => setVentaForm(p => ({ ...p, proyecto: e.target.value }))} style={inputStyle}>
-                      {PROYECTOS_CARTERA_CC.map(pr => <option key={pr} value={pr}>{pr}</option>)}
+                      {proyectosDisponibles.map(pr => <option key={pr} value={pr}>{pr}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Asignación</label>
+                    <select value={ventaForm.asignacion} onChange={(e) => setVentaForm(p => ({ ...p, asignacion: e.target.value }))} style={inputStyle}>
+                      {ASIGNACIONES_CC.map(as => <option key={as} value={as}>{as}</option>)}
                     </select>
                   </div>
                   <div>

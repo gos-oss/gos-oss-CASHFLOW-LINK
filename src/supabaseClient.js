@@ -39,28 +39,28 @@ const VIRTUAL_PLAN_TABLES = {
     localKey: 'cf_stock_disponible_units_v4',
   },
   cc_clientes: {
-    planId: 'cc_clientes',
+    planId: 'cc_clientes_v2',
     arrayKey: 'clientes',
     idKey: 'id',
-    localKey: 'cf_cc_clientes_v1',
+    localKey: 'cf_cc_clientes_v2',
   },
   cc_ventas: {
-    planId: 'cc_ventas',
+    planId: 'cc_ventas_v2',
     arrayKey: 'ventas',
     idKey: 'id',
-    localKey: 'cf_cc_ventas_v1',
+    localKey: 'cf_cc_ventas_v2',
   },
   cc_cuotas: {
-    planId: 'cc_cuotas',
+    planId: 'cc_cuotas_v2',
     arrayKey: 'cuotas',
     idKey: 'id',
-    localKey: 'cf_cc_cuotas_v1',
+    localKey: 'cf_cc_cuotas_v2',
   },
   cc_cobranzas: {
-    planId: 'cc_cobranzas',
+    planId: 'cc_cobranzas_v2',
     arrayKey: 'cobranzas',
     idKey: 'id',
-    localKey: 'cf_cc_cobranzas_v1',
+    localKey: 'cf_cc_cobranzas_v2',
   },
 };
 
