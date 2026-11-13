@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
-const LOCAL_STORAGE_KEY = "cf_link_obras_curvas_v9";
+const LOCAL_STORAGE_KEY = "cf_link_obras_curvas_v10";
 
 export default function ProyectosTab({
   tcList = [],
@@ -46,7 +46,7 @@ export default function ProyectosTab({
   const [proyectos, setProyectos] = useState(() => {
     try {
       // Limpiar versiones anteriores obsoletas
-      ["cf_link_obras_curvas_v5", "cf_link_obras_curvas_v6", "cf_link_obras_curvas_v7", "cf_link_obras_curvas_v8"].forEach(k => {
+      ["cf_link_obras_curvas_v5", "cf_link_obras_curvas_v6", "cf_link_obras_curvas_v7", "cf_link_obras_curvas_v8", "cf_link_obras_curvas_v9"].forEach(k => {
         try { localStorage.removeItem(k); } catch {}
       });
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
