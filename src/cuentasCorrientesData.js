@@ -38,20 +38,28 @@ export const VARIABLES_ACTUALIZACION = [
     defaultBase: 1468.9
   },
   {
+    id: "IPC",
+    label: "IPC (Inflación INDEC)",
+    short: "IPC",
+    descripcion: "Actualización por variación del Índice de Precios al Consumidor (INDEC).",
+    unidadIndice: "pts IPC",
+    defaultBase: 105.4
+  },
+  {
+    id: "HORMIGON",
+    label: "Hormigón Elaborado (H-21)",
+    short: "Hormigón",
+    descripcion: "Actualización por valor mensual de referencia del m³ de Hormigón Elaborado H-21 puesto en obra.",
+    unidadIndice: "$ / m³",
+    defaultBase: 193800
+  },
+  {
     id: "INDICE_LINK",
     label: "Índice Link Inversiones",
     short: "Índice Link",
     descripcion: "Ajuste por Índice Propietario Link Inversiones (valorización patrimonial mensual).",
     unidadIndice: "pts Link",
     defaultBase: 121.0
-  },
-  {
-    id: "IPC",
-    label: "IPC (Inflación INDEC)",
-    short: "IPC",
-    descripcion: "Actualización por variación del Índice de Precios al Consumidor (INDEC).",
-    unidadIndice: "pts / %",
-    defaultBase: 105.4
   },
   {
     id: "USD_TC",
@@ -78,6 +86,45 @@ export const VARIABLES_ACTUALIZACION = [
     defaultBase: 1
   }
 ];
+
+export const DEFAULT_INDICES_MENSUALES_CC = {
+  "2026-07": { CAC: 1344.2, IPC: 95.3,  HORMIGON: 174500, INDICE_LINK: 110.2, USD_TC: 1420 },
+  "2026-08": { CAC: 1376.5, IPC: 97.6,  HORMIGON: 179200, INDICE_LINK: 112.9, USD_TC: 1450 },
+  "2026-09": { CAC: 1408.8, IPC: 100.0, HORMIGON: 184500, INDICE_LINK: 115.6, USD_TC: 1480 },
+  "2026-10": { CAC: 1438.4, IPC: 102.7, HORMIGON: 189100, INDICE_LINK: 118.2, USD_TC: 1510 },
+  "2026-11": { CAC: 1468.9, IPC: 105.4, HORMIGON: 193800, INDICE_LINK: 121.0, USD_TC: 1550 },
+  "2026-12": { CAC: 1498.3, IPC: 108.0, HORMIGON: 198600, INDICE_LINK: 123.6, USD_TC: 1575 },
+  "2027-01": { CAC: 1528.0, IPC: 110.5, HORMIGON: 203500, INDICE_LINK: 126.2, USD_TC: 1600 },
+  "2027-02": { CAC: 1559.0, IPC: 112.9, HORMIGON: 208200, INDICE_LINK: 128.9, USD_TC: 1625 },
+  "2027-03": { CAC: 1591.0, IPC: 115.4, HORMIGON: 213400, INDICE_LINK: 131.6, USD_TC: 1650 },
+  "2027-04": { CAC: 1623.0, IPC: 117.9, HORMIGON: 218500, INDICE_LINK: 134.4, USD_TC: 1680 },
+  "2027-05": { CAC: 1656.0, IPC: 120.4, HORMIGON: 223800, INDICE_LINK: 137.2, USD_TC: 1710 },
+  "2027-06": { CAC: 1689.0, IPC: 123.0, HORMIGON: 229200, INDICE_LINK: 140.1, USD_TC: 1740 },
+  "2027-07": { CAC: 1723.0, IPC: 125.6, HORMIGON: 234500, INDICE_LINK: 143.0, USD_TC: 1770 },
+  "2027-08": { CAC: 1758.0, IPC: 128.2, HORMIGON: 239800, INDICE_LINK: 146.0, USD_TC: 1800 },
+  "2027-09": { CAC: 1793.0, IPC: 130.9, HORMIGON: 245300, INDICE_LINK: 149.1, USD_TC: 1830 },
+  "2027-10": { CAC: 1829.0, IPC: 133.6, HORMIGON: 250900, INDICE_LINK: 152.2, USD_TC: 1860 },
+  "2027-11": { CAC: 1866.0, IPC: 136.4, HORMIGON: 256700, INDICE_LINK: 155.4, USD_TC: 1890 },
+  "2027-12": { CAC: 1903.0, IPC: 139.3, HORMIGON: 262600, INDICE_LINK: 158.7, USD_TC: 1920 }
+};
+
+export function getVariableMeta(variableId) {
+  return VARIABLES_ACTUALIZACION.find(v => v.id === variableId) || VARIABLES_ACTUALIZACION[VARIABLES_ACTUALIZACION.length - 1];
+}
+
+export function getPeriodoAnterior(periodoYYYYMM) {
+  if (!periodoYYYYMM || periodoYYYYMM.length < 7) return "2026-10";
+  const [y, m] = periodoYYYYMM.split("-").map(Number);
+  if (isNaN(y) || isNaN(m)) return "2026-10";
+  const dt = new Date(Date.UTC(y, m - 2, 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+export function getDefaultIndiceValor(variableId, periodoYYYYMM = "2026-11") {
+  const row = DEFAULT_INDICES_MENSUALES_CC[periodoYYYYMM];
+  if (row && row[variableId] != null) return Number(row[variableId]);
+  return Number(getVariableMeta(variableId)?.defaultBase ?? 1);
+}
 
 export const MEDIOS_PAGO_CC = [
   "Transferencia Bancaria ARS",
@@ -139,27 +186,30 @@ export function sumarMesesFecha(fechaISO, mesesASumar) {
 
 /**
  * Calcula el coeficiente de ajuste y el importe actualizado de una cuota
- * según la variable de actualización pactada en la venta y el índice del período.
+ * según la variable asignada al cliente / operación y el valor de referencia mensual.
  */
-export function calcularCuotaConIndice(cuota, venta, indicePeriodoValor) {
+export function calcularCuotaConIndice(cuota, venta, indicePeriodoValor, cliente = null) {
   const impOrig = Number(cuota.importe_original || 0);
-  const variable = cuota.variable_actualizacion || venta?.variable_actualizacion || "SIN_AJUSTE";
-  const indiceBase = Number(cuota.indice_base ?? venta?.indice_base ?? 0);
+  const variable = cuota.variable_actualizacion || cliente?.variable_actualizacion || venta?.variable_actualizacion || "SIN_AJUSTE";
+  const metaVar = getVariableMeta(variable);
+  const indiceBase = Number(cuota.indice_base ?? cliente?.indice_base ?? venta?.indice_base ?? metaVar?.defaultBase ?? 0);
   const nroCuota = Number(cuota.nro_cuota || 0);
 
   if (nroCuota === 0 || variable === "SIN_AJUSTE") {
     return {
       coeficiente: 1,
+      indiceBase: indiceBase || 1,
       indiceAplicado: indiceBase || 1,
       importeActualizado: Math.round(impOrig * 100) / 100
     };
   }
 
   if (variable === "TASA_FIJA") {
-    const tasaMensual = Number(venta?.tasa_mensual_fija ?? indicePeriodoValor ?? indiceBase ?? 0);
+    const tasaMensual = Number(cliente?.tasa_mensual_fija ?? venta?.tasa_mensual_fija ?? indicePeriodoValor ?? indiceBase ?? 0);
     const coef = Math.pow(1 + Math.max(0, tasaMensual) / 100, Math.max(0, nroCuota));
     return {
       coeficiente: Number(coef.toFixed(6)),
+      indiceBase: tasaMensual,
       indiceAplicado: tasaMensual,
       importeActualizado: Math.round(impOrig * coef * 100) / 100
     };
@@ -170,6 +220,7 @@ export function calcularCuotaConIndice(cuota, venta, indicePeriodoValor) {
     const coef = indAct / indiceBase;
     return {
       coeficiente: Number(coef.toFixed(6)),
+      indiceBase,
       indiceAplicado: indAct,
       importeActualizado: Math.round(impOrig * coef * 100) / 100
     };
@@ -177,6 +228,7 @@ export function calcularCuotaConIndice(cuota, venta, indicePeriodoValor) {
 
   return {
     coeficiente: Number(cuota.coeficiente_ajuste || 1),
+    indiceBase: indiceBase || 1,
     indiceAplicado: Number(cuota.indice_aplicado || indiceBase || 0),
     importeActualizado: Math.round(impOrig * Number(cuota.coeficiente_ajuste || 1) * 100) / 100
   };
@@ -391,6 +443,10 @@ function construirCarteraReal() {
       saldoAVencer
     ] = row;
 
+    const esLink = (asignacion || "").includes("LINK");
+    const variableAct = esLink ? "INDICE_LINK" : "CAC";
+    const indiceBase = esLink ? 121.0 : 1468.9;
+
     const nombreNorm = clienteNombreRaw.trim().toUpperCase();
     let cliId = clientesMap[nombreNorm];
     if (!cliId) {
@@ -404,6 +460,10 @@ function construirCarteraReal() {
         telefono: "",
         domicilio: "",
         condicion_fiscal: "Consumidor Final",
+        variable_actualizacion: variableAct,
+        periodo_base: "2026-11",
+        indice_base: indiceBase,
+        tasa_mensual_fija: 0,
         observaciones: "Cliente cartera real al 30/11/2026.",
         created_at: "2026-11-01"
       });
@@ -415,10 +475,6 @@ function construirCarteraReal() {
     const vtoActISO = parseDMYtoISO(vtoActRaw) || "2026-11-10";
     const cobroAntISO = parseDMYtoISO(cobroAntRaw);
     const cobroActISO = parseDMYtoISO(cobroActRaw);
-
-    const esLink = (asignacion || "").includes("LINK");
-    const variableAct = esLink ? "INDICE_LINK" : "CAC";
-    const indiceBase = esLink ? 121.0 : 1468.9;
 
     // Total cartera pendiente + cobrado estimado del mes = contrato vigente registrado
     const cobradoMes = Math.max(0, Number(totalCobrar) - Number(saldoFinMes));

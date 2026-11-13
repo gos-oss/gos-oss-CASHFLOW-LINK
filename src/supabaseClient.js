@@ -62,6 +62,12 @@ const VIRTUAL_PLAN_TABLES = {
     idKey: 'id',
     localKey: 'cf_cc_cobranzas_v2',
   },
+  cc_indices: {
+    planId: 'cc_indices_v1',
+    arrayKey: 'indices',
+    idKey: 'periodo',
+    localKey: 'cf_cc_indices_periodo_v2',
+  },
 };
 
 function createVirtualPlanBuilder(tableConfig, client) {

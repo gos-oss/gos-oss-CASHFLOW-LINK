@@ -12,11 +12,15 @@ import {
   DEFAULT_CC_VENTAS,
   DEFAULT_CC_CUOTAS,
   DEFAULT_CC_COBRANZAS,
+  DEFAULT_INDICES_MENSUALES_CC,
   generarId,
   formatearPeriodoLabel,
   sumarMesesFecha,
   calcularCuotaConIndice,
-  generarPlanCuotasVenta
+  generarPlanCuotasVenta,
+  getVariableMeta,
+  getPeriodoAnterior,
+  getDefaultIndiceValor
 } from "./cuentasCorrientesData";
 import { DEFAULT_STOCK_UNITS, normalizarNombreProyecto } from "./stockData";
 import {
@@ -27,7 +31,7 @@ import {
   Users, FileText, Calculator, Wallet, BarChart3, Plus, Search,
   Download, CheckCircle2, Clock, AlertTriangle, Edit2, Trash2,
   X, Check, ChevronRight, Building2, DollarSign, Calendar,
-  Receipt, RefreshCw, Eye, RotateCcw, ArrowLeft, Sliders
+  Receipt, RefreshCw, Eye, RotateCcw, ArrowLeft, Sliders, ChevronDown, ChevronUp
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -35,14 +39,10 @@ const colorLineaSuave = "#DCE1E8";
 const colorLineaFuerte = "#C2CAD4";
 const colorTablaBg = "#F4F6F8";
 
-const LOCAL_INDICES_KEY = "cf_cc_indices_periodo_v1";
+const LOCAL_INDICES_KEY = "cf_cc_indices_periodo_v2";
+const OLD_LOCAL_INDICES_KEY = "cf_cc_indices_periodo_v1";
 
-const DEFAULT_INDICES_PERIODO = {
-  "2026-10": { CAC: 1438.4, INDICE_LINK: 118.2, IPC: 102.7, USD_TC: 1510 },
-  "2026-11": { CAC: 1468.9, INDICE_LINK: 121.0, IPC: 105.4, USD_TC: 1550 },
-  "2026-12": { CAC: 1498.3, INDICE_LINK: 123.6, IPC: 108.0, USD_TC: 1575 },
-  "2027-01": { CAC: 1528.0, INDICE_LINK: 126.2, IPC: 110.5, USD_TC: 1600 }
-};
+const DEFAULT_INDICES_PERIODO = DEFAULT_INDICES_MENSUALES_CC;
 
 export default function CuentasCorrientesTab({
   tcList = [],
@@ -75,13 +75,33 @@ export default function CuentasCorrientesTab({
   // Índices del ERP reales (para pre-cargar en devengamiento y nuevas ventas)
   const [erpCacGeneral, setErpCacGeneral] = useState(1468.9);
   const [erpIndiceLinkList, setErpIndiceLinkList] = useState([]);
+  const [erpH21List, setErpH21List] = useState([]);
 
   // Período activo para Devengamiento y Cobranza
   const [periodoActivo, setPeriodoActivo] = useState("2026-11");
   const [indicesPorPeriodo, setIndicesPorPeriodo] = useState(() => {
     try {
-      const raw = localStorage.getItem(LOCAL_INDICES_KEY);
-      if (raw) return { ...DEFAULT_INDICES_PERIODO, ...JSON.parse(raw) };
+      const rawV2 = localStorage.getItem(LOCAL_INDICES_KEY);
+      if (rawV2) {
+        const parsed = JSON.parse(rawV2);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const map = { ...DEFAULT_INDICES_PERIODO };
+          parsed.forEach(row => { if (row?.periodo) map[row.periodo] = { ...(map[row.periodo] || {}), ...row }; });
+          return map;
+        }
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const merged = { ...DEFAULT_INDICES_PERIODO };
+          Object.entries(parsed).forEach(([k, v]) => { merged[k] = { ...(merged[k] || {}), ...v }; });
+          return merged;
+        }
+      }
+      const rawV1 = localStorage.getItem(OLD_LOCAL_INDICES_KEY);
+      if (rawV1) {
+        const parsedV1 = JSON.parse(rawV1);
+        const merged = { ...DEFAULT_INDICES_PERIODO };
+        Object.entries(parsedV1 || {}).forEach(([k, v]) => { merged[k] = { ...(merged[k] || {}), ...v }; });
+        return merged;
+      }
     } catch {}
     return DEFAULT_INDICES_PERIODO;
   });
@@ -91,9 +111,14 @@ export default function CuentasCorrientesTab({
   const [filtroProyecto, setFiltroProyecto] = useState("TODOS");
   const [filtroAsignacion, setFiltroAsignacion] = useState("TODAS");
   const [filtroMorosidad, setFiltroMorosidad] = useState("TODAS");
+  const [filtroVariable, setFiltroVariable] = useState("TODAS");
   const [filtroEstadoCuota, setFiltroEstadoCuota] = useState("PENDIENTES"); // "PENDIENTES" | "DEVENGADAS" | "COBRADAS" | "TODAS"
   const [incluirAtrasadasDevengamiento, setIncluirAtrasadasDevengamiento] = useState(true);
   const [selectedCuotaIds, setSelectedCuotaIds] = useState([]);
+  const [selectedClienteIds, setSelectedClienteIds] = useState([]);
+  const [batchVariable, setBatchVariable] = useState("IPC");
+  const [batchPeriodoBase, setBatchPeriodoBase] = useState("2026-11");
+  const [mostrarTablaIndices, setMostrarTablaIndices] = useState(false);
   const [clienteDetalleId, setClienteDetalleId] = useState(null);
 
   // Modales
@@ -139,6 +164,10 @@ export default function CuentasCorrientesTab({
     telefono: "",
     domicilio: "",
     condicion_fiscal: "Consumidor Final",
+    variable_actualizacion: "CAC",
+    periodo_base: "2026-11",
+    indice_base: "1468.9",
+    tasa_mensual_fija: "2.5",
     observaciones: ""
   });
 
@@ -163,14 +192,16 @@ export default function CuentasCorrientesTab({
   const cargarTodo = useCallback(async () => {
     setLoading(true);
     try {
-      const [resCli, resVta, resCta, resCob, resStock, resCac, resLink] = await Promise.all([
+      const [resCli, resVta, resCta, resCob, resStock, resCac, resLink, resH21, resIndices] = await Promise.all([
         supabase.from("cc_clientes").select("*"),
         supabase.from("cc_ventas").select("*"),
         supabase.from("cc_cuotas").select("*"),
         supabase.from("cc_cobranzas").select("*"),
         supabase.from("stock_units").select("*"),
         supabase.from("cf_cac_indicadores").select("*"),
-        supabase.from("cf_indice_link").select("*").order("id_mes", { ascending: true })
+        supabase.from("cf_indice_link").select("*").order("id_mes", { ascending: true }),
+        supabase.from("cf_h21_precios").select("*").order("id_mes", { ascending: true }),
+        supabase.from("cc_indices").select("*")
       ]);
 
       let cliData = resCli.data || [];
@@ -192,6 +223,24 @@ export default function CuentasCorrientesTab({
         ]);
       }
 
+      // Normalizar variable de actualización en clientes cargados previamente si no la tuvieran
+      const vtaPorCli = {};
+      vtaData.forEach(v => {
+        if (!vtaPorCli[v.cliente_id]) vtaPorCli[v.cliente_id] = v;
+      });
+      cliData = cliData.map(c => {
+        if (c.variable_actualizacion) return c;
+        const vtaRef = vtaPorCli[c.id];
+        const varEf = vtaRef?.variable_actualizacion || "CAC";
+        return {
+          ...c,
+          variable_actualizacion: varEf,
+          periodo_base: c.periodo_base || "2026-11",
+          indice_base: c.indice_base ?? vtaRef?.indice_base ?? getDefaultIndiceValor(varEf, "2026-11"),
+          tasa_mensual_fija: c.tasa_mensual_fija ?? vtaRef?.tasa_mensual_fija ?? 0
+        };
+      });
+
       setClientes(cliData);
       setVentas(vtaData);
       setCuotas(ctaData);
@@ -211,6 +260,22 @@ export default function CuentasCorrientesTab({
       if (resLink.data && resLink.data.length > 0) {
         setErpIndiceLinkList(resLink.data);
       }
+
+      if (resH21.data && resH21.data.length > 0) {
+        setErpH21List(resH21.data);
+      }
+
+      if (resIndices.data && resIndices.data.length > 0) {
+        setIndicesPorPeriodo(prev => {
+          const next = { ...DEFAULT_INDICES_PERIODO, ...prev };
+          resIndices.data.forEach(row => {
+            if (row?.periodo) {
+              next[row.periodo] = { ...(next[row.periodo] || {}), ...row };
+            }
+          });
+          return next;
+        });
+      }
     } catch (err) {
       console.error("Error cargando Cuentas Corrientes:", err);
     } finally {
@@ -222,12 +287,22 @@ export default function CuentasCorrientesTab({
     cargarTodo();
   }, [cargarTodo]);
 
-  // Persistir índices por período localmente
-  useEffect(() => {
+  // Persistir índices por período en Supabase + localStorage
+  const persistirIndicesPeriodo = useCallback(async (mapaIndices) => {
+    const rows = Object.entries(mapaIndices).map(([periodo, vals]) => ({
+      periodo,
+      CAC: Number(vals.CAC ?? getDefaultIndiceValor("CAC", periodo)),
+      IPC: Number(vals.IPC ?? getDefaultIndiceValor("IPC", periodo)),
+      HORMIGON: Number(vals.HORMIGON ?? getDefaultIndiceValor("HORMIGON", periodo)),
+      INDICE_LINK: Number(vals.INDICE_LINK ?? getDefaultIndiceValor("INDICE_LINK", periodo)),
+      USD_TC: Number(vals.USD_TC ?? getDefaultIndiceValor("USD_TC", periodo))
+    }));
     try {
-      localStorage.setItem(LOCAL_INDICES_KEY, JSON.stringify(indicesPorPeriodo));
-    } catch {}
-  }, [indicesPorPeriodo]);
+      await supabase.from("cc_indices").setAll(rows);
+    } catch (e) {
+      console.warn("No se pudieron sincronizar índices mensuales:", e);
+    }
+  }, []);
 
   // Helpers de conversión monetaria
   const aMonedaVista = useCallback((monto, monedaOrigen = "ARS") => {
@@ -265,30 +340,75 @@ export default function CuentasCorrientesTab({
     return m;
   }, [ventas]);
 
-  // Índices efectivos para el período seleccionado (mezcla valores guardados con reales del ERP)
-  const indicesMesActivo = useMemo(() => {
-    const stored = indicesPorPeriodo[periodoActivo] || {};
-    const linkDelMes = erpIndiceLinkList.find(item => item.id_mes === periodoActivo);
-    const ultimoLink = erpIndiceLinkList.length > 0 ? erpIndiceLinkList[erpIndiceLinkList.length - 1] : null;
-    const linkVal = Number(linkDelMes?.indice || ultimoLink?.indice || 121.0);
+  // Obtener valor de referencia mensual de cualquier variable (IPC, CAC, Hormigón, Link, USD)
+  const obtenerValorReferenciaMes = useCallback((variableId, periodo = periodoActivo) => {
+    if (variableId === "SIN_AJUSTE") return 1;
+    if (variableId === "TASA_FIJA") return 2.5;
+    const stored = indicesPorPeriodo[periodo] || {};
+    if (stored[variableId] != null && Number(stored[variableId]) > 0) {
+      return Number(stored[variableId]);
+    }
+    if (variableId === "INDICE_LINK") {
+      const linkDelMes = erpIndiceLinkList.find(item => item.id_mes === periodo);
+      if (linkDelMes?.indice > 0) return Number(linkDelMes.indice);
+    }
+    if (variableId === "HORMIGON") {
+      const h21Mes = erpH21List.find(item => item.id_mes === periodo);
+      if (h21Mes?.valor > 0) return Number(h21Mes.valor);
+    }
+    return getDefaultIndiceValor(variableId, periodo);
+  }, [indicesPorPeriodo, periodoActivo, erpIndiceLinkList, erpH21List]);
 
-    return {
-      CAC: stored.CAC ?? erpCacGeneral ?? 1468.9,
-      INDICE_LINK: stored.INDICE_LINK ?? linkVal ?? 121.0,
-      IPC: stored.IPC ?? 105.4,
-      USD_TC: stored.USD_TC ?? tcActualSistema ?? 1550
-    };
-  }, [indicesPorPeriodo, periodoActivo, erpCacGeneral, erpIndiceLinkList, tcActualSistema]);
+  // Índices efectivos para el período seleccionado y el período inmediatamente anterior
+  const periodoAnteriorActivo = useMemo(() => getPeriodoAnterior(periodoActivo), [periodoActivo]);
 
-  const actualizarIndiceMes = (varKey, nuevoVal) => {
-    setIndicesPorPeriodo(prev => ({
-      ...prev,
-      [periodoActivo]: {
-        ...indicesMesActivo,
-        ...(prev[periodoActivo] || {}),
-        [varKey]: Number(nuevoVal) || 0
-      }
-    }));
+  const indicesMesActivo = useMemo(() => ({
+    CAC: obtenerValorReferenciaMes("CAC", periodoActivo),
+    IPC: obtenerValorReferenciaMes("IPC", periodoActivo),
+    HORMIGON: obtenerValorReferenciaMes("HORMIGON", periodoActivo),
+    INDICE_LINK: obtenerValorReferenciaMes("INDICE_LINK", periodoActivo),
+    USD_TC: obtenerValorReferenciaMes("USD_TC", periodoActivo)
+  }), [obtenerValorReferenciaMes, periodoActivo]);
+
+  const indicesMesAnterior = useMemo(() => ({
+    CAC: obtenerValorReferenciaMes("CAC", periodoAnteriorActivo),
+    IPC: obtenerValorReferenciaMes("IPC", periodoAnteriorActivo),
+    HORMIGON: obtenerValorReferenciaMes("HORMIGON", periodoAnteriorActivo),
+    INDICE_LINK: obtenerValorReferenciaMes("INDICE_LINK", periodoAnteriorActivo),
+    USD_TC: obtenerValorReferenciaMes("USD_TC", periodoAnteriorActivo)
+  }), [obtenerValorReferenciaMes, periodoAnteriorActivo]);
+
+  const actualizarIndiceMes = (varKey, nuevoVal, targetPeriodo = periodoActivo) => {
+    setIndicesPorPeriodo(prev => {
+      const currentRow = prev[targetPeriodo] || DEFAULT_INDICES_PERIODO[targetPeriodo] || {};
+      const nextMap = {
+        ...prev,
+        [targetPeriodo]: {
+          CAC: obtenerValorReferenciaMes("CAC", targetPeriodo),
+          IPC: obtenerValorReferenciaMes("IPC", targetPeriodo),
+          HORMIGON: obtenerValorReferenciaMes("HORMIGON", targetPeriodo),
+          INDICE_LINK: obtenerValorReferenciaMes("INDICE_LINK", targetPeriodo),
+          USD_TC: obtenerValorReferenciaMes("USD_TC", targetPeriodo),
+          ...currentRow,
+          periodo: targetPeriodo,
+          [varKey]: Number(nuevoVal) || 0
+        }
+      };
+      persistirIndicesPeriodo(nextMap);
+      return nextMap;
+    });
+  };
+
+  const aplicarVariacionPctMes = (varKey, pctVar, targetPeriodo = periodoActivo) => {
+    const prevPer = getPeriodoAnterior(targetPeriodo);
+    const valAnt = obtenerValorReferenciaMes(varKey, prevPer);
+    const pct = Number(pctVar);
+    if (isNaN(pct) || valAnt <= 0) return;
+    const nuevoVal = varKey === "HORMIGON" || varKey === "USD_TC"
+      ? Math.round(valAnt * (1 + pct / 100))
+      : Number((valAnt * (1 + pct / 100)).toFixed(2));
+    actualizarIndiceMes(varKey, nuevoVal, targetPeriodo);
+    showToast(`${getVariableMeta(varKey).short} actualizado (${pct >= 0 ? "+" : ""}${pct}% respecto a ${formatearPeriodoLabel(prevPer)}).`);
   };
 
   // Proyectos disponibles dinámicamente desde cartera
@@ -478,7 +598,7 @@ export default function CuentasCorrientesTab({
     return map;
   }, [cuotas]);
 
-  // Enriquecer clientes con métricas de su cuenta corriente
+  // Enriquecer clientes con métricas de su cuenta corriente y variable asignada
   const clientesEnriquecidos = useMemo(() => {
     return clientes.map(cli => {
       const ventasCli = ventasPorClienteMap[cli.id] || [];
@@ -490,6 +610,12 @@ export default function CuentasCorrientesTab({
       const cuotasPend = cuotasCli.filter(c => c.saldo_pendiente > 0.5).length;
       const cuotasDev = cuotasCli.filter(c => c.devengado && c.saldo_pendiente > 0.5).length;
       const segmentaciones = Array.from(new Set(ventasCli.map(v => v.segmentacion).filter(Boolean)));
+      const variableEfectiva = cli.variable_actualizacion || ventasCli[0]?.variable_actualizacion || "CAC";
+      const periodoBaseEfectivo = cli.periodo_base || "2026-11";
+      const indiceBaseEfectivo = Number(
+        cli.indice_base ?? ventasCli[0]?.indice_base ?? obtenerValorReferenciaMes(variableEfectiva, periodoBaseEfectivo)
+      );
+      const tasaFijaEfectiva = Number(cli.tasa_mensual_fija ?? ventasCli[0]?.tasa_mensual_fija ?? 0);
 
       return {
         ...cli,
@@ -501,12 +627,17 @@ export default function CuentasCorrientesTab({
         totalCobrarMesVista,
         cuotasPend,
         cuotasDev,
-        segmentaciones
+        segmentaciones,
+        variableEfectiva,
+        periodoBaseEfectivo,
+        indiceBaseEfectivo,
+        tasaFijaEfectiva
       };
     }).filter(cli => {
       if (filtroProyecto !== "TODOS" && !cli.ventasCli.some(v => v.proyecto === filtroProyecto)) return false;
       if (filtroAsignacion !== "TODAS" && !cli.ventasCli.some(v => v.asignacion === filtroAsignacion)) return false;
       if (filtroMorosidad !== "TODAS" && !cli.ventasCli.some(v => v.segmentacion === filtroMorosidad)) return false;
+      if (filtroVariable !== "TODAS" && cli.variableEfectiva !== filtroVariable) return false;
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -520,7 +651,7 @@ export default function CuentasCorrientesTab({
         )
       );
     });
-  }, [clientes, ventasPorClienteMap, cuotasPorClienteMap, filtroProyecto, filtroAsignacion, filtroMorosidad, searchQuery, aMonedaVista]);
+  }, [clientes, ventasPorClienteMap, cuotasPorClienteMap, filtroProyecto, filtroAsignacion, filtroMorosidad, filtroVariable, searchQuery, aMonedaVista, obtenerValorReferenciaMes]);
 
   // Ventas filtradas para la pestaña Ventas y Planes
   const ventasFiltradas = useMemo(() => {
@@ -602,17 +733,29 @@ export default function CuentasCorrientesTab({
   };
 
   const handleCambioVariableVenta = (varId) => {
-    let baseSugerida = "1";
-    if (varId === "CAC") baseSugerida = String(indicesMesActivo.CAC || erpCacGeneral || 1468.9);
-    else if (varId === "INDICE_LINK") baseSugerida = String(indicesMesActivo.INDICE_LINK || 121.0);
-    else if (varId === "IPC") baseSugerida = String(indicesMesActivo.IPC || 105.4);
-    else if (varId === "USD_TC") baseSugerida = String(indicesMesActivo.USD_TC || tcActualSistema || 1550);
-    else if (varId === "TASA_FIJA") baseSugerida = ventaForm.tasa_mensual_fija || "2.5";
+    const periodoBaseVta = (ventaForm.fecha_venta || periodoActivo || "2026-11").slice(0, 7);
+    const baseSugerida = varId === "TASA_FIJA"
+      ? (ventaForm.tasa_mensual_fija || "2.5")
+      : String(obtenerValorReferenciaMes(varId, periodoBaseVta));
 
     setVentaForm(prev => ({
       ...prev,
       variable_actualizacion: varId,
       indice_base: baseSugerida
+    }));
+  };
+
+  const handleSeleccionarClienteExistenteEnVenta = (clienteId) => {
+    const cli = clientes.find(c => c.id === clienteId);
+    const varCli = cli?.variable_actualizacion || ventaForm.variable_actualizacion || "CAC";
+    const perBase = cli?.periodo_base || (ventaForm.fecha_venta || periodoActivo).slice(0, 7);
+    const indBase = cli?.indice_base ?? obtenerValorReferenciaMes(varCli, perBase);
+    setVentaForm(prev => ({
+      ...prev,
+      cliente_id: clienteId,
+      variable_actualizacion: varCli,
+      indice_base: String(indBase),
+      tasa_mensual_fija: cli?.tasa_mensual_fija != null ? String(cli.tasa_mensual_fija) : prev.tasa_mensual_fija
     }));
   };
 
@@ -640,9 +783,10 @@ export default function CuentasCorrientesTab({
     let clienteIdFinal = ventaForm.cliente_id;
     let nuevosClientes = [...clientes];
 
-    // 1. Si es cliente nuevo, generarlo automáticamente a partir de la venta
+    // 1. Si es cliente nuevo, generarlo automáticamente a partir de la venta (con su variable asignada)
     if (ventaForm.modoCliente === "nuevo") {
       if (!ventaForm.cli_nombre.trim()) return alert("Ingresá el Nombre o Razón Social del cliente.");
+      const periodoBaseVta = (ventaForm.fecha_venta || periodoActivo || "2026-11").slice(0, 7);
       const nuevoCli = {
         id: generarId("cli"),
         nombre: ventaForm.cli_nombre.trim(),
@@ -651,6 +795,10 @@ export default function CuentasCorrientesTab({
         telefono: ventaForm.cli_telefono.trim(),
         domicilio: ventaForm.cli_domicilio.trim(),
         condicion_fiscal: ventaForm.cli_condicion_fiscal,
+        variable_actualizacion: ventaForm.variable_actualizacion,
+        periodo_base: periodoBaseVta,
+        indice_base: Number(ventaForm.indice_base || 1),
+        tasa_mensual_fija: ventaForm.variable_actualizacion === "TASA_FIJA" ? Number(ventaForm.tasa_mensual_fija || 0) : 0,
         observaciones: ventaForm.cli_observaciones.trim(),
         created_at: ventaForm.fecha_venta || new Date().toISOString().slice(0, 10)
       };
@@ -745,11 +893,110 @@ export default function CuentasCorrientesTab({
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ACCIÓN 2: CRUD DE CLIENTES
+  // ACCIÓN 2: CRUD DE CLIENTES Y ASIGNACIÓN DE VARIABLE DE ACTUALIZACIÓN
   // ═══════════════════════════════════════════════════════════════════════════
+  const aplicarVariableAClientes = async (clienteIds, nuevaVariable, options = {}) => {
+    const idsSet = new Set(Array.isArray(clienteIds) ? clienteIds : [clienteIds]);
+    if (idsSet.size === 0) return;
+
+    const periodoBaseTarget = options.periodo_base || periodoActivo || "2026-11";
+    const baseAuto = obtenerValorReferenciaMes(nuevaVariable, periodoBaseTarget);
+    const indiceBaseFinal = options.indice_base != null && Number(options.indice_base) > 0
+      ? Number(options.indice_base)
+      : baseAuto;
+    const tasaFijaFinal = nuevaVariable === "TASA_FIJA"
+      ? Number(options.tasa_mensual_fija ?? 2.5)
+      : 0;
+
+    const nextClientes = clientes.map(c => {
+      if (!idsSet.has(c.id)) return c;
+      return {
+        ...c,
+        variable_actualizacion: nuevaVariable,
+        periodo_base: periodoBaseTarget,
+        indice_base: indiceBaseFinal,
+        tasa_mensual_fija: tasaFijaFinal
+      };
+    });
+
+    const nextVentas = ventas.map(v => {
+      if (!idsSet.has(v.cliente_id)) return v;
+      return {
+        ...v,
+        variable_actualizacion: nuevaVariable,
+        indice_base: indiceBaseFinal,
+        tasa_mensual_fija: tasaFijaFinal
+      };
+    });
+
+    const nextCuotas = cuotas.map(cta => {
+      if (!idsSet.has(cta.cliente_id) || cta.nro_cuota === 0) return cta;
+      // No alterar cuotas ya cobradas total o parcialmente
+      if (Number(cta.monto_cobrado || 0) > 0) return cta;
+
+      const updatedBaseCuota = {
+        ...cta,
+        variable_actualizacion: nuevaVariable,
+        indice_base: indiceBaseFinal
+      };
+
+      // Si ya estaba devengada (y sin cobros) y piden recalcular o viene de cambio en vivo, actualizar su cálculo
+      if (cta.devengado && options.recalcularDevengadas) {
+        const valorMesCuota = nuevaVariable === "TASA_FIJA"
+          ? tasaFijaFinal
+          : obtenerValorReferenciaMes(nuevaVariable, cta.periodo || periodoActivo);
+        const calc = calcularCuotaConIndice(updatedBaseCuota, { tasa_mensual_fija: tasaFijaFinal }, valorMesCuota);
+        return {
+          ...updatedBaseCuota,
+          indice_aplicado: calc.indiceAplicado,
+          coeficiente_ajuste: calc.coeficiente,
+          importe_actualizado: calc.importeActualizado,
+          saldo_pendiente: calc.importeActualizado
+        };
+      }
+
+      if (!cta.devengado) {
+        const esTasa = nuevaVariable === "TASA_FIJA";
+        const coef = esTasa ? Math.pow(1 + Math.max(0, tasaFijaFinal) / 100, Math.max(0, cta.nro_cuota)) : 1;
+        const impAct = Math.round(Number(cta.importe_original || 0) * coef * 100) / 100;
+        return {
+          ...updatedBaseCuota,
+          indice_aplicado: esTasa ? tasaFijaFinal : indiceBaseFinal,
+          coeficiente_ajuste: Number(coef.toFixed(6)),
+          importe_actualizado: impAct,
+          saldo_pendiente: impAct
+        };
+      }
+
+      return updatedBaseCuota;
+    });
+
+    setClientes(nextClientes);
+    setVentas(nextVentas);
+    setCuotas(nextCuotas);
+
+    await Promise.all([
+      supabase.from("cc_clientes").setAll(nextClientes),
+      supabase.from("cc_ventas").setAll(nextVentas),
+      supabase.from("cc_cuotas").setAll(nextCuotas)
+    ]);
+
+    const varMeta = getVariableMeta(nuevaVariable);
+    if (!options.silent) {
+      showToast(
+        idsSet.size === 1
+          ? `Variable ${varMeta.short} (base ${indiceBaseFinal}) asignada al cliente y sus cuotas pendientes.`
+          : `Variable ${varMeta.short} asignada a ${idsSet.size} clientes.`
+      );
+    }
+  };
+
   const abrirModalCliente = (cli = null) => {
     setEditingCliente(cli);
     if (cli) {
+      const varEf = cli.variable_actualizacion || cli.variableEfectiva || "CAC";
+      const perBase = cli.periodo_base || cli.periodoBaseEfectivo || "2026-11";
+      const indBase = cli.indice_base ?? cli.indiceBaseEfectivo ?? obtenerValorReferenciaMes(varEf, perBase);
       setClienteForm({
         nombre: cli.nombre || "",
         dni_cuit: cli.dni_cuit || "",
@@ -757,6 +1004,10 @@ export default function CuentasCorrientesTab({
         telefono: cli.telefono || "",
         domicilio: cli.domicilio || "",
         condicion_fiscal: cli.condicion_fiscal || "Consumidor Final",
+        variable_actualizacion: varEf,
+        periodo_base: perBase,
+        indice_base: String(indBase),
+        tasa_mensual_fija: String(cli.tasa_mensual_fija ?? cli.tasaFijaEfectiva ?? 2.5),
         observaciones: cli.observaciones || ""
       });
     } else {
@@ -767,6 +1018,10 @@ export default function CuentasCorrientesTab({
         telefono: "",
         domicilio: "",
         condicion_fiscal: "Consumidor Final",
+        variable_actualizacion: "CAC",
+        periodo_base: periodoActivo || "2026-11",
+        indice_base: String(obtenerValorReferenciaMes("CAC", periodoActivo || "2026-11")),
+        tasa_mensual_fija: "2.5",
         observaciones: ""
       });
     }
@@ -776,26 +1031,91 @@ export default function CuentasCorrientesTab({
   const handleGuardarCliente = async (e) => {
     e.preventDefault();
     if (!clienteForm.nombre.trim()) return alert("El nombre o razón social es obligatorio.");
-    let nextClientes;
+    const varAct = clienteForm.variable_actualizacion || "CAC";
+    const perBase = clienteForm.periodo_base || periodoActivo || "2026-11";
+    const indBase = Number(clienteForm.indice_base || obtenerValorReferenciaMes(varAct, perBase) || 1);
+    const tasaFija = varAct === "TASA_FIJA" ? Number(clienteForm.tasa_mensual_fija || 0) : 0;
+
     if (editingCliente) {
-      nextClientes = clientes.map(c => c.id === editingCliente.id ? { ...c, ...clienteForm, nombre: clienteForm.nombre.trim() } : c);
+      const nextClientes = clientes.map(c =>
+        c.id === editingCliente.id
+          ? {
+              ...c,
+              ...clienteForm,
+              nombre: clienteForm.nombre.trim(),
+              variable_actualizacion: varAct,
+              periodo_base: perBase,
+              indice_base: indBase,
+              tasa_mensual_fija: tasaFija
+            }
+          : c
+      );
+      setClientes(nextClientes);
+      // Propagar variable e índice base a operaciones y cuotas pendientes del cliente
+      const nextVentas = ventas.map(v =>
+        v.cliente_id === editingCliente.id
+          ? { ...v, variable_actualizacion: varAct, indice_base: indBase, tasa_mensual_fija: tasaFija }
+          : v
+      );
+      const nextCuotas = cuotas.map(cta => {
+        if (cta.cliente_id !== editingCliente.id || cta.nro_cuota === 0 || Number(cta.monto_cobrado || 0) > 0) return cta;
+        const baseCta = {
+          ...cta,
+          variable_actualizacion: varAct,
+          indice_base: indBase
+        };
+        if (cta.devengado) {
+          const valMes = varAct === "TASA_FIJA" ? tasaFija : obtenerValorReferenciaMes(varAct, cta.periodo || periodoActivo);
+          const calc = calcularCuotaConIndice(baseCta, { tasa_mensual_fija: tasaFija }, valMes);
+          return {
+            ...baseCta,
+            indice_aplicado: calc.indiceAplicado,
+            coeficiente_ajuste: calc.coeficiente,
+            importe_actualizado: calc.importeActualizado,
+            saldo_pendiente: calc.importeActualizado
+          };
+        }
+        const esTasa = varAct === "TASA_FIJA";
+        const coef = esTasa ? Math.pow(1 + Math.max(0, tasaFija) / 100, Math.max(0, cta.nro_cuota)) : 1;
+        const impAct = Math.round(Number(cta.importe_original || 0) * coef * 100) / 100;
+        return {
+          ...baseCta,
+          indice_aplicado: esTasa ? tasaFija : indBase,
+          coeficiente_ajuste: Number(coef.toFixed(6)),
+          importe_actualizado: impAct,
+          saldo_pendiente: impAct
+        };
+      });
+      setVentas(nextVentas);
+      setCuotas(nextCuotas);
+      await Promise.all([
+        supabase.from("cc_clientes").setAll(nextClientes),
+        supabase.from("cc_ventas").setAll(nextVentas),
+        supabase.from("cc_cuotas").setAll(nextCuotas)
+      ]);
+      setModalClienteOpen(false);
+      showToast(`Cliente actualizado con variable ${getVariableMeta(varAct).short}.`);
     } else {
       const nuevo = {
         id: generarId("cli"),
         ...clienteForm,
         nombre: clienteForm.nombre.trim(),
+        variable_actualizacion: varAct,
+        periodo_base: perBase,
+        indice_base: indBase,
+        tasa_mensual_fija: tasaFija,
         created_at: new Date().toISOString().slice(0, 10)
       };
-      nextClientes = [nuevo, ...clientes];
+      const nextClientes = [nuevo, ...clientes];
+      setClientes(nextClientes);
+      await supabase.from("cc_clientes").setAll(nextClientes);
+      setModalClienteOpen(false);
+      showToast(`Nuevo cliente guardado (${getVariableMeta(varAct).short}).`);
     }
-    setClientes(nextClientes);
-    await supabase.from("cc_clientes").setAll(nextClientes);
-    setModalClienteOpen(false);
-    showToast(editingCliente ? "Datos del cliente actualizados." : "Nuevo cliente guardado en padrón.");
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ACCIÓN 3: MOTOR DE DEVENGAMIENTO MENSUAL
+  // ACCIÓN 3: MOTOR DE DEVENGAMIENTO MENSUAL (IPC · CAC · HORMIGÓN · LINK · USD)
   // ═══════════════════════════════════════════════════════════════════════════
   const cuotasParaDevengar = useMemo(() => {
     return cuotas
@@ -804,6 +1124,9 @@ export default function CuentasCorrientesTab({
         const venta = ventasMap[c.venta_id];
         if (!venta || venta.estado === "Rescindida") return false;
         if (filtroProyecto !== "TODOS" && venta.proyecto !== filtroProyecto) return false;
+        const cliente = clientesMap[c.cliente_id];
+        const varFiltro = c.variable_actualizacion || cliente?.variable_actualizacion || venta?.variable_actualizacion || "SIN_AJUSTE";
+        if (filtroVariable !== "TODAS" && varFiltro !== filtroVariable) return false;
         if (incluirAtrasadasDevengamiento) {
           return c.periodo === periodoActivo || (c.periodo < periodoActivo && !c.devengado);
         }
@@ -812,26 +1135,53 @@ export default function CuentasCorrientesTab({
       .map(c => {
         const venta = ventasMap[c.venta_id];
         const cliente = clientesMap[c.cliente_id];
-        const variable = c.variable_actualizacion || venta?.variable_actualizacion || "SIN_AJUSTE";
+        const variable = c.variable_actualizacion || cliente?.variable_actualizacion || venta?.variable_actualizacion || "SIN_AJUSTE";
         const valorIndicePeriodo =
           variable === "TASA_FIJA"
-            ? Number(venta?.tasa_mensual_fija || 0)
-            : Number(indicesMesActivo[variable] ?? 1);
+            ? Number(cliente?.tasa_mensual_fija ?? venta?.tasa_mensual_fija ?? 0)
+            : obtenerValorReferenciaMes(variable, periodoActivo);
 
-        const calculo = calcularCuotaConIndice(c, venta, valorIndicePeriodo);
+        const calculo = calcularCuotaConIndice(c, venta, valorIndicePeriodo, cliente);
         return {
           cuota: c,
           venta,
           cliente,
           variable,
           valorIndicePeriodo,
+          indiceBaseEfectivo: calculo.indiceBase,
           previewCoef: calculo.coeficiente,
           previewImporte: calculo.importeActualizado,
           diferenciaAjuste: calculo.importeActualizado - Number(c.importe_original || 0)
         };
       })
       .sort((a, b) => (a.cuota.fecha_vencimiento || "").localeCompare(b.cuota.fecha_vencimiento || ""));
-  }, [cuotas, ventasMap, clientesMap, periodoActivo, filtroProyecto, incluirAtrasadasDevengamiento, indicesMesActivo]);
+  }, [cuotas, ventasMap, clientesMap, periodoActivo, filtroProyecto, filtroVariable, incluirAtrasadasDevengamiento, obtenerValorReferenciaMes]);
+
+  // Resumen por variable en la vista de Devengamiento Mensual
+  const resumenVariablesDevengamiento = useMemo(() => {
+    const map = {};
+    let totalBase = 0;
+    let totalActualizado = 0;
+    cuotasParaDevengar.forEach(item => {
+      const vKey = item.variable;
+      if (!map[vKey]) {
+        map[vKey] = { id: vKey, meta: getVariableMeta(vKey), count: 0, base: 0, actualizado: 0 };
+      }
+      const impBase = Number(item.cuota.importe_original || 0);
+      const impAct = item.cuota.devengado ? Number(item.cuota.importe_actualizado || 0) : item.previewImporte;
+      map[vKey].count += 1;
+      map[vKey].base += impBase;
+      map[vKey].actualizado += impAct;
+      totalBase += impBase;
+      totalActualizado += impAct;
+    });
+    return {
+      porVariable: Object.values(map).sort((a, b) => b.actualizado - a.actualizado),
+      totalBase,
+      totalActualizado,
+      ajusteTotal: totalActualizado - totalBase
+    };
+  }, [cuotasParaDevengar]);
 
   const handleDevengarCuotas = async (cuotasIdsADevengar) => {
     if (!cuotasIdsADevengar || cuotasIdsADevengar.length === 0) return;
@@ -842,13 +1192,14 @@ export default function CuentasCorrientesTab({
     const nextCuotas = cuotas.map(c => {
       if (!setIds.has(c.id)) return c;
       const venta = ventasMap[c.venta_id];
-      const variable = c.variable_actualizacion || venta?.variable_actualizacion || "SIN_AJUSTE";
+      const cliente = clientesMap[c.cliente_id];
+      const variable = c.variable_actualizacion || cliente?.variable_actualizacion || venta?.variable_actualizacion || "SIN_AJUSTE";
       const valorIndicePeriodo =
         variable === "TASA_FIJA"
-          ? Number(venta?.tasa_mensual_fija || 0)
-          : Number(indicesMesActivo[variable] ?? 1);
+          ? Number(cliente?.tasa_mensual_fija ?? venta?.tasa_mensual_fija ?? 0)
+          : obtenerValorReferenciaMes(variable, periodoActivo);
 
-      const calc = calcularCuotaConIndice(c, venta, valorIndicePeriodo);
+      const calc = calcularCuotaConIndice(c, venta, valorIndicePeriodo, cliente);
       const cobrado = Number(c.monto_cobrado || 0);
       const nuevoSaldo = Math.max(0, Math.round((calc.importeActualizado - cobrado) * 100) / 100);
       const nuevoEstado = nuevoSaldo <= 0.5 ? "Cobrada" : cobrado > 0 ? "Cobrada Parcial" : "Devengada";
@@ -856,6 +1207,8 @@ export default function CuentasCorrientesTab({
 
       return {
         ...c,
+        variable_actualizacion: variable,
+        indice_base: calc.indiceBase,
         indice_aplicado: calc.indiceAplicado,
         coeficiente_ajuste: calc.coeficiente,
         importe_actualizado: calc.importeActualizado,
@@ -869,7 +1222,7 @@ export default function CuentasCorrientesTab({
     setCuotas(nextCuotas);
     setSelectedCuotaIds([]);
     await supabase.from("cc_cuotas").setAll(nextCuotas);
-    showToast(`Devengamiento generado correctamente para ${count} ${count === 1 ? "cuota" : "cuotas"} (${formatearPeriodoLabel(periodoActivo)}).`);
+    showToast(`Devengamiento actualizado para ${count} ${count === 1 ? "cuota" : "cuotas"} (${formatearPeriodoLabel(periodoActivo)}).`);
   };
 
   const handleRevertirDevengamiento = async (cuota) => {
@@ -1687,6 +2040,15 @@ export default function CuentasCorrientesTab({
                 {SEGMENTACIONES_MOROSIDAD.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
 
+              <select
+                value={filtroVariable}
+                onChange={(e) => setFiltroVariable(e.target.value)}
+                style={{ padding: "8px 10px", borderRadius: 7, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
+              >
+                <option value="TODAS">Todas las variables</option>
+                {VARIABLES_ACTUALIZACION.map(va => <option key={va.id} value={va.id}>{va.short}</option>)}
+              </select>
+
               <button
                 onClick={() => abrirModalCliente(null)}
                 style={{
@@ -1708,6 +2070,79 @@ export default function CuentasCorrientesTab({
             </div>
           </div>
 
+          {selectedClienteIds.length > 0 && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 10,
+              padding: "10px 14px",
+              marginBottom: 14,
+              borderRadius: 8,
+              background: colorTablaBg,
+              border: `1px solid ${colorLineaFuerte}`
+            }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: tokens.ink, display: "flex", alignItems: "center", gap: 8 }}>
+                <Sliders size={14} />
+                <span>{selectedClienteIds.length} {selectedClienteIds.length === 1 ? "cliente seleccionado" : "clientes seleccionados"} — Asignar variable de actualización:</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <select
+                  value={batchVariable}
+                  onChange={(e) => setBatchVariable(e.target.value)}
+                  style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, fontWeight: 600, background: "#FFFFFF" }}
+                >
+                  {VARIABLES_ACTUALIZACION.map(va => <option key={va.id} value={va.id}>{va.label}</option>)}
+                </select>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontSize: 11.5, color: tokens.textMuted }}>Mes Base:</span>
+                  <input
+                    type="month"
+                    value={batchPeriodoBase}
+                    onChange={(e) => setBatchPeriodoBase(e.target.value)}
+                    style={{ padding: "5px 8px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    await aplicarVariableAClientes(selectedClienteIds, batchVariable, {
+                      periodo_base: batchPeriodoBase,
+                      recalcularDevengadas: true
+                    });
+                    setSelectedClienteIds([]);
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: tokens.ink,
+                    color: "#FFFFFF",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Aplicar Variable
+                </button>
+                <button
+                  onClick={() => setSelectedClienteIds([])}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    background: "#FFFFFF",
+                    color: tokens.textMuted,
+                    fontSize: 12,
+                    cursor: "pointer"
+                  }}
+                >
+                  Limpiar
+                </button>
+              </div>
+            </div>
+          )}
+
           {clientesEnriquecidos.length === 0 ? (
             <div style={{ padding: 48, textAlign: "center", color: tokens.textMuted }}>
               No se encontraron clientes con ese criterio.
@@ -1717,9 +2152,20 @@ export default function CuentasCorrientesTab({
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                 <thead>
                   <tr style={{ background: colorTablaBg, borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted, fontSize: 11 }}>
-                    <th style={{ textAlign: "left", padding: "10px 12px" }}>Cliente / Razón Social</th>
+                    <th style={{ padding: "10px 8px", textAlign: "center", width: 32 }}>
+                      <input
+                        type="checkbox"
+                        checked={clientesEnriquecidos.length > 0 && clientesEnriquecidos.every(c => selectedClienteIds.includes(c.id))}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedClienteIds(clientesEnriquecidos.map(c => c.id));
+                          else setSelectedClienteIds([]);
+                        }}
+                      />
+                    </th>
+                    <th style={{ textAlign: "left", padding: "10px 10px" }}>Cliente / Razón Social</th>
                     <th style={{ textAlign: "left", padding: "10px 10px" }}>Proyectos y Unidades</th>
                     <th style={{ textAlign: "center", padding: "10px 8px" }}>Ops.</th>
+                    <th style={{ textAlign: "left", padding: "10px 10px" }}>Variable / Base</th>
                     <th style={{ textAlign: "right", padding: "10px 10px" }}>A Cobrar Mes ({monedaVista})</th>
                     <th style={{ textAlign: "right", padding: "10px 10px" }}>Cobrado ({monedaVista})</th>
                     <th style={{ textAlign: "right", padding: "10px 10px" }}>Saldo Pendiente ({monedaVista})</th>
@@ -1730,7 +2176,17 @@ export default function CuentasCorrientesTab({
                 <tbody>
                   {clientesEnriquecidos.map(cli => (
                     <tr key={cli.id} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
-                      <td style={{ padding: "11px 12px" }}>
+                      <td style={{ padding: "11px 8px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedClienteIds.includes(cli.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedClienteIds(prev => [...prev, cli.id]);
+                            else setSelectedClienteIds(prev => prev.filter(id => id !== cli.id));
+                          }}
+                        />
+                      </td>
+                      <td style={{ padding: "11px 10px" }}>
                         <div style={{ fontWeight: 600, color: tokens.ink }}>{cli.nombre}</div>
                         <div style={{ fontSize: 11, color: tokens.textMuted }}>
                           {cli.dni_cuit && cli.dni_cuit !== "—" ? cli.dni_cuit : cli.condicion_fiscal}
@@ -1741,6 +2197,36 @@ export default function CuentasCorrientesTab({
                       </td>
                       <td style={{ padding: "11px 8px", textAlign: "center", fontFamily: tokens.fontMono, fontWeight: 600 }}>
                         {cli.ventasCli.length}
+                      </td>
+                      <td style={{ padding: "10px 10px" }}>
+                        <select
+                          value={cli.variableEfectiva}
+                          onChange={(e) => aplicarVariableAClientes(cli.id, e.target.value, {
+                            periodo_base: cli.periodoBaseEfectivo || periodoActivo,
+                            recalcularDevengadas: true
+                          })}
+                          style={{
+                            padding: "4px 6px",
+                            borderRadius: 5,
+                            border: `1px solid ${colorLineaFuerte}`,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            background: "#FFFFFF",
+                            color: tokens.ink,
+                            cursor: "pointer"
+                          }}
+                        >
+                          {VARIABLES_ACTUALIZACION.map(va => (
+                            <option key={va.id} value={va.id}>{va.short}</option>
+                          ))}
+                        </select>
+                        <div style={{ fontSize: 10.5, color: tokens.textMuted, fontFamily: tokens.fontMono, marginTop: 3 }}>
+                          {cli.variableEfectiva === "SIN_AJUSTE"
+                            ? "Cuota fija"
+                            : cli.variableEfectiva === "TASA_FIJA"
+                              ? `${cli.tasaFijaEfectiva}% mensual`
+                              : `Base ${formatearPeriodoLabel(cli.periodoBaseEfectivo)}: ${fmt(cli.indiceBaseEfectivo)}`}
+                        </div>
                       </td>
                       <td style={{ padding: "11px 10px", textAlign: "right", fontFamily: tokens.fontMono, color: tokens.gold, fontWeight: 600 }}>
                         {formatoVista(cli.totalCobrarMesVista, monedaVista)}
@@ -1904,6 +2390,76 @@ export default function CuentasCorrientesTab({
                 </div>
               </div>
             </div>
+
+            {/* Configuración de Variable de Actualización del Cliente */}
+            <div style={{
+              marginTop: 14,
+              padding: "11px 14px",
+              borderRadius: 8,
+              background: colorTablaBg,
+              border: `1px solid ${colorLineaSuave}`,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <Sliders size={14} color={tokens.ink} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: tokens.ink }}>Variable de Actualización Asignada:</span>
+                <select
+                  value={clienteDetalle.variableEfectiva}
+                  onChange={(e) => aplicarVariableAClientes(clienteDetalle.id, e.target.value, {
+                    periodo_base: clienteDetalle.periodoBaseEfectivo || periodoActivo,
+                    recalcularDevengadas: true
+                  })}
+                  style={{
+                    padding: "5px 9px",
+                    borderRadius: 6,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: "#FFFFFF",
+                    color: tokens.ink,
+                    cursor: "pointer"
+                  }}
+                >
+                  {VARIABLES_ACTUALIZACION.map(va => (
+                    <option key={va.id} value={va.id}>{va.label}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: 11.5, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                  {clienteDetalle.variableEfectiva === "SIN_AJUSTE"
+                    ? "Sin ajuste mensual"
+                    : clienteDetalle.variableEfectiva === "TASA_FIJA"
+                      ? `Tasa fija: ${clienteDetalle.tasaFijaEfectiva}% mensual`
+                      : `Base ${formatearPeriodoLabel(clienteDetalle.periodoBaseEfectivo)}: ${fmt(clienteDetalle.indiceBaseEfectivo)} · Ref. ${formatearPeriodoLabel(periodoActivo)}: ${fmt(obtenerValorReferenciaMes(clienteDetalle.variableEfectiva, periodoActivo))}`}
+                </span>
+              </div>
+              <button
+                onClick={() => aplicarVariableAClientes(clienteDetalle.id, clienteDetalle.variableEfectiva, {
+                  periodo_base: clienteDetalle.periodoBaseEfectivo || periodoActivo,
+                  indice_base: clienteDetalle.indiceBaseEfectivo,
+                  tasa_mensual_fija: clienteDetalle.tasaFijaEfectiva,
+                  recalcularDevengadas: true
+                })}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "6px 11px",
+                  borderRadius: 6,
+                  border: `1px solid ${colorLineaFuerte}`,
+                  background: "#FFFFFF",
+                  color: tokens.ink,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <RefreshCw size={12} /> Recalcular Cuotas No Cobradas
+              </button>
+            </div>
           </div>
 
           {/* Extracto de cuotas por operación */}
@@ -1934,7 +2490,7 @@ export default function CuentasCorrientesTab({
                     .sort((a, b) => (a.fecha_vencimiento || "").localeCompare(b.fecha_vencimiento || "") || a.nro_cuota - b.nro_cuota)
                     .map(c => {
                       const v = ventasMap[c.venta_id];
-                      const varMeta = VARIABLES_ACTUALIZACION.find(x => x.id === c.variable_actualizacion);
+                      const varMeta = getVariableMeta(c.variable_actualizacion || clienteDetalle.variableEfectiva);
                       return (
                         <tr key={c.id} style={{ borderBottom: `1px solid ${tokens.ruleSoft}` }}>
                           <td style={{ padding: "9px 10px" }}>
@@ -2191,13 +2747,13 @@ export default function CuentasCorrientesTab({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
               <div>
                 <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 18, fontWeight: 600 }}>
-                  Índices de Actualización — {formatearPeriodoLabel(periodoActivo)}
+                  Valores de Referencia Mensual — {formatearPeriodoLabel(periodoActivo)}
                 </h3>
                 <p style={{ margin: "3px 0 0 0", fontSize: 12.5, color: tokens.textMuted }}>
-                  Define o ajusta los valores de índice del mes para recalcular las cuotas proyectadas y generar el devengamiento oficial.
+                  Cada cuota toma el valor mensual vigente de la variable asignada al cliente (IPC, CAC, Hormigón H-21, Link o USD).
                 </p>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: tokens.text, cursor: "pointer" }}>
                   <input
                     type="checkbox"
@@ -2206,64 +2762,212 @@ export default function CuentasCorrientesTab({
                   />
                   Incluir períodos anteriores sin devengar
                 </label>
+                <button
+                  onClick={() => setMostrarTablaIndices(v => !v)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "6px 11px",
+                    borderRadius: 6,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    background: colorTablaBg,
+                    color: tokens.ink,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  {mostrarTablaIndices ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  Tabla Mensual Histórica y Proyectada
+                </button>
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(205px, 1fr))", gap: 12 }}>
               {[
-                { key: "CAC", label: "Índice CAC General", hint: "Cámara Construcción" },
-                { key: "INDICE_LINK", label: "Índice Link Inversiones", hint: "Valorización Link" },
-                { key: "IPC", label: "Índice IPC (INDEC)", hint: "Base 100 / Acum." },
-                { key: "USD_TC", label: "Tipo de Cambio USD ($)", hint: "Dólar Referencia" }
-              ].map(idxCfg => (
-                <div key={idxCfg.key} style={{ background: colorTablaBg, padding: "12px 14px", borderRadius: 8, border: `1px solid ${colorLineaSuave}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, fontWeight: 600, color: tokens.textMuted, marginBottom: 6 }}>
-                    <span>{idxCfg.label}</span>
-                    <span>{idxCfg.hint}</span>
+                { key: "IPC", label: "IPC (INDEC)", hint: "Pts / Acum." },
+                { key: "CAC", label: "Índice CAC General", hint: "Cámara Const." },
+                { key: "HORMIGON", label: "Hormigón H-21", hint: "$ / m³ ref." },
+                { key: "INDICE_LINK", label: "Índice Link", hint: "Valorización" },
+                { key: "USD_TC", label: "Dólar Referencia", hint: "$ / U$D" }
+              ].map(idxCfg => {
+                const valAct = Number(indicesMesActivo[idxCfg.key] || 0);
+                const valAnt = Number(indicesMesAnterior[idxCfg.key] || 0);
+                const pctVar = valAnt > 0 ? ((valAct - valAnt) / valAnt) * 100 : 0;
+                const cantCuotasVar = cuotasParaDevengar.filter(x => x.variable === idxCfg.key).length;
+                return (
+                  <div key={idxCfg.key} style={{ background: colorTablaBg, padding: "12px 14px", borderRadius: 8, border: `1px solid ${colorLineaSuave}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: tokens.ink, marginBottom: 4 }}>
+                      <span>{idxCfg.label}</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: tokens.textMuted }}>{idxCfg.hint}</span>
+                    </div>
+                    <input
+                      type="number"
+                      step={idxCfg.key === "HORMIGON" ? "100" : "0.01"}
+                      value={indicesMesActivo[idxCfg.key] ?? ""}
+                      onChange={(e) => actualizarIndiceMes(idxCfg.key, e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "7px 10px",
+                        borderRadius: 6,
+                        border: `1px solid ${colorLineaFuerte}`,
+                        fontFamily: tokens.fontMono,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: tokens.ink,
+                        background: "#FFFFFF",
+                        boxSizing: "border-box"
+                      }}
+                    />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, fontSize: 10.5, color: tokens.textMuted }}>
+                      <span style={{ fontFamily: tokens.fontMono }}>
+                        Ant ({formatearPeriodoLabel(periodoAnteriorActivo)}): {fmt(valAnt)}
+                      </span>
+                      <span style={{ fontFamily: tokens.fontMono, fontWeight: 700, color: pctVar > 0 ? tokens.gold : tokens.textMuted }}>
+                        {pctVar >= 0 ? "+" : ""}{pctVar.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, gap: 4 }}>
+                      <span style={{ fontSize: 10.5, color: tokens.textFaint }}>{cantCuotasVar} cuotas mes</span>
+                      <div style={{ display: "inline-flex", gap: 3 }}>
+                        {[2, 2.5, 3].map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => aplicarVariacionPctMes(idxCfg.key, p)}
+                            title={`Aplicar +${p}% sobre ${formatearPeriodoLabel(periodoAnteriorActivo)}`}
+                            style={{
+                              padding: "2px 5px",
+                              borderRadius: 4,
+                              border: `1px solid ${colorLineaFuerte}`,
+                              background: "#FFFFFF",
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: tokens.textMuted,
+                              cursor: "pointer"
+                            }}
+                          >
+                            +{p}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={indicesMesActivo[idxCfg.key] ?? ""}
-                    onChange={(e) => actualizarIndiceMes(idxCfg.key, e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px 10px",
-                      borderRadius: 6,
-                      border: `1px solid ${colorLineaFuerte}`,
-                      fontFamily: tokens.fontMono,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: tokens.ink,
-                      background: "#FFFFFF"
-                    }}
-                  />
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {mostrarTablaIndices && (
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${tokens.ruleSoft}`, overflowX: "auto" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: tokens.ink, marginBottom: 8 }}>
+                  Tabla Mensual de Valores de Referencia (Editable por período)
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+                  <thead>
+                    <tr style={{ background: colorTablaBg, borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted }}>
+                      <th style={{ textAlign: "left", padding: "7px 8px" }}>Período</th>
+                      <th style={{ textAlign: "right", padding: "7px 8px" }}>IPC (INDEC)</th>
+                      <th style={{ textAlign: "right", padding: "7px 8px" }}>CAC General</th>
+                      <th style={{ textAlign: "right", padding: "7px 8px" }}>Hormigón H-21 ($/m³)</th>
+                      <th style={{ textAlign: "right", padding: "7px 8px" }}>Índice Link</th>
+                      <th style={{ textAlign: "right", padding: "7px 8px" }}>USD TC ($)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.keys(DEFAULT_INDICES_PERIODO).sort().map(per => {
+                      const isActivo = per === periodoActivo;
+                      return (
+                        <tr key={per} style={{ borderBottom: `1px solid ${tokens.ruleSoft}`, background: isActivo ? "#F7F8FA" : "#FFFFFF" }}>
+                          <td style={{ padding: "6px 8px", fontWeight: isActivo ? 700 : 600, color: tokens.ink }}>
+                            {formatearPeriodoLabel(per)} {isActivo ? "· Activo" : ""}
+                          </td>
+                          {["IPC", "CAC", "HORMIGON", "INDICE_LINK", "USD_TC"].map(vKey => (
+                            <td key={vKey} style={{ padding: "4px 6px", textAlign: "right" }}>
+                              <input
+                                type="number"
+                                step={vKey === "HORMIGON" ? "100" : "0.01"}
+                                value={obtenerValorReferenciaMes(vKey, per)}
+                                onChange={(e) => actualizarIndiceMes(vKey, e.target.value, per)}
+                                style={{
+                                  width: 96,
+                                  textAlign: "right",
+                                  padding: "4px 6px",
+                                  borderRadius: 4,
+                                  border: `1px solid ${isActivo ? colorLineaFuerte : colorLineaSuave}`,
+                                  fontFamily: tokens.fontMono,
+                                  fontSize: 11.5,
+                                  background: "#FFFFFF"
+                                }}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Grilla de cuotas a devengar */}
           <div style={{ background: tokens.surface, border: `1px solid ${tokens.rule}`, borderRadius: 10, padding: "20px 22px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
               <div>
                 <h3 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 17, fontWeight: 600 }}>
                   Cuotas del Período ({cuotasParaDevengar.length})
                 </h3>
                 <div style={{ fontSize: 12, color: tokens.textMuted, marginTop: 2 }}>
-                  Fórmula aplicada: Importe Actualizado = Importe Base × (Índice Período / Índice Base)
+                  Fórmula: Importe Actualizado = Importe Base × (Referencia Mes {formatearPeriodoLabel(periodoActivo)} / Índice Base Cliente)
                 </div>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <select
                   value={filtroProyecto}
                   onChange={(e) => setFiltroProyecto(e.target.value)}
-                  style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12.5, background: "#FFFFFF" }}
+                  style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
                 >
                   <option value="TODOS">Todos los proyectos</option>
                   {proyectosDisponibles.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
+
+                <select
+                  value={filtroVariable}
+                  onChange={(e) => setFiltroVariable(e.target.value)}
+                  style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${colorLineaFuerte}`, fontSize: 12, background: "#FFFFFF" }}
+                >
+                  <option value="TODAS">Todas las variables</option>
+                  {VARIABLES_ACTUALIZACION.map(va => <option key={va.id} value={va.id}>{va.short}</option>)}
+                </select>
+
+                <button
+                  onClick={() => {
+                    const redevengables = cuotasParaDevengar
+                      .filter(x => x.cuota.devengado && Number(x.cuota.monto_cobrado || 0) <= 0)
+                      .map(x => x.cuota.id);
+                    if (redevengables.length === 0) return alert("No hay cuotas devengadas sin cobrar en este filtro.");
+                    handleDevengarCuotas(redevengables);
+                  }}
+                  title="Recalcula cuotas devengadas sin cobros usando los valores actuales de IPC, CAC y Hormigón"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 13px",
+                    borderRadius: 7,
+                    border: `1px solid ${colorLineaFuerte}`,
+                    background: tokens.surface,
+                    color: tokens.ink,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  <RefreshCw size={14} />
+                  Re-devengar No Cobradas
+                </button>
 
                 <button
                   onClick={() => {
@@ -2294,6 +2998,35 @@ export default function CuentasCorrientesTab({
               </div>
             </div>
 
+            {/* Desglose resumido por variable de actualización */}
+            {resumenVariablesDevengamiento.porVariable.length > 0 && (
+              <div style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 10,
+                padding: "10px 14px",
+                marginBottom: 14,
+                borderRadius: 8,
+                background: colorTablaBg,
+                border: `1px solid ${colorLineaSuave}`,
+                alignItems: "center",
+                justifyContent: "space-between"
+              }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                  {resumenVariablesDevengamiento.porVariable.map(rv => (
+                    <div key={rv.id} style={{ fontSize: 11.5 }}>
+                      <span style={{ fontWeight: 700, color: tokens.ink }}>{rv.meta.short}:</span>{" "}
+                      <span style={{ color: tokens.textMuted }}>{rv.count} ctas</span>{" "}
+                      <span style={{ fontFamily: tokens.fontMono, fontWeight: 600, color: tokens.ink }}>($ {fmt(Math.round(rv.actualizado))})</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11.5, fontFamily: tokens.fontMono, fontWeight: 700, color: resumenVariablesDevengamiento.ajusteTotal > 0 ? tokens.gold : tokens.textMuted }}>
+                  Ajuste total del período: {resumenVariablesDevengamiento.ajusteTotal >= 0 ? "+" : ""}$ {fmt(Math.round(resumenVariablesDevengamiento.ajusteTotal))}
+                </div>
+              </div>
+            )}
+
             {cuotasParaDevengar.length === 0 ? (
               <div style={{ padding: 40, textAlign: "center", color: tokens.textMuted, fontSize: 13 }}>
                 No hay cuotas programadas para devengar en {formatearPeriodoLabel(periodoActivo)}.
@@ -2321,8 +3054,8 @@ export default function CuentasCorrientesTab({
                       </th>
                       <th style={{ textAlign: "left", padding: "10px 8px" }}>Cliente / Operación</th>
                       <th style={{ textAlign: "left", padding: "10px 8px" }}>Cuota / Venc.</th>
-                      <th style={{ textAlign: "left", padding: "10px 8px" }}>Variable</th>
-                      <th style={{ textAlign: "right", padding: "10px 8px" }}>Base → Actual</th>
+                      <th style={{ textAlign: "left", padding: "10px 8px" }}>Variable Cliente</th>
+                      <th style={{ textAlign: "right", padding: "10px 8px" }}>Base → Ref. Mes</th>
                       <th style={{ textAlign: "right", padding: "10px 8px" }}>Coef.</th>
                       <th style={{ textAlign: "right", padding: "10px 8px" }}>Importe Base</th>
                       <th style={{ textAlign: "right", padding: "10px 8px" }}>Importe a Devengar</th>
@@ -2331,11 +3064,12 @@ export default function CuentasCorrientesTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {cuotasParaDevengar.map(({ cuota, venta, cliente, variable, valorIndicePeriodo, previewCoef, previewImporte, diferenciaAjuste }) => {
-                      const varObj = VARIABLES_ACTUALIZACION.find(v => v.id === variable);
+                    {cuotasParaDevengar.map(({ cuota, venta, cliente, variable, valorIndicePeriodo, indiceBaseEfectivo, previewCoef, previewImporte }) => {
                       const yaDevengada = cuota.devengado;
                       const montoMostrar = yaDevengada ? cuota.importe_actualizado : previewImporte;
                       const coefMostrar = yaDevengada ? cuota.coeficiente_ajuste : previewCoef;
+                      const diffMostrar = Number(montoMostrar || 0) - Number(cuota.importe_original || 0);
+                      const tieneCambioPendiente = yaDevengada && Number(cuota.monto_cobrado || 0) <= 0 && Math.abs(previewImporte - Number(cuota.importe_actualizado || 0)) > 1;
                       return (
                         <tr key={cuota.id} style={{ borderBottom: `1px solid ${tokens.ruleSoft}`, background: yaDevengada ? "#FAFBF9" : "#FFFFFF" }}>
                           <td style={{ padding: "10px 8px", textAlign: "center" }}>
@@ -2358,13 +3092,36 @@ export default function CuentasCorrientesTab({
                             <div style={{ fontWeight: 600 }}>{cuota.concepto}</div>
                             <div style={{ fontSize: 11, fontFamily: tokens.fontMono, color: tokens.textMuted }}>{formatDate(cuota.fecha_vencimiento)}</div>
                           </td>
-                          <td style={{ padding: "10px 8px", fontSize: 12 }}>{varObj?.short || variable}</td>
+                          <td style={{ padding: "10px 8px", fontSize: 12 }}>
+                            <select
+                              value={variable}
+                              disabled={Number(cuota.monto_cobrado || 0) > 0}
+                              onChange={(e) => aplicarVariableAClientes(cuota.cliente_id, e.target.value, {
+                                periodo_base: cliente?.periodo_base || periodoActivo,
+                                recalcularDevengadas: true
+                              })}
+                              style={{
+                                padding: "4px 6px",
+                                borderRadius: 5,
+                                border: `1px solid ${colorLineaFuerte}`,
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                background: Number(cuota.monto_cobrado || 0) > 0 ? colorTablaBg : "#FFFFFF",
+                                color: tokens.ink,
+                                cursor: Number(cuota.monto_cobrado || 0) > 0 ? "not-allowed" : "pointer"
+                              }}
+                            >
+                              {VARIABLES_ACTUALIZACION.map(va => (
+                                <option key={va.id} value={va.id}>{va.short}</option>
+                              ))}
+                            </select>
+                          </td>
                           <td style={{ padding: "10px 8px", textAlign: "right", fontFamily: tokens.fontMono, fontSize: 11.5, color: tokens.textMuted }}>
                             {variable === "SIN_AJUSTE"
                               ? "Fijo"
                               : variable === "TASA_FIJA"
-                                ? `${venta?.tasa_mensual_fija}%/m`
-                                : `${cuota.indice_base} → ${yaDevengada ? cuota.indice_aplicado : valorIndicePeriodo}`}
+                                ? `${cliente?.tasa_mensual_fija ?? venta?.tasa_mensual_fija ?? 0}%/m`
+                                : `${fmt(indiceBaseEfectivo)} → ${fmt(yaDevengada ? cuota.indice_aplicado : valorIndicePeriodo)}`}
                           </td>
                           <td style={{ padding: "10px 8px", textAlign: "right", fontFamily: tokens.fontMono }}>
                             {Number(coefMostrar || 1).toFixed(4)}
@@ -2374,9 +3131,14 @@ export default function CuentasCorrientesTab({
                           </td>
                           <td style={{ padding: "10px 8px", textAlign: "right", fontFamily: tokens.fontMono }}>
                             <div style={{ fontWeight: 700, color: tokens.ink }}>{formatoOriginal(montoMostrar, cuota.moneda)}</div>
-                            {!yaDevengada && Math.abs(diferenciaAjuste) > 1 && (
+                            {Math.abs(diffMostrar) > 1 && (
                               <div style={{ fontSize: 10.5, color: tokens.gold }}>
-                                +{formatoOriginal(diferenciaAjuste, cuota.moneda)} ajuste
+                                {diffMostrar >= 0 ? "+" : ""}{formatoOriginal(diffMostrar, cuota.moneda)} ajuste
+                              </div>
+                            )}
+                            {tieneCambioPendiente && (
+                              <div style={{ fontSize: 10.5, color: tokens.positive }}>
+                                Nueva ref: {formatoOriginal(previewImporte, cuota.moneda)}
                               </div>
                             )}
                           </td>
@@ -2401,20 +3163,39 @@ export default function CuentasCorrientesTab({
                                 Devengar
                               </button>
                             ) : cuota.monto_cobrado <= 0 ? (
-                              <button
-                                onClick={() => handleRevertirDevengamiento(cuota)}
-                                style={{
-                                  padding: "5px 9px",
-                                  borderRadius: 5,
-                                  border: `1px solid ${colorLineaFuerte}`,
-                                  background: tokens.surface,
-                                  color: tokens.textMuted,
-                                  fontSize: 11,
-                                  cursor: "pointer"
-                                }}
-                              >
-                                Revertir
-                              </button>
+                              <div style={{ display: "inline-flex", gap: 4 }}>
+                                {tieneCambioPendiente && (
+                                  <button
+                                    onClick={() => handleDevengarCuotas([cuota.id])}
+                                    style={{
+                                      padding: "5px 8px",
+                                      borderRadius: 5,
+                                      border: "none",
+                                      background: tokens.positive,
+                                      color: "#FFFFFF",
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      cursor: "pointer"
+                                    }}
+                                  >
+                                    Recalcular
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleRevertirDevengamiento(cuota)}
+                                  style={{
+                                    padding: "5px 9px",
+                                    borderRadius: 5,
+                                    border: `1px solid ${colorLineaFuerte}`,
+                                    background: tokens.surface,
+                                    color: tokens.textMuted,
+                                    fontSize: 11,
+                                    cursor: "pointer"
+                                  }}
+                                >
+                                  Revertir
+                                </button>
+                              </div>
                             ) : (
                               <span style={{ fontSize: 11, color: tokens.positive }}>Cobrada</span>
                             )}
@@ -2717,7 +3498,11 @@ export default function CuentasCorrientesTab({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setVentaForm(p => ({ ...p, modoCliente: "existente", cliente_id: p.cliente_id || clientes[0]?.id || "" }))}
+                        onClick={() => {
+                          const targetId = ventaForm.cliente_id || clientes[0]?.id || "";
+                          setVentaForm(p => ({ ...p, modoCliente: "existente", cliente_id: targetId }));
+                          if (targetId) handleSeleccionarClienteExistenteEnVenta(targetId);
+                        }}
                         style={{
                           padding: "4px 10px",
                           fontSize: 11.5,
@@ -2738,7 +3523,7 @@ export default function CuentasCorrientesTab({
                 {ventaForm.modoCliente === "existente" ? (
                   <select
                     value={ventaForm.cliente_id}
-                    onChange={(e) => setVentaForm(p => ({ ...p, cliente_id: e.target.value }))}
+                    onChange={(e) => handleSeleccionarClienteExistenteEnVenta(e.target.value)}
                     style={{ width: "100%", padding: "9px 12px", borderRadius: 7, border: `1px solid ${colorLineaFuerte}`, fontSize: 13, background: "#FFFFFF" }}
                   >
                     {clientes.map(c => (
@@ -2992,6 +3777,75 @@ export default function CuentasCorrientesTab({
                 <label style={labelStyle}>Domicilio</label>
                 <input type="text" value={clienteForm.domicilio} onChange={(e) => setClienteForm(p => ({ ...p, domicilio: e.target.value }))} style={inputStyle} />
               </div>
+
+              {/* Variable de Actualización asignada al cliente */}
+              <div style={{ padding: "12px 14px", borderRadius: 8, background: colorTablaBg, border: `1px solid ${colorLineaSuave}`, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: tokens.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Sliders size={13} /> Variable de Actualización de Cuotas
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={labelStyle}>Variable Aplicable *</label>
+                    <select
+                      value={clienteForm.variable_actualizacion}
+                      onChange={(e) => {
+                        const nv = e.target.value;
+                        const per = clienteForm.periodo_base || periodoActivo || "2026-11";
+                        const baseSug = nv === "TASA_FIJA" ? (clienteForm.tasa_mensual_fija || "2.5") : String(obtenerValorReferenciaMes(nv, per));
+                        setClienteForm(p => ({
+                          ...p,
+                          variable_actualizacion: nv,
+                          indice_base: baseSug
+                        }));
+                      }}
+                      style={inputStyle}
+                    >
+                      {VARIABLES_ACTUALIZACION.map(va => <option key={va.id} value={va.id}>{va.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Mes Base de Referencia</label>
+                    <input
+                      type="month"
+                      value={clienteForm.periodo_base}
+                      onChange={(e) => {
+                        const np = e.target.value;
+                        const baseSug = clienteForm.variable_actualizacion === "TASA_FIJA"
+                          ? clienteForm.tasa_mensual_fija
+                          : String(obtenerValorReferenciaMes(clienteForm.variable_actualizacion, np));
+                        setClienteForm(p => ({ ...p, periodo_base: np, indice_base: baseSug }));
+                      }}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+                {clienteForm.variable_actualizacion === "TASA_FIJA" ? (
+                  <div>
+                    <label style={labelStyle}>Tasa Mensual Fija (%)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={clienteForm.tasa_mensual_fija}
+                      onChange={(e) => setClienteForm(p => ({ ...p, tasa_mensual_fija: e.target.value }))}
+                      style={{ ...inputStyle, fontFamily: tokens.fontMono }}
+                    />
+                  </div>
+                ) : clienteForm.variable_actualizacion !== "SIN_AJUSTE" ? (
+                  <div>
+                    <label style={labelStyle}>
+                      Valor Base ({getVariableMeta(clienteForm.variable_actualizacion).unidadIndice})
+                    </label>
+                    <input
+                      type="number"
+                      step={clienteForm.variable_actualizacion === "HORMIGON" ? "100" : "0.01"}
+                      value={clienteForm.indice_base}
+                      onChange={(e) => setClienteForm(p => ({ ...p, indice_base: e.target.value }))}
+                      style={{ ...inputStyle, fontFamily: tokens.fontMono }}
+                    />
+                  </div>
+                ) : null}
+              </div>
+
               <div>
                 <label style={labelStyle}>Observaciones</label>
                 <textarea rows={2} value={clienteForm.observaciones} onChange={(e) => setClienteForm(p => ({ ...p, observaciones: e.target.value }))} style={{ ...inputStyle, resize: "vertical" }} />
