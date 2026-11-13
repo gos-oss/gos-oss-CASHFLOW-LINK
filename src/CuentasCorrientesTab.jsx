@@ -676,7 +676,7 @@ export default function CuentasCorrientesTab({
 
   // Unidades disponibles del stock para vincular a nueva venta
   const unidadesDisponiblesParaVenta = useMemo(() => {
-    return stockUnits.filter(u => u.estado !== "Vendido");
+    return stockUnits.filter(u => u.estado === "Disponible" || u.estado === "Reservado" || u.estado === "En Negociación");
   }, [stockUnits]);
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -266,10 +266,11 @@ export default function MonitorFinancieroTab({
       if (localStorage.getItem("cf_stock_disponible_units_v1")) localStorage.removeItem("cf_stock_disponible_units_v1");
       if (localStorage.getItem("cf_stock_disponible_units_v2")) localStorage.removeItem("cf_stock_disponible_units_v2");
       if (localStorage.getItem("cf_stock_disponible_units_v3")) localStorage.removeItem("cf_stock_disponible_units_v3");
-      const local = localStorage.getItem("cf_stock_disponible_units_v4");
+      if (localStorage.getItem("cf_stock_disponible_units_v4")) localStorage.removeItem("cf_stock_disponible_units_v4");
+      const local = localStorage.getItem("cf_stock_disponible_units_v5");
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some(u => String(u.id).startsWith("import-179") || u.proyecto?.toLowerCase().includes("torre 3"))) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed
             .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
             .map(u => ({
@@ -279,7 +280,7 @@ export default function MonitorFinancieroTab({
               m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
               precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
               precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
-              estado: u.estado || "Disponible"
+              estado: u.estado || (u.disponible === false ? "No Disponible" : "Disponible")
             }));
         }
       }
@@ -304,10 +305,10 @@ export default function MonitorFinancieroTab({
               m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
               precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
               precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
-              estado: u.estado || "Disponible"
+              estado: u.estado || (u.disponible === false ? "No Disponible" : "Disponible")
             }));
           setUnidadesStock(cleaned);
-          localStorage.setItem("cf_stock_disponible_units_v4", JSON.stringify(cleaned));
+          localStorage.setItem("cf_stock_disponible_units_v5", JSON.stringify(cleaned));
         }
       } catch (err) {
         console.warn("Stock fetch fallback:", err);
@@ -326,7 +327,7 @@ export default function MonitorFinancieroTab({
         totalUnidades: 0,
         disponibles: 0,
         reservadas: 0,
-        bloqueadas: 0,
+        noDisponibles: 0,
         m2Totales: 0,
         valuacionUSD: 0
       };
@@ -340,30 +341,34 @@ export default function MonitorFinancieroTab({
           totalUnidades: 0,
           disponibles: 0,
           reservadas: 0,
-          bloqueadas: 0,
+          noDisponibles: 0,
           m2Totales: 0,
           valuacionUSD: 0
         };
       }
       mapa[pNom].totalUnidades += 1;
-      if (u.estado === "Disponible") mapa[pNom].disponibles += 1;
-      else if (u.estado === "Reservado" || u.estado === "En Negociación") mapa[pNom].reservadas += 1;
-      else mapa[pNom].bloqueadas += 1;
-
-      mapa[pNom].m2Totales += Number(u.m2_totales || u.m2_propios || 0);
-      mapa[pNom].valuacionUSD += Number(u.precio_usd || 0);
+      if (u.estado === "Disponible") {
+        mapa[pNom].disponibles += 1;
+        mapa[pNom].m2Totales += Number(u.m2_totales || u.m2_propios || 0);
+        mapa[pNom].valuacionUSD += Number(u.precio_usd || 0);
+      } else if (u.estado === "Reservado" || u.estado === "En Negociación") {
+        mapa[pNom].reservadas += 1;
+      } else {
+        mapa[pNom].noDisponibles += 1;
+      }
     });
 
     const lista = Object.values(mapa).filter(p => p.totalUnidades > 0);
-    lista.sort((a, b) => b.valuacionUSD - a.valuacionUSD);
+    lista.sort((a, b) => b.valuacionUSD - a.valuacionUSD || b.totalUnidades - a.totalUnidades);
 
     const totalValUSD = lista.reduce((acc, cur) => acc + cur.valuacionUSD, 0);
     const totalValARS = totalValUSD * tcReferencia;
     const totalUnits = lista.reduce((acc, cur) => acc + cur.totalUnidades, 0);
     const totalDisponibles = lista.reduce((acc, cur) => acc + cur.disponibles, 0);
     const totalReservadas = lista.reduce((acc, cur) => acc + cur.reservadas, 0);
+    const totalNoDisponibles = lista.reduce((acc, cur) => acc + cur.noDisponibles, 0);
     const totalM2 = lista.reduce((acc, cur) => acc + cur.m2Totales, 0);
-    const ticketPromedioUSD = totalUnits > 0 ? totalValUSD / totalUnits : 0;
+    const ticketPromedioUSD = totalDisponibles > 0 ? totalValUSD / totalDisponibles : 0;
     const precioM2PromedioUSD = totalM2 > 0 ? totalValUSD / totalM2 : 0;
 
     return {
@@ -378,6 +383,7 @@ export default function MonitorFinancieroTab({
       totalUnits,
       totalDisponibles,
       totalReservadas,
+      totalNoDisponibles,
       totalM2,
       ticketPromedioUSD,
       precioM2PromedioUSD
@@ -396,7 +402,7 @@ export default function MonitorFinancieroTab({
     };
 
     unidadesStock.forEach(u => {
-      if (u.estado === "Vendido") return;
+      if (u.estado === "Vendido" || u.estado === "No Disponible" || u.estado === "Bloqueado") return;
       const norm = normalizarNombreProyecto(u.proyecto).toLowerCase();
       const rawP = (u.proyecto || "").toLowerCase();
       const rawA = (u.asignado || "").toLowerCase();
@@ -416,8 +422,10 @@ export default function MonitorFinancieroTab({
         targetKey = "torre_green";
       } else if (norm.includes("auria") || rawA.includes("auria") || norm.includes("marcos paz")) {
         targetKey = "auria";
-      } else if (norm.includes("duo") || rawA.includes("duo")) {
+      } else if (norm.includes("+ duo") || norm.includes("+duo") || rawP.includes("+duo") || rawP.includes("+ duo")) {
         targetKey = "mas_duo";
+      } else if (norm === "duo" || rawP.trim() === "duo") {
+        targetKey = "duo";
       }
 
       if (targetKey && stockMap[targetKey]) {
@@ -1524,11 +1532,11 @@ export default function MonitorFinancieroTab({
                 3. Stock de Unidades por Proyecto & Valuación Total
               </h2>
               <span style={{ fontSize: 12, color: tokens.textMuted }}>
-                (Inventario Inmobiliario Link · {stockPorProyecto.totalUnits} unidades)
+                (Inventario Inmobiliario Link · {stockPorProyecto.totalDisponibles} disponibles / {stockPorProyecto.totalUnits} u. totales)
               </span>
             </div>
             <p style={{ margin: "4px 0 0 18px", fontSize: 12.5, color: tokens.textMuted }}>
-              Valuación de mercado consolidada del stock disponible y reservado por cada desarrollo inmobiliario.
+              Valuación de mercado consolidada del stock disponible para venta (excluye unidades marcadas como No Disponibles).
             </p>
           </div>
 
@@ -1549,12 +1557,12 @@ export default function MonitorFinancieroTab({
                 cursor: "pointer"
               }}
             >
-              Gestionar Inventario / Ver Stock Detallado <ChevronRight size={14} />
+              Gestionar Inventario / Filtrar Disponibilidad <ChevronRight size={14} />
             </button>
           )}
         </div>
 
-        {/* TARJETAS KPI DE VALUACIÓN TOTAL DEL STOCK */}
+        {/* TARJETAS KPI DE VALUACIÓN TOTAL DEL STOCK DISPONIBLE */}
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
@@ -1570,7 +1578,7 @@ export default function MonitorFinancieroTab({
             boxShadow: "0 4px 12px rgba(184, 134, 42, 0.25)"
           }}>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", opacity: 0.9 }}>
-              Valuación Total del Stock (USD)
+              Valuación Stock Disponible (USD)
             </div>
             <div style={{ fontFamily: tokens.fontMono, fontSize: 22, fontWeight: 800, marginTop: 4 }}>
               U$D {fmt(stockPorProyecto.totalValUSD)}
@@ -1583,20 +1591,20 @@ export default function MonitorFinancieroTab({
           {/* Unidades Totales & Disponibles */}
           <div style={{ background: "#F8FAFC", border: `1px solid ${colorLineaSuave}`, borderRadius: 10, padding: "16px 18px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase" }}>
-              Unidades en Cartera
+              Unidades Disponibles / Cartera
             </div>
-            <div style={{ fontFamily: tokens.fontMono, fontSize: 22, fontWeight: 800, color: tokens.ink, marginTop: 4 }}>
-              {stockPorProyecto.totalUnits} <span style={{ fontSize: 13, fontWeight: 500, color: tokens.textMuted }}>unidades</span>
+            <div style={{ fontFamily: tokens.fontMono, fontSize: 22, fontWeight: 800, color: tokens.positive, marginTop: 4 }}>
+              {stockPorProyecto.totalDisponibles} <span style={{ fontSize: 13, fontWeight: 500, color: tokens.textMuted }}>disp. / {stockPorProyecto.totalUnits} tot.</span>
             </div>
-            <div style={{ fontSize: 11, color: tokens.positive, fontWeight: 600, marginTop: 4 }}>
-              {stockPorProyecto.totalDisponibles} Disponibles · {stockPorProyecto.totalReservadas} Reservadas
+            <div style={{ fontSize: 11, color: tokens.textMuted, fontWeight: 600, marginTop: 4 }}>
+              {stockPorProyecto.totalNoDisponibles} No Disponibles · {stockPorProyecto.totalReservadas} Reservadas
             </div>
           </div>
 
           {/* Metros Cuadrados Vendibles */}
           <div style={{ background: "#F8FAFC", border: `1px solid ${colorLineaSuave}`, borderRadius: 10, padding: "16px 18px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase" }}>
-              Superficie Total Vendible
+              Superficie Disponible (m²)
             </div>
             <div style={{ fontFamily: tokens.fontMono, fontSize: 22, fontWeight: 800, color: tokens.ink, marginTop: 4 }}>
               {fmt(stockPorProyecto.totalM2)} <span style={{ fontSize: 13, fontWeight: 500, color: tokens.textMuted }}>m²</span>
@@ -1609,7 +1617,7 @@ export default function MonitorFinancieroTab({
           {/* Ticket Promedio */}
           <div style={{ background: "#F8FAFC", border: `1px solid ${colorLineaSuave}`, borderRadius: 10, padding: "16px 18px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: "uppercase" }}>
-              Ticket Promedio por Unidad
+              Ticket Promedio Disponible
             </div>
             <div style={{ fontFamily: tokens.fontMono, fontSize: 22, fontWeight: 800, color: tokens.ink, marginTop: 4 }}>
               U$D {fmt(stockPorProyecto.ticketPromedioUSD)}
@@ -1626,14 +1634,14 @@ export default function MonitorFinancieroTab({
             <thead>
               <tr style={{ background: colorTablaBg, borderBottom: `1px solid ${colorLineaFuerte}`, color: tokens.textMuted }}>
                 <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 700 }}>Proyecto Inmobiliario</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontWeight: 700 }}>Unidades Stock</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontWeight: 700 }}>Disponibles</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontWeight: 700 }}>Reservadas</th>
-                <th style={{ textAlign: "right", padding: "10px 14px", fontWeight: 700 }}>Superficie (m²)</th>
+                <th style={{ textAlign: "center", padding: "10px 12px", fontWeight: 700 }}>Total Cartera</th>
+                <th style={{ textAlign: "center", padding: "10px 12px", fontWeight: 700 }}>Disponibles (SI)</th>
+                <th style={{ textAlign: "center", padding: "10px 12px", fontWeight: 700 }}>No Disp. (NO)</th>
+                <th style={{ textAlign: "right", padding: "10px 14px", fontWeight: 700 }}>Sup. Disp. (m²)</th>
                 <th style={{ textAlign: "right", padding: "10px 14px", fontWeight: 700 }}>Precio Prom. m²</th>
-                <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 800, color: tokens.ink }}>Valuación (USD)</th>
-                <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 700 }}>Valuación (ARS)</th>
-                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 700, minWidth: 140 }}>% Cartera</th>
+                <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 800, color: tokens.ink }}>Valuación Disp. (USD)</th>
+                <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 700 }}>Valuación Disp. (ARS)</th>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 700, minWidth: 140 }}>% Cartera Disp.</th>
               </tr>
             </thead>
             <tbody>
@@ -1648,17 +1656,17 @@ export default function MonitorFinancieroTab({
                   <td style={{ textAlign: "center", padding: "12px", fontFamily: tokens.fontMono, fontWeight: 700 }}>
                     {p.totalUnidades}
                   </td>
-                  <td style={{ textAlign: "center", padding: "12px", fontFamily: tokens.fontMono, color: tokens.positive, fontWeight: 700 }}>
+                  <td style={{ textAlign: "center", padding: "12px", fontFamily: tokens.fontMono, color: p.disponibles > 0 ? tokens.positive : tokens.textMuted, fontWeight: 700 }}>
                     {p.disponibles}
                   </td>
-                  <td style={{ textAlign: "center", padding: "12px", fontFamily: tokens.fontMono, color: "#D97706", fontWeight: 600 }}>
-                    {p.reservadas}
+                  <td style={{ textAlign: "center", padding: "12px", fontFamily: tokens.fontMono, color: "#64748B", fontWeight: 600 }}>
+                    {p.noDisponibles}
                   </td>
                   <td style={{ textAlign: "right", padding: "12px 14px", fontFamily: tokens.fontMono }}>
                     {fmt(p.m2Totales)} m²
                   </td>
                   <td style={{ textAlign: "right", padding: "12px 14px", fontFamily: tokens.fontMono, color: tokens.textMuted }}>
-                    U$D {fmt(p.precioM2USD)}
+                    {p.precioM2USD > 0 ? `U$D ${fmt(p.precioM2USD)}` : "—"}
                   </td>
                   <td style={{ textAlign: "right", padding: "12px 16px", fontFamily: tokens.fontMono, fontWeight: 800, color: tokens.gold }}>
                     U$D {fmt(p.valuacionUSD)}
@@ -1684,7 +1692,7 @@ export default function MonitorFinancieroTab({
                 <td style={{ padding: "14px 16px", color: tokens.ink }}>TOTAL CARTERA DISPONIBLE</td>
                 <td style={{ textAlign: "center", padding: "14px 12px", fontFamily: tokens.fontMono }}>{stockPorProyecto.totalUnits}</td>
                 <td style={{ textAlign: "center", padding: "14px 12px", fontFamily: tokens.fontMono, color: tokens.positive }}>{stockPorProyecto.totalDisponibles}</td>
-                <td style={{ textAlign: "center", padding: "14px 12px", fontFamily: tokens.fontMono, color: "#D97706" }}>{stockPorProyecto.totalReservadas}</td>
+                <td style={{ textAlign: "center", padding: "14px 12px", fontFamily: tokens.fontMono, color: "#64748B" }}>{stockPorProyecto.totalNoDisponibles}</td>
                 <td style={{ textAlign: "right", padding: "14px 14px", fontFamily: tokens.fontMono }}>{fmt(stockPorProyecto.totalM2)} m²</td>
                 <td style={{ textAlign: "right", padding: "14px 14px", fontFamily: tokens.fontMono }}>U$D {fmt(stockPorProyecto.precioM2PromedioUSD)}</td>
                 <td style={{ textAlign: "right", padding: "14px 16px", fontFamily: tokens.fontMono, color: tokens.gold, fontSize: 14 }}>

@@ -14,22 +14,23 @@ import {
   CartesianGrid, PieChart, Pie, Cell, Legend
 } from "recharts";
 
-const LOCAL_STORAGE_KEY = "cf_stock_disponible_units_v4";
+const LOCAL_STORAGE_KEY = "cf_stock_disponible_units_v5";
 
 const ESTADOS = [
-  { id: "Disponible", label: "Disponible", color: "#10B981", bg: "#ECFDF5", border: "#A7F3D0" },
+  { id: "Disponible", label: "Disponible (SI)", color: "#10B981", bg: "#ECFDF5", border: "#A7F3D0" },
+  { id: "No Disponible", label: "No Disponible (NO)", color: "#64748B", bg: "#F1F5F9", border: "#CBD5E1" },
   { id: "Reservado", label: "Reservado", color: "#F59E0B", bg: "#FFFBEB", border: "#FDE68A" },
   { id: "En Negociación", label: "En Negociación", color: "#3B82F6", bg: "#EFF6FF", border: "#BFDBFE" },
-  { id: "Bloqueado", label: "Bloqueado", color: "#64748B", bg: "#F1F5F9", border: "#CBD5E1" },
+  { id: "Bloqueado", label: "Bloqueado", color: "#475569", bg: "#F1F5F9", border: "#CBD5E1" },
   { id: "Vendido", label: "Vendido", color: "#6366F1", bg: "#EEF2FF", border: "#C7D2FE" }
 ];
 
 const COLORS_PROYECTO = [
-  "#2563EB", "#10B981", "#D97706", "#8B5CF6", "#EC4899", "#06B6D4", "#64748B"
+  "#2563EB", "#10B981", "#D97706", "#8B5CF6", "#EC4899", "#06B6D4", "#0F766E", "#DC2626", "#64748B"
 ];
 
 const COLORS_TIPOLOGIA = [
-  "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6", "#6366F1"
+  "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6", "#6366F1", "#0EA5E9", "#64748B"
 ];
 
 export default function StockDisponibleTab({
@@ -50,28 +51,33 @@ export default function StockDisponibleTab({
   const [moneda, setMoneda] = useState("USD"); // "USD" | "ARS"
   const [viewMode, setViewMode] = useState("unidades"); // "unidades" | "proyectos" | "graficos"
   
-  // Lista de unidades (Inventario oficial de 159 unidades: Torre 3 y Boulevard 0 unidades)
+  // Lista completa de unidades de los 9 proyectos (Disponibles SI + No Disponibles NO)
   const [unidades, setUnidades] = useState(() => {
     try {
-      // Limpiar cache vieja si existía
+      // Limpiar caches anteriores si existían
       if (localStorage.getItem("cf_stock_disponible_units_v1")) localStorage.removeItem("cf_stock_disponible_units_v1");
       if (localStorage.getItem("cf_stock_disponible_units_v2")) localStorage.removeItem("cf_stock_disponible_units_v2");
       if (localStorage.getItem("cf_stock_disponible_units_v3")) localStorage.removeItem("cf_stock_disponible_units_v3");
+      if (localStorage.getItem("cf_stock_disponible_units_v4")) localStorage.removeItem("cf_stock_disponible_units_v4");
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some(u => String(u.id).startsWith("import-179") || u.proyecto?.toLowerCase().includes("torre 3"))) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed
             .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
-            .map(u => ({
-              ...u,
-              proyecto: normalizarNombreProyecto(u.proyecto),
-              m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
-              m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
-              precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
-              precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
-              estado: u.estado || "Disponible"
-            }));
+            .map(u => {
+              const est = u.estado || (u.disponible === false ? "No Disponible" : "Disponible");
+              return {
+                ...u,
+                proyecto: normalizarNombreProyecto(u.proyecto),
+                m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
+                m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
+                precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
+                precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
+                estado: est,
+                disponible: est === "Disponible"
+              };
+            });
         }
       }
     } catch (e) {
@@ -91,15 +97,19 @@ export default function StockDisponibleTab({
       if (!error && Array.isArray(data) && data.length > 0) {
         const cleaned = data
           .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
-          .map(u => ({
-            ...u,
-            proyecto: normalizarNombreProyecto(u.proyecto),
-            m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
-            m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
-            precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
-            precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
-            estado: u.estado || "Disponible"
-          }));
+          .map(u => {
+            const est = u.estado || (u.disponible === false ? "No Disponible" : "Disponible");
+            return {
+              ...u,
+              proyecto: normalizarNombreProyecto(u.proyecto),
+              m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
+              m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
+              precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
+              precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
+              estado: est,
+              disponible: est === "Disponible"
+            };
+          });
         setUnidades(cleaned);
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cleaned));
       }
@@ -138,6 +148,7 @@ export default function StockDisponibleTab({
 
   // Filtros
   const [search, setSearch] = useState("");
+  const [selectedDisponibilidad, setSelectedDisponibilidad] = useState("TODOS"); // "TODOS" | "SI" | "NO"
   const [selectedProyecto, setSelectedProyecto] = useState("TODOS");
   const [selectedTipologia, setSelectedTipologia] = useState("TODAS");
   const [selectedEstado, setSelectedEstado] = useState("TODOS");
@@ -146,7 +157,7 @@ export default function StockDisponibleTab({
   // Modal Importador de Stock Excel / CSV
   const [importadorAbierto, setImportadorAbierto] = useState(false);
 
-  // Lista dinámica de proyectos (incluye los del inventario actual importado)
+  // Lista dinámica de proyectos (incluye los 9 proyectos oficiales y cualquier importado)
   const todosLosProyectos = useMemo(() => {
     const list = [...PROYECTOS_STOCK];
     unidades.forEach(u => {
@@ -157,19 +168,33 @@ export default function StockDisponibleTab({
     return list;
   }, [unidades]);
 
+  const todasLasTipologias = useMemo(() => {
+    const list = [...TIPOLOGIAS_STOCK];
+    unidades.forEach(u => {
+      if (u.tipologia && !list.includes(u.tipologia)) {
+        list.push(u.tipologia);
+      }
+    });
+    return list;
+  }, [unidades]);
+
   // Manejador de importación masiva
   const handleImportarStock = (nuevasUnidades, modo) => {
     const cleaned = (nuevasUnidades || [])
       .filter(u => !(Number(u.precio_usd || 0) === 0 && Number(u.m2_propios || 0) === 0))
-      .map(u => ({
-        ...u,
-        proyecto: normalizarNombreProyecto(u.proyecto),
-        m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
-        m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
-        precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
-        precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
-        estado: u.estado || "Disponible"
-      }));
+      .map(u => {
+        const est = u.estado || (u.disponible === false ? "No Disponible" : "Disponible");
+        return {
+          ...u,
+          proyecto: normalizarNombreProyecto(u.proyecto),
+          m2_propios: Math.round((Number(u.m2_propios) || 0) * 100) / 100,
+          m2_totales: Math.round((Number(u.m2_totales) || Number(u.m2_propios) || 0) * 100) / 100,
+          precio_usd: Math.round((Number(u.precio_usd) || 0) * 100) / 100,
+          precio_m2_usd: Math.round(Number(u.precio_m2_usd) || 0),
+          estado: est,
+          disponible: est === "Disponible"
+        };
+      });
     if (modo === "reemplazar") {
       setUnidades(cleaned);
     } else {
@@ -195,81 +220,139 @@ export default function StockDisponibleTab({
     entrega_estimada: "2027"
   });
 
-  const unidadesActivasStock = useMemo(() => {
-    return unidades.filter(u => u.estado !== "Vendido");
+  // Segmentos principales del inventario completo
+  const unidadesDisponibles = useMemo(() => {
+    return unidades.filter(u => u.estado === "Disponible");
   }, [unidades]);
 
-  // Totales Globales (excluye unidades ya vendidas en Cuentas Corrientes)
+  const unidadesNoDisponibles = useMemo(() => {
+    return unidades.filter(u => u.estado === "No Disponible" || u.estado === "Bloqueado" || u.estado === "Vendido");
+  }, [unidades]);
+
+  const totalDisponibles = unidadesDisponibles.length;
+  const totalNoDisponibles = unidadesNoDisponibles.length;
+  const totalReservadas = useMemo(() => {
+    return unidades.filter(u => u.estado === "Reservado" || u.estado === "En Negociación").length;
+  }, [unidades]);
+
+  // Totales de Stock Disponible (SI)
   const totalValuacionUSD = useMemo(() => {
-    return unidadesActivasStock.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0);
-  }, [unidadesActivasStock]);
+    return unidadesDisponibles.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0);
+  }, [unidadesDisponibles]);
 
   const totalValuacionARS = useMemo(() => {
     return totalValuacionUSD * tcReferencia;
   }, [totalValuacionUSD, tcReferencia]);
 
   const totalM2Propios = useMemo(() => {
-    return unidadesActivasStock.reduce((acc, u) => acc + (Number(u.m2_propios) || 0), 0);
-  }, [unidadesActivasStock]);
+    return unidadesDisponibles.reduce((acc, u) => acc + (Number(u.m2_propios) || 0), 0);
+  }, [unidadesDisponibles]);
 
-  const totalDisponibles = useMemo(() => {
-    return unidadesActivasStock.filter(u => u.estado === "Disponible").length;
-  }, [unidadesActivasStock]);
+  // Totales de Cartera Completa (Disponibles + No Disponibles)
+  const totalValuacionCarteraUSD = useMemo(() => {
+    return unidades.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0);
+  }, [unidades]);
 
-  const totalReservadas = useMemo(() => {
-    return unidadesActivasStock.filter(u => u.estado === "Reservado" || u.estado === "En Negociación").length;
-  }, [unidadesActivasStock]);
+  const totalM2PropiosCartera = useMemo(() => {
+    return unidades.reduce((acc, u) => acc + (Number(u.m2_propios) || 0), 0);
+  }, [unidades]);
 
   const valorPromedioM2USD = useMemo(() => {
     return totalM2Propios > 0 ? totalValuacionUSD / totalM2Propios : 0;
   }, [totalValuacionUSD, totalM2Propios]);
 
   const ticketPromedioUSD = useMemo(() => {
-    return unidadesActivasStock.length > 0 ? totalValuacionUSD / unidadesActivasStock.length : 0;
-  }, [totalValuacionUSD, unidadesActivasStock]);
+    return unidadesDisponibles.length > 0 ? totalValuacionUSD / unidadesDisponibles.length : 0;
+  }, [totalValuacionUSD, unidadesDisponibles]);
 
-  // Resumen Valuado por Proyecto
+  // Universo base según filtro de Disponibilidad (SI / NO / TODOS) para Resumen por Proyecto & Gráficos
+  const unidadesPorDisponibilidad = useMemo(() => {
+    if (selectedDisponibilidad === "SI") {
+      return unidades.filter(u => u.estado === "Disponible");
+    }
+    if (selectedDisponibilidad === "NO") {
+      return unidades.filter(u => u.estado !== "Disponible");
+    }
+    return unidades;
+  }, [unidades, selectedDisponibilidad]);
+
+  const valuacionUniversoUSD = useMemo(() => {
+    return unidadesPorDisponibilidad.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0);
+  }, [unidadesPorDisponibilidad]);
+
+  const m2Universo = useMemo(() => {
+    return unidadesPorDisponibilidad.reduce((acc, u) => acc + (Number(u.m2_propios) || 0), 0);
+  }, [unidadesPorDisponibilidad]);
+
+  // Resumen Valuado por Proyecto (incluye los 9 proyectos aunque tengan 0 disponibles)
   const resumenPorProyecto = useMemo(() => {
     const map = {};
-    unidadesActivasStock.forEach(u => {
+    if (selectedDisponibilidad === "TODOS") {
+      PROYECTOS_STOCK.forEach(p => {
+        map[p] = {
+          proyecto: p,
+          unidadesCount: 0,
+          disponiblesCount: 0,
+          noDisponiblesCount: 0,
+          reservadasCount: 0,
+          m2_propios: 0,
+          m2_totales: 0,
+          precio_usd: 0,
+          precio_disp_usd: 0
+        };
+      });
+    }
+
+    unidadesPorDisponibilidad.forEach(u => {
       const p = u.proyecto || "Otros";
       if (!map[p]) {
         map[p] = {
           proyecto: p,
           unidadesCount: 0,
           disponiblesCount: 0,
+          noDisponiblesCount: 0,
           reservadasCount: 0,
           m2_propios: 0,
           m2_totales: 0,
-          precio_usd: 0
+          precio_usd: 0,
+          precio_disp_usd: 0
         };
       }
       map[p].unidadesCount += 1;
-      if (u.estado === "Disponible") map[p].disponiblesCount += 1;
-      if (u.estado === "Reservado" || u.estado === "En Negociación") map[p].reservadasCount += 1;
+      if (u.estado === "Disponible") {
+        map[p].disponiblesCount += 1;
+        map[p].precio_disp_usd += Number(u.precio_usd) || 0;
+      } else if (u.estado === "Reservado" || u.estado === "En Negociación") {
+        map[p].reservadasCount += 1;
+      } else {
+        map[p].noDisponiblesCount += 1;
+      }
       map[p].m2_propios += Number(u.m2_propios) || 0;
       map[p].m2_totales += Number(u.m2_totales) || 0;
       map[p].precio_usd += Number(u.precio_usd) || 0;
     });
 
-    return Object.values(map).map(item => {
-      const pctTotal = totalValuacionUSD > 0 ? (item.precio_usd / totalValuacionUSD) * 100 : 0;
-      const valorM2 = item.m2_propios > 0 ? item.precio_usd / item.m2_propios : 0;
-      const ticketProm = item.unidadesCount > 0 ? item.precio_usd / item.unidadesCount : 0;
-      return {
-        ...item,
-        precio_ars: item.precio_usd * tcReferencia,
-        pctTotal,
-        valorM2,
-        ticketProm
-      };
-    }).sort((a, b) => b.precio_usd - a.precio_usd);
-  }, [unidades, totalValuacionUSD, tcReferencia]);
+    return Object.values(map)
+      .filter(item => item.unidadesCount > 0)
+      .map(item => {
+        const pctTotal = valuacionUniversoUSD > 0 ? (item.precio_usd / valuacionUniversoUSD) * 100 : 0;
+        const valorM2 = item.m2_propios > 0 ? item.precio_usd / item.m2_propios : 0;
+        const ticketProm = item.unidadesCount > 0 ? item.precio_usd / item.unidadesCount : 0;
+        return {
+          ...item,
+          precio_ars: item.precio_usd * tcReferencia,
+          pctTotal,
+          valorM2,
+          ticketProm
+        };
+      })
+      .sort((a, b) => b.precio_usd - a.precio_usd);
+  }, [unidadesPorDisponibilidad, selectedDisponibilidad, valuacionUniversoUSD, tcReferencia]);
 
   // Datos para Gráficos Claros (No oscuros)
   const chartDataProyectos = useMemo(() => {
     return resumenPorProyecto.map((p, idx) => ({
-      name: p.proyecto.replace(" Proyecto", "").replace("Cupo ", ""),
+      name: p.proyecto.replace(" Proyecto", "").replace("Cupo Link # 300 - ", "300 ").replace("Cupo Link ", ""),
       fullName: p.proyecto,
       valuacionUSD: Math.round(p.precio_usd),
       valuacionKUSD: Math.round(p.precio_usd / 1000),
@@ -282,7 +365,7 @@ export default function StockDisponibleTab({
 
   const chartDataTipologias = useMemo(() => {
     const map = {};
-    unidades.forEach(u => {
+    unidadesPorDisponibilidad.forEach(u => {
       const t = u.tipologia || "Otros";
       if (!map[t]) map[t] = { name: t, value: 0, count: 0 };
       map[t].value += Number(u.precio_usd) || 0;
@@ -290,14 +373,14 @@ export default function StockDisponibleTab({
     });
     return Object.values(map).map((t, idx) => ({
       ...t,
-      pct: totalValuacionUSD > 0 ? (t.value / totalValuacionUSD) * 100 : 0,
+      pct: valuacionUniversoUSD > 0 ? (t.value / valuacionUniversoUSD) * 100 : 0,
       color: COLORS_TIPOLOGIA[idx % COLORS_TIPOLOGIA.length]
     })).sort((a, b) => b.value - a.value);
-  }, [unidades, totalValuacionUSD]);
+  }, [unidadesPorDisponibilidad, valuacionUniversoUSD]);
 
   // Filtrado y Ordenamiento de Unidades
   const unidadesFiltradas = useMemo(() => {
-    return unidades.filter(u => {
+    return unidadesPorDisponibilidad.filter(u => {
       if (selectedProyecto !== "TODOS" && u.proyecto !== selectedProyecto) return false;
       if (selectedTipologia !== "TODAS" && u.tipologia !== selectedTipologia) return false;
       if (selectedEstado !== "TODOS" && u.estado !== selectedEstado) return false;
@@ -306,6 +389,8 @@ export default function StockDisponibleTab({
         const match =
           (u.proyecto || "").toLowerCase().includes(q) ||
           (u.unidad || "").toLowerCase().includes(q) ||
+          (u.nro_unidad || "").toLowerCase().includes(q) ||
+          (u.asignado || "").toLowerCase().includes(q) ||
           (u.tipologia || "").toLowerCase().includes(q) ||
           (u.piso || "").toLowerCase().includes(q) ||
           (u.observaciones || "").toLowerCase().includes(q);
@@ -316,6 +401,9 @@ export default function StockDisponibleTab({
       if (sortBy === "proyecto") {
         const cmp = (a.proyecto || "").localeCompare(b.proyecto || "");
         if (cmp !== 0) return cmp;
+        const na = parseInt(a.nro_unidad, 10);
+        const nb = parseInt(b.nro_unidad, 10);
+        if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
         return (a.unidad || "").localeCompare(b.unidad || "");
       }
       if (sortBy === "precio_desc") return (b.precio_usd || 0) - (a.precio_usd || 0);
@@ -323,7 +411,22 @@ export default function StockDisponibleTab({
       if (sortBy === "m2_desc") return (b.m2_propios || 0) - (a.m2_propios || 0);
       return 0;
     });
-  }, [unidades, selectedProyecto, selectedTipologia, selectedEstado, search, sortBy]);
+  }, [unidadesPorDisponibilidad, selectedProyecto, selectedTipologia, selectedEstado, search, sortBy]);
+
+  const resumenFiltrado = useMemo(() => {
+    const usd = unidadesFiltradas.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0);
+    const m2 = unidadesFiltradas.reduce((acc, u) => acc + (Number(u.m2_propios) || 0), 0);
+    const disp = unidadesFiltradas.filter(u => u.estado === "Disponible").length;
+    const noDisp = unidadesFiltradas.filter(u => u.estado !== "Disponible").length;
+    return {
+      usd,
+      ars: usd * tcReferencia,
+      m2,
+      avgM2: m2 > 0 ? usd / m2 : 0,
+      disp,
+      noDisp
+    };
+  }, [unidadesFiltradas, tcReferencia]);
 
   // Abrir Modal para Crear
   const abrirModalCrear = () => {
@@ -391,7 +494,8 @@ export default function StockDisponibleTab({
         m2_propios: m2p,
         m2_totales: m2t,
         precio_usd: pusd,
-        precio_m2_usd: pm2
+        precio_m2_usd: pm2,
+        disponible: formData.estado === "Disponible"
       } : u));
     } else {
       const nueva = {
@@ -400,7 +504,8 @@ export default function StockDisponibleTab({
         m2_propios: m2p,
         m2_totales: m2t,
         precio_usd: pusd,
-        precio_m2_usd: pm2
+        precio_m2_usd: pm2,
+        disponible: formData.estado === "Disponible"
       };
       setUnidades(prev => [nueva, ...prev]);
     }
@@ -410,46 +515,53 @@ export default function StockDisponibleTab({
 
   // Eliminar Unidad
   const eliminarUnidad = (id) => {
-    if (window.confirm("¿Seguro que deseas eliminar esta unidad del stock disponible?")) {
+    if (window.confirm("¿Seguro que deseas eliminar esta unidad del stock?")) {
       setUnidades(prev => prev.filter(u => u.id !== id));
     }
   };
 
   // Restaurar inventario base
   const restaurarBase = () => {
-    if (window.confirm("¿Restaurar el inventario base oficial de unidades Link Inversiones?")) {
+    if (window.confirm("¿Restaurar el inventario base oficial completo de los 9 proyectos Link Inversiones (689 unidades)?")) {
       setUnidades(DEFAULT_STOCK_UNITS);
     }
   };
 
-  // Exportar a CSV / Excel
+  // Exportar a CSV / Excel (según filtros activos)
   const exportarCSV = () => {
     const headers = [
       "Proyecto",
+      "Nro",
       "Unidad",
       "Tipologia",
       "Piso",
       "Orientacion",
+      "Asignado",
+      "Disponible_SI_NO",
       "M2_Propios",
       "M2_Totales",
       "Valuacion_USD",
       "USD_M2",
       "Valuacion_ARS",
-      "Pct_Stock_Total",
+      "Pct_Universo",
       "Estado",
       "Observaciones",
       "Entrega_Estimada"
     ];
 
-    const rows = unidades.map(u => {
-      const pct = totalValuacionUSD > 0 ? ((u.precio_usd || 0) / totalValuacionUSD * 100).toFixed(2) : "0.00";
+    const baseDenom = resumenFiltrado.usd || 1;
+    const rows = unidadesFiltradas.map(u => {
+      const pct = ((u.precio_usd || 0) / baseDenom * 100).toFixed(2);
       const ars = Math.round((u.precio_usd || 0) * tcReferencia);
       return [
         `"${u.proyecto || ""}"`,
+        `"${u.nro_unidad || ""}"`,
         `"${u.unidad || ""}"`,
         `"${u.tipologia || ""}"`,
         `"${u.piso || ""}"`,
         `"${u.orientacion || ""}"`,
+        `"${u.asignado || ""}"`,
+        `"${u.estado === "Disponible" ? "SI" : "NO"}"`,
         u.m2_propios || 0,
         u.m2_totales || 0,
         u.precio_usd || 0,
@@ -466,7 +578,7 @@ export default function StockDisponibleTab({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Stock_Disponible_Link_Inversiones_${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `Inventario_Unidades_Link_${new Date().toISOString().split("T")[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -504,10 +616,10 @@ export default function StockDisponibleTab({
             </div>
             <div>
               <h2 style={{ margin: 0, fontFamily: tokens.fontDisplay, fontSize: 22, fontWeight: 700, color: "#0F172A" }}>
-                Stock Disponible de Unidades
+                Inventario General de Unidades por Proyecto
               </h2>
               <p style={{ margin: "2px 0 0 0", fontSize: 13, color: "#64748B" }}>
-                Inventario de unidades a la venta valuadas tal como en la planilla oficial (Proyecto - Unidades - Valuación).
+                Catálogo completo de los {todosLosProyectos.length} proyectos ({unidades.length} unidades totales · {totalDisponibles} disponibles · {totalNoDisponibles} no disponibles).
               </p>
             </div>
           </div>
@@ -541,7 +653,7 @@ export default function StockDisponibleTab({
                 color: "#0F172A",
                 outline: "none"
               }}
-              title="Tipo de cambio de referencia para valuación en Pesos (por defecto $1.550 como en el Excel)"
+              title="Tipo de cambio de referencia para valuación en Pesos (por defecto $1.550)"
             />
           </div>
 
@@ -656,7 +768,7 @@ export default function StockDisponibleTab({
               fontSize: 13,
               boxShadow: "0 1px 3px rgba(16, 185, 129, 0.15)"
             }}
-            title="Importar inventario de disponibles desde Excel (.xlsx, .xls) o CSV con formato oficial"
+            title="Importar inventario desde Excel (.xlsx, .xls) o CSV"
           >
             <Upload size={15} color="#059669" /> Importar Excel
           </button>
@@ -677,7 +789,7 @@ export default function StockDisponibleTab({
               fontWeight: 600,
               fontSize: 12.5
             }}
-            title="Exportar inventario actual a CSV / Excel"
+            title="Exportar vista filtrada actual a CSV / Excel"
           >
             <Download size={14} /> Exportar Excel
           </button>
@@ -697,7 +809,7 @@ export default function StockDisponibleTab({
               cursor: "pointer",
               fontSize: 12
             }}
-            title="Restaurar datos base oficiales"
+            title="Restaurar inventario oficial de los 9 proyectos (689 unidades)"
           >
             <RotateCcw size={13} />
           </button>
@@ -707,7 +819,7 @@ export default function StockDisponibleTab({
       {/* ── KPI METRICS CARDS (FONDOS CLAROS Y LEGIBLES) ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14 }}>
         
-        {/* KPI 1: VALUACIÓN TOTAL DEL STOCK */}
+        {/* KPI 1: VALUACIÓN DEL STOCK DISPONIBLE (SI) */}
         <div style={{
           background: "#FFFFFF",
           borderRadius: 12,
@@ -718,10 +830,10 @@ export default function StockDisponibleTab({
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Valuación Total Stock
+              Valuación Stock Disponible
             </span>
             <span style={{ fontSize: 10, fontWeight: 700, background: "#ECFDF5", color: "#065F46", padding: "2px 6px", borderRadius: 4 }}>
-              100% Stock
+              Solo Disp. (SI)
             </span>
           </div>
           <div style={{ fontFamily: tokens.fontMono, fontSize: 23, fontWeight: 800, color: "#0F172A", marginTop: 8 }}>
@@ -730,9 +842,7 @@ export default function StockDisponibleTab({
               : `$ ${(totalValuacionARS / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M`}
           </div>
           <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontFamily: tokens.fontMono }}>
-            {moneda === "USD"
-              ? `$ ${(totalValuacionARS / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M (TC $${fmt(tcReferencia)})`
-              : `USD ${Math.round(totalValuacionUSD).toLocaleString("es-AR")}`}
+            Cartera total: USD {Math.round(totalValuacionCarteraUSD).toLocaleString("es-AR")}
           </div>
         </div>
 
@@ -758,11 +868,11 @@ export default function StockDisponibleTab({
             <span style={{ fontSize: 13, fontWeight: 600, color: "#10B981" }}>disponibles</span>
           </div>
           <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
-            {totalReservadas > 0 ? `${totalReservadas} en reserva / negociación` : "Sin reservas activas"}
+            {totalNoDisponibles} no disponibles{totalReservadas > 0 ? ` · ${totalReservadas} reservadas` : ""}
           </div>
         </div>
 
-        {/* KPI 3: METROS CUADRADOS COMERCIALIZABLES */}
+        {/* KPI 3: METROS CUADRADOS DISPONIBLES */}
         <div style={{
           background: "#FFFFFF",
           borderRadius: 12,
@@ -773,17 +883,17 @@ export default function StockDisponibleTab({
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Superficie Propia
+              Superficie Disponible
             </span>
             <span style={{ fontSize: 10, fontWeight: 700, background: "#FFFBEB", color: "#92400E", padding: "2px 6px", borderRadius: 4 }}>
-              m² Propios
+              m² Propios SI
             </span>
           </div>
           <div style={{ fontFamily: tokens.fontMono, fontSize: 23, fontWeight: 800, color: "#0F172A", marginTop: 8 }}>
             {Math.round(totalM2Propios).toLocaleString("es-AR")} m²
           </div>
           <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
-            Sup. promedio: {unidades.length > 0 ? (totalM2Propios / unidades.length).toFixed(1) : 0} m² / u.
+            Cartera total: {Math.round(totalM2PropiosCartera).toLocaleString("es-AR")} m²
           </div>
         </div>
 
@@ -801,96 +911,151 @@ export default function StockDisponibleTab({
               Valor Promedio m²
             </span>
             <span style={{ fontSize: 10, fontWeight: 700, background: "#F5F3FF", color: "#5B21B6", padding: "2px 6px", borderRadius: 4 }}>
-              Ponderado
+              Disp. Ponderado
             </span>
           </div>
           <div style={{ fontFamily: tokens.fontMono, fontSize: 23, fontWeight: 800, color: "#0F172A", marginTop: 8 }}>
             USD {Math.round(valorPromedioM2USD).toLocaleString("es-AR")} / m²
           </div>
           <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
-            Ticket Promedio: USD {Math.round(ticketPromedioUSD).toLocaleString("es-AR")}
+            Ticket Prom. Disp: USD {Math.round(ticketPromedioUSD).toLocaleString("es-AR")}
           </div>
         </div>
       </div>
 
-      {/* ── SELECTOR DE VISTA (UNIDADES · PROYECTOS · GRÁFICOS) ── */}
+      {/* ── SELECTOR DE VISTA + FILTRO PRINCIPAL DE DISPONIBILIDAD (SI / NO) ── */}
       <div style={{
         display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: 12,
+        flexDirection: "column",
+        gap: 10,
         background: "#FFFFFF",
-        padding: "8px 14px",
+        padding: "12px 16px",
         borderRadius: 10,
         border: "1px solid #E2E8F0"
       }}>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button
-            type="button"
-            onClick={() => setViewMode("unidades")}
-            style={{
-              padding: "7px 14px",
-              fontSize: 13,
-              fontWeight: 700,
-              borderRadius: 6,
-              border: "none",
-              background: viewMode === "unidades" ? "#0F172A" : "transparent",
-              color: viewMode === "unidades" ? "#FFFFFF" : "#64748B",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              transition: "all 0.15s ease"
-            }}
-          >
-            <Layers size={15} /> Detalle Unidades ({unidadesFiltradas.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("proyectos")}
-            style={{
-              padding: "7px 14px",
-              fontSize: 13,
-              fontWeight: 700,
-              borderRadius: 6,
-              border: "none",
-              background: viewMode === "proyectos" ? "#0F172A" : "transparent",
-              color: viewMode === "proyectos" ? "#FFFFFF" : "#64748B",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              transition: "all 0.15s ease"
-            }}
-          >
-            <Building2 size={15} /> Resumen por Proyecto ({resumenPorProyecto.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("graficos")}
-            style={{
-              padding: "7px 14px",
-              fontSize: 13,
-              fontWeight: 700,
-              borderRadius: 6,
-              border: "none",
-              background: viewMode === "graficos" ? "#0F172A" : "transparent",
-              color: viewMode === "graficos" ? "#FFFFFF" : "#64748B",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              transition: "all 0.15s ease"
-            }}
-          >
-            <BarChart3 size={15} /> Gráficos de Stock
-          </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setViewMode("unidades")}
+              style={{
+                padding: "7px 14px",
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 6,
+                border: "none",
+                background: viewMode === "unidades" ? "#0F172A" : "transparent",
+                color: viewMode === "unidades" ? "#FFFFFF" : "#64748B",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease"
+              }}
+            >
+              <Layers size={15} /> Detalle Unidades ({unidadesFiltradas.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("proyectos")}
+              style={{
+                padding: "7px 14px",
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 6,
+                border: "none",
+                background: viewMode === "proyectos" ? "#0F172A" : "transparent",
+                color: viewMode === "proyectos" ? "#FFFFFF" : "#64748B",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease"
+              }}
+            >
+              <Building2 size={15} /> Resumen por Proyecto ({resumenPorProyecto.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("graficos")}
+              style={{
+                padding: "7px 14px",
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 6,
+                border: "none",
+                background: viewMode === "graficos" ? "#0F172A" : "transparent",
+                color: viewMode === "graficos" ? "#FFFFFF" : "#64748B",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease"
+              }}
+            >
+              <BarChart3 size={15} /> Gráficos de Stock
+            </button>
+          </div>
+
+          {/* SEGMENTED CONTROL: FILTRAR POR DISPONIBLE O NO */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#F1F5F9", padding: 4, borderRadius: 8, border: "1px solid #CBD5E1" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#475569", padding: "0 6px", textTransform: "uppercase" }}>
+              Disponibilidad:
+            </span>
+            <button
+              type="button"
+              onClick={() => { setSelectedDisponibilidad("TODOS"); setSelectedEstado("TODOS"); }}
+              style={{
+                padding: "5px 11px",
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+                background: selectedDisponibilidad === "TODOS" ? "#0F172A" : "transparent",
+                color: selectedDisponibilidad === "TODOS" ? "#FFFFFF" : "#475569"
+              }}
+            >
+              Todas ({unidades.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedDisponibilidad("SI"); setSelectedEstado("TODOS"); }}
+              style={{
+                padding: "5px 11px",
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+                background: selectedDisponibilidad === "SI" ? "#059669" : "transparent",
+                color: selectedDisponibilidad === "SI" ? "#FFFFFF" : "#065F46"
+              }}
+            >
+              Disponibles · SI ({totalDisponibles})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedDisponibilidad("NO"); setSelectedEstado("TODOS"); }}
+              style={{
+                padding: "5px 11px",
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+                background: selectedDisponibilidad === "NO" ? "#475569" : "transparent",
+                color: selectedDisponibilidad === "NO" ? "#FFFFFF" : "#475569"
+              }}
+            >
+              No Disponibles · NO ({unidades.length - totalDisponibles})
+            </button>
+          </div>
         </div>
 
-        {/* CONTROLES DE FILTRADO RÁPIDO */}
+        {/* CONTROLES DE FILTRADO DETALLADO */}
         {viewMode === "unidades" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", paddingTop: 8, borderTop: "1px solid #F1F5F9" }}>
             {/* BUSCADOR */}
             <div style={{
               display: "flex",
@@ -899,12 +1064,12 @@ export default function StockDisponibleTab({
               background: "#F8FAFC",
               border: "1px solid #CBD5E1",
               borderRadius: 6,
-              padding: "4px 8px"
+              padding: "5px 9px"
             }}>
               <Search size={14} color="#94A3B8" />
               <input
                 type="text"
-                placeholder="Buscar unidad, piso, proyecto..."
+                placeholder="Buscar unidad, N°, asignado, piso..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={{
@@ -912,7 +1077,7 @@ export default function StockDisponibleTab({
                   background: "transparent",
                   fontSize: 12,
                   outline: "none",
-                  width: 170,
+                  width: 195,
                   color: "#0F172A"
                 }}
               />
@@ -928,18 +1093,40 @@ export default function StockDisponibleTab({
               style={{
                 fontSize: 12,
                 fontWeight: 600,
-                padding: "5px 8px",
+                padding: "6px 10px",
                 borderRadius: 6,
                 border: "1px solid #CBD5E1",
-                background: "#FFFFFF",
-                color: "#334155",
+                background: selectedProyecto !== "TODOS" ? "#EFF6FF" : "#FFFFFF",
+                color: selectedProyecto !== "TODOS" ? "#1E40AF" : "#334155",
                 outline: "none",
                 cursor: "pointer"
               }}
             >
-              <option value="TODOS">Todos los Proyectos</option>
+              <option value="TODOS">Todos los Proyectos ({todosLosProyectos.length})</option>
               {todosLosProyectos.map(p => (
                 <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            {/* FILTRO TIPOLOGÍA */}
+            <select
+              value={selectedTipologia}
+              onChange={(e) => setSelectedTipologia(e.target.value)}
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                padding: "6px 10px",
+                borderRadius: 6,
+                border: "1px solid #CBD5E1",
+                background: selectedTipologia !== "TODAS" ? "#EFF6FF" : "#FFFFFF",
+                color: selectedTipologia !== "TODAS" ? "#1E40AF" : "#334155",
+                outline: "none",
+                cursor: "pointer"
+              }}
+            >
+              <option value="TODAS">Todas las Tipologías</option>
+              {todasLasTipologias.map(t => (
+                <option key={t} value={t}>{t}</option>
               ))}
             </select>
 
@@ -950,7 +1137,7 @@ export default function StockDisponibleTab({
               style={{
                 fontSize: 12,
                 fontWeight: 600,
-                padding: "5px 8px",
+                padding: "6px 10px",
                 borderRadius: 6,
                 border: "1px solid #CBD5E1",
                 background: "#FFFFFF",
@@ -972,7 +1159,7 @@ export default function StockDisponibleTab({
               style={{
                 fontSize: 12,
                 fontWeight: 600,
-                padding: "5px 8px",
+                padding: "6px 10px",
                 borderRadius: 6,
                 border: "1px solid #CBD5E1",
                 background: "#FFFFFF",
@@ -981,41 +1168,20 @@ export default function StockDisponibleTab({
                 cursor: "pointer"
               }}
             >
-              <option value="proyecto">Agrupar por Proyecto</option>
+              <option value="proyecto">Ordenar por Proyecto y N°</option>
               <option value="precio_desc">Mayor Valuación</option>
               <option value="precio_asc">Menor Valuación</option>
               <option value="m2_desc">Mayor Superficie m²</option>
             </select>
 
-            {/* BOTÓN RÁPIDO: SOLO DISPONIBLES */}
-            <button
-              type="button"
-              onClick={() => setSelectedEstado(selectedEstado === "Disponible" ? "TODOS" : "Disponible")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                fontSize: 12,
-                fontWeight: 700,
-                padding: "5px 10px",
-                borderRadius: 6,
-                border: selectedEstado === "Disponible" ? "1px solid #059669" : "1px solid #CBD5E1",
-                background: selectedEstado === "Disponible" ? "#ECFDF5" : "#FFFFFF",
-                color: selectedEstado === "Disponible" ? "#065F46" : "#475569",
-                cursor: "pointer"
-              }}
-            >
-              <CheckCircle2 size={13} color={selectedEstado === "Disponible" ? "#10B981" : "#94A3B8"} />
-              Solo Disponibles ({totalDisponibles})
-            </button>
-
-            {(selectedProyecto !== "TODOS" || selectedTipologia !== "TODAS" || selectedEstado !== "TODOS" || search) && (
+            {(selectedProyecto !== "TODOS" || selectedTipologia !== "TODAS" || selectedEstado !== "TODOS" || selectedDisponibilidad !== "TODOS" || search) && (
               <button
                 type="button"
                 onClick={() => {
                   setSelectedProyecto("TODOS");
                   setSelectedTipologia("TODAS");
                   setSelectedEstado("TODOS");
+                  setSelectedDisponibilidad("TODOS");
                   setSearch("");
                 }}
                 style={{
@@ -1024,7 +1190,7 @@ export default function StockDisponibleTab({
                   gap: 4,
                   fontSize: 11.5,
                   fontWeight: 600,
-                  padding: "5px 8px",
+                  padding: "6px 10px",
                   borderRadius: 6,
                   border: "1px dashed #CBD5E1",
                   background: "transparent",
@@ -1048,6 +1214,35 @@ export default function StockDisponibleTab({
           boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
           overflow: "hidden"
         }}>
+          {/* BARRA RESUMEN DE FILTRO ACTIVO */}
+          <div style={{
+            padding: "10px 18px",
+            background: "#F8FAFC",
+            borderBottom: "1px solid #E2E8F0",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 10,
+            fontSize: 12
+          }}>
+            <div style={{ color: "#334155", fontWeight: 600 }}>
+              Mostrando <strong style={{ color: "#0F172A" }}>{unidadesFiltradas.length}</strong> de {unidades.length} unidades
+              {" · "}
+              <span style={{ color: "#059669", fontWeight: 700 }}>{resumenFiltrado.disp} Disp. (SI)</span>
+              {" · "}
+              <span style={{ color: "#64748B", fontWeight: 700 }}>{resumenFiltrado.noDisp} No Disp. (NO)</span>
+            </div>
+            <div style={{ display: "flex", gap: 16, fontFamily: tokens.fontMono, fontWeight: 700, color: "#0F172A" }}>
+              <span>Sup: {Math.round(resumenFiltrado.m2).toLocaleString("es-AR")} m²</span>
+              <span style={{ color: "#065F46" }}>
+                Valuación Filtrada: {moneda === "USD"
+                  ? `USD ${Math.round(resumenFiltrado.usd).toLocaleString("es-AR")}`
+                  : `$ ${(resumenFiltrado.ars / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M`}
+              </span>
+            </div>
+          </div>
+
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
               <thead>
@@ -1062,9 +1257,9 @@ export default function StockDisponibleTab({
                     Valuación ({moneda})
                   </th>
                   <th style={{ padding: "12px 12px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", textAlign: "center", color: "#B45309" }}>
-                    % s/ Stock Total
+                    % s/ Filtro
                   </th>
-                  <th style={{ padding: "12px 12px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", textAlign: "center" }}>Estado</th>
+                  <th style={{ padding: "12px 12px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", textAlign: "center" }}>Disponible</th>
                   <th style={{ padding: "12px 16px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", textAlign: "center" }}>Acciones</th>
                 </tr>
               </thead>
@@ -1077,7 +1272,7 @@ export default function StockDisponibleTab({
                   </tr>
                 ) : (
                   unidadesFiltradas.map((u, index) => {
-                    const pctOfTotal = totalValuacionUSD > 0 ? ((u.precio_usd || 0) / totalValuacionUSD * 100) : 0;
+                    const pctOfFiltered = resumenFiltrado.usd > 0 ? ((u.precio_usd || 0) / resumenFiltrado.usd * 100) : 0;
                     const estObj = ESTADOS.find(e => e.id === u.estado) || ESTADOS[0];
                     const valARS = (u.precio_usd || 0) * tcReferencia;
 
@@ -1087,6 +1282,7 @@ export default function StockDisponibleTab({
                         style={{
                           borderBottom: "1px solid #F1F5F9",
                           background: index % 2 === 0 ? "#FFFFFF" : "#FAFAFC",
+                          opacity: u.estado === "No Disponible" ? 0.85 : 1,
                           transition: "background 0.15s"
                         }}
                       >
@@ -1099,6 +1295,7 @@ export default function StockDisponibleTab({
                               height: 8,
                               borderRadius: "50%",
                               background: u.proyecto.includes("+ DUO") ? "#2563EB" :
+                                         u.proyecto === "DUO" ? "#0F766E" :
                                          u.proyecto.includes("Green") ? "#10B981" :
                                          u.proyecto.includes("Auria") ? "#D97706" :
                                          u.proyecto.includes("# 300") ? "#8B5CF6" :
@@ -1115,7 +1312,7 @@ export default function StockDisponibleTab({
                         <td style={{ padding: "12px 14px", fontWeight: 600, color: "#0F172A" }}>
                           <div>{u.unidad}</div>
                           {u.observaciones && (
-                            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={u.observaciones}>
+                            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2, maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={u.observaciones}>
                               {u.observaciones}
                             </div>
                           )}
@@ -1173,7 +1370,7 @@ export default function StockDisponibleTab({
                           )}
                         </td>
 
-                        {/* % QUE REPRESENTA DEL TOTAL (REQUERIMIENTO DEL USUARIO) */}
+                        {/* % */}
                         <td style={{ padding: "12px 12px", textAlign: "center" }}>
                           <span style={{
                             display: "inline-flex",
@@ -1187,7 +1384,7 @@ export default function StockDisponibleTab({
                             color: "#92400E",
                             border: "1px solid #FDE68A"
                           }}>
-                            {pctOfTotal.toFixed(2)}%
+                            {pctOfFiltered.toFixed(2)}%
                           </span>
                         </td>
 
@@ -1253,26 +1450,24 @@ export default function StockDisponibleTab({
               <tfoot>
                 <tr style={{ background: "#F8FAFC", borderTop: "2px solid #CBD5E1" }}>
                   <td colSpan={4} style={{ padding: "14px 16px", fontWeight: 800, color: "#0F172A" }}>
-                    TOTAL STOCK DISPONIBLE ({unidadesFiltradas.length} de {unidades.length} unidades)
+                    TOTAL SELECCIÓN ({unidadesFiltradas.length} de {unidades.length} unidades)
                   </td>
                   <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 800, fontFamily: tokens.fontMono, color: "#0F172A" }}>
-                    {Math.round(unidadesFiltradas.reduce((acc, u) => acc + (Number(u.m2_propios) || 0), 0)).toLocaleString("es-AR")} m²
+                    {Math.round(resumenFiltrado.m2).toLocaleString("es-AR")} m²
                   </td>
                   <td style={{ padding: "14px 12px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#64748B", fontSize: 12 }}>
-                    USD {Math.round(valorPromedioM2USD).toLocaleString("es-AR")} / m²
+                    USD {Math.round(resumenFiltrado.avgM2).toLocaleString("es-AR")} / m²
                   </td>
                   <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 900, fontFamily: tokens.fontMono, color: "#065F46", fontSize: 15, background: "#DCFCE7" }}>
                     {moneda === "USD"
-                      ? `USD ${Math.round(unidadesFiltradas.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0)).toLocaleString("es-AR")}`
-                      : `$ ${(unidadesFiltradas.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0) * tcReferencia / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M`}
+                      ? `USD ${Math.round(resumenFiltrado.usd).toLocaleString("es-AR")}`
+                      : `$ ${(resumenFiltrado.ars / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M`}
                   </td>
                   <td style={{ padding: "14px 12px", textAlign: "center", fontWeight: 900, fontFamily: tokens.fontMono, color: "#92400E", background: "#FEF3C7" }}>
-                    {totalValuacionUSD > 0
-                      ? `${(unidadesFiltradas.reduce((acc, u) => acc + (Number(u.precio_usd) || 0), 0) / totalValuacionUSD * 100).toFixed(1)}%`
-                      : "100%"}
+                    100.0%
                   </td>
                   <td colSpan={2} style={{ padding: "14px 16px", textAlign: "center", color: "#64748B", fontSize: 12 }}>
-                    {totalDisponibles} disp. · {totalReservadas} res.
+                    {resumenFiltrado.disp} disp. · {resumenFiltrado.noDisp} no disp.
                   </td>
                 </tr>
               </tfoot>
@@ -1291,17 +1486,17 @@ export default function StockDisponibleTab({
             boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
             overflow: "hidden"
           }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>
-                  Valuación Consolidada de Stock por Proyecto
+                  Resumen Consolidado por Proyecto ({selectedDisponibilidad === "SI" ? "Solo Disponibles" : selectedDisponibilidad === "NO" ? "Solo No Disponibles" : "Cartera Completa"})
                 </h3>
                 <p style={{ margin: "2px 0 0 0", fontSize: 12.5, color: "#64748B" }}>
-                  Desglose de unidades comercializables, metros cuadrados totales y participación % de cada proyecto en el valor del stock.
+                  Haz clic sobre cualquier proyecto para filtrar su detalle de unidades.
                 </p>
               </div>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#065F46", background: "#ECFDF5", padding: "4px 10px", borderRadius: 8 }}>
-                Valuación Global: USD {Math.round(totalValuacionUSD).toLocaleString("es-AR")}
+                Valuación Universo: USD {Math.round(valuacionUniversoUSD).toLocaleString("es-AR")}
               </span>
             </div>
 
@@ -1310,10 +1505,12 @@ export default function StockDisponibleTab({
                 <thead>
                   <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0", color: "#475569" }}>
                     <th style={{ padding: "12px 18px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase" }}>Proyecto</th>
-                    <th style={{ padding: "12px 14px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "center" }}>Unidades Disp.</th>
-                    <th style={{ padding: "12px 14px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "right" }}>Sup. Total (m²)</th>
-                    <th style={{ padding: "12px 16px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "right" }}>Ticket Promedio</th>
-                    <th style={{ padding: "12px 16px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "right" }}>Valor m² Ponderado</th>
+                    <th style={{ padding: "12px 12px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "center" }}>Total U.</th>
+                    <th style={{ padding: "12px 12px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "center", color: "#059669" }}>Disp. (SI)</th>
+                    <th style={{ padding: "12px 12px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "center", color: "#64748B" }}>No Disp. (NO)</th>
+                    <th style={{ padding: "12px 14px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "right" }}>Sup. Propia (m²)</th>
+                    <th style={{ padding: "12px 14px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "right" }}>Ticket Prom.</th>
+                    <th style={{ padding: "12px 14px", fontWeight: 700, fontSize: 11.5, textTransform: "uppercase", textAlign: "right" }}>Valor m²</th>
                     <th style={{ padding: "12px 18px", fontWeight: 800, fontSize: 11.5, textTransform: "uppercase", textAlign: "right", color: "#065F46" }}>Valuación USD</th>
                     <th style={{ padding: "12px 18px", fontWeight: 800, fontSize: 11.5, textTransform: "uppercase", textAlign: "right", color: "#1E3A8A" }}>Valuación ARS</th>
                     <th style={{ padding: "12px 16px", fontWeight: 800, fontSize: 11.5, textTransform: "uppercase", textAlign: "center", color: "#B45309" }}>% s/ Total</th>
@@ -1323,28 +1520,37 @@ export default function StockDisponibleTab({
                   {resumenPorProyecto.map((p, index) => {
                     const colorBar = COLORS_PROYECTO[index % COLORS_PROYECTO.length];
                     return (
-                      <tr key={p.proyecto} style={{ borderBottom: "1px solid #F1F5F9", background: index % 2 === 0 ? "#FFFFFF" : "#FAFAFC" }}>
+                      <tr
+                        key={p.proyecto}
+                        onClick={() => {
+                          setSelectedProyecto(p.proyecto);
+                          setViewMode("unidades");
+                        }}
+                        style={{ borderBottom: "1px solid #F1F5F9", background: index % 2 === 0 ? "#FFFFFF" : "#FAFAFC", cursor: "pointer" }}
+                        title={`Ver unidades de ${p.proyecto}`}
+                      >
                         <td style={{ padding: "14px 18px", fontWeight: 700, color: "#0F172A" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{ width: 10, height: 10, borderRadius: "50%", background: colorBar }} />
                             <span>{p.proyecto}</span>
                           </div>
                         </td>
-                        <td style={{ padding: "14px 14px", textAlign: "center", fontWeight: 700, fontFamily: tokens.fontMono }}>
-                          <span style={{ color: "#10B981" }}>{p.disponiblesCount}</span>
-                          {p.reservadasCount > 0 && (
-                            <span style={{ fontSize: 11, color: "#F59E0B", marginLeft: 4 }}>
-                              (+{p.reservadasCount} res.)
-                            </span>
-                          )}
+                        <td style={{ padding: "14px 12px", textAlign: "center", fontWeight: 700, fontFamily: tokens.fontMono, color: "#0F172A" }}>
+                          {p.unidadesCount}
+                        </td>
+                        <td style={{ padding: "14px 12px", textAlign: "center", fontWeight: 700, fontFamily: tokens.fontMono }}>
+                          <span style={{ color: p.disponiblesCount > 0 ? "#10B981" : "#94A3B8" }}>{p.disponiblesCount}</span>
+                        </td>
+                        <td style={{ padding: "14px 12px", textAlign: "center", fontWeight: 600, fontFamily: tokens.fontMono, color: "#64748B" }}>
+                          {p.noDisponiblesCount}
                         </td>
                         <td style={{ padding: "14px 14px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 600 }}>
                           {Math.round(p.m2_propios).toLocaleString("es-AR")} m²
                         </td>
-                        <td style={{ padding: "14px 16px", textAlign: "right", fontFamily: tokens.fontMono, color: "#64748B" }}>
+                        <td style={{ padding: "14px 14px", textAlign: "right", fontFamily: tokens.fontMono, color: "#64748B" }}>
                           USD {Math.round(p.ticketProm).toLocaleString("es-AR")}
                         </td>
-                        <td style={{ padding: "14px 16px", textAlign: "right", fontFamily: tokens.fontMono, color: "#64748B" }}>
+                        <td style={{ padding: "14px 14px", textAlign: "right", fontFamily: tokens.fontMono, color: "#64748B" }}>
                           USD {Math.round(p.valorM2).toLocaleString("es-AR")}
                         </td>
                         <td style={{ padding: "14px 18px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 800, color: "#065F46", fontSize: 14 }}>
@@ -1377,24 +1583,30 @@ export default function StockDisponibleTab({
                 </tbody>
                 <tfoot>
                   <tr style={{ background: "#F1F5F9", borderTop: "2px solid #CBD5E1" }}>
-                    <td style={{ padding: "14px 18px", fontWeight: 900, color: "#0F172A" }}>TOTAL GENERAL STOCK</td>
-                    <td style={{ padding: "14px 14px", textAlign: "center", fontWeight: 900, fontFamily: tokens.fontMono, color: "#0F172A" }}>
-                      {unidades.length} u.
+                    <td style={{ padding: "14px 18px", fontWeight: 900, color: "#0F172A" }}>TOTAL UNIVERSO FILTRADO</td>
+                    <td style={{ padding: "14px 12px", textAlign: "center", fontWeight: 900, fontFamily: tokens.fontMono, color: "#0F172A" }}>
+                      {unidadesPorDisponibilidad.length} u.
+                    </td>
+                    <td style={{ padding: "14px 12px", textAlign: "center", fontWeight: 900, fontFamily: tokens.fontMono, color: "#059669" }}>
+                      {unidadesPorDisponibilidad.filter(u => u.estado === "Disponible").length}
+                    </td>
+                    <td style={{ padding: "14px 12px", textAlign: "center", fontWeight: 900, fontFamily: tokens.fontMono, color: "#64748B" }}>
+                      {unidadesPorDisponibilidad.filter(u => u.estado !== "Disponible").length}
                     </td>
                     <td style={{ padding: "14px 14px", textAlign: "right", fontWeight: 900, fontFamily: tokens.fontMono, color: "#0F172A" }}>
-                      {Math.round(totalM2Propios).toLocaleString("es-AR")} m²
+                      {Math.round(m2Universo).toLocaleString("es-AR")} m²
                     </td>
-                    <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#64748B" }}>
-                      USD {Math.round(ticketPromedioUSD).toLocaleString("es-AR")}
+                    <td style={{ padding: "14px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#64748B" }}>
+                      USD {Math.round(unidadesPorDisponibilidad.length > 0 ? valuacionUniversoUSD / unidadesPorDisponibilidad.length : 0).toLocaleString("es-AR")}
                     </td>
-                    <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#64748B" }}>
-                      USD {Math.round(valorPromedioM2USD).toLocaleString("es-AR")}
+                    <td style={{ padding: "14px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: "#64748B" }}>
+                      USD {Math.round(m2Universo > 0 ? valuacionUniversoUSD / m2Universo : 0).toLocaleString("es-AR")}
                     </td>
                     <td style={{ padding: "14px 18px", textAlign: "right", fontWeight: 900, fontFamily: tokens.fontMono, color: "#065F46", fontSize: 15, background: "#DCFCE7" }}>
-                      USD {Math.round(totalValuacionUSD).toLocaleString("es-AR")}
+                      USD {Math.round(valuacionUniversoUSD).toLocaleString("es-AR")}
                     </td>
                     <td style={{ padding: "14px 18px", textAlign: "right", fontWeight: 900, fontFamily: tokens.fontMono, color: "#1E3A8A", fontSize: 14 }}>
-                      $ {(totalValuacionARS / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M
+                      $ {((valuacionUniversoUSD * tcReferencia) / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M
                     </td>
                     <td style={{ padding: "14px 16px", textAlign: "center", fontWeight: 900, fontFamily: tokens.fontMono, color: "#92400E", background: "#FEF3C7" }}>
                       100.0%

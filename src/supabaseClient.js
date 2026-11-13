@@ -33,10 +33,10 @@ const VIRTUAL_PLAN_TABLES = {
     localKey: 'cf_indice_link_data',
   },
   stock_units: {
-    planId: 'stock_units',
+    planId: 'stock_units_v5',
     arrayKey: 'units',
     idKey: 'id',
-    localKey: 'cf_stock_disponible_units_v4',
+    localKey: 'cf_stock_disponible_units_v5',
   },
   cc_clientes: {
     planId: 'cc_clientes_v2',

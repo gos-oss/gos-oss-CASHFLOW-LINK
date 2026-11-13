@@ -315,15 +315,19 @@ export default function ImportadorStockModal({
       // Normalizar estado
       let estado = String(u.estado || "Disponible").trim();
       const estadoNorm = normalizarColumna(estado);
-      if (estadoNorm.includes("reserv")) estado = "Reservado";
+      if (estadoNorm === "no" || estadoNorm.includes("nodispon")) estado = "No Disponible";
+      else if (estadoNorm.includes("reserv")) estado = "Reservado";
       else if (estadoNorm.includes("negoc")) estado = "En Negociación";
       else if (estadoNorm.includes("bloq")) estado = "Bloqueado";
+      else if (estadoNorm.includes("vendid")) estado = "Vendido";
       else estado = "Disponible";
 
       // Tipología
       let tipologia = String(u.tipologia || "2 Dormitorios").trim();
       const tipNorm = normalizarColumna(tipologia);
       if (tipNorm.includes("mono")) tipologia = "Monoambiente";
+      else if (tipNorm.includes("estud")) tipologia = "Estudio";
+      else if (tipNorm.includes("dupl")) tipologia = "Dúplex";
       else if (tipNorm.includes("1dorm") || tipNorm === "1d" || tipNorm.includes("1amb")) tipologia = "1 Dormitorio";
       else if (tipNorm.includes("2dorm") || tipNorm === "2d" || tipNorm.includes("2amb")) tipologia = "2 Dormitorios";
       else if (tipNorm.includes("3dorm") || tipNorm === "3d" || tipNorm.includes("3amb")) tipologia = "3 Dormitorios";
