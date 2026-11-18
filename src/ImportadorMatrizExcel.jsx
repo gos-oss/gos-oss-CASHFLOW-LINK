@@ -44,21 +44,90 @@ const MESES_DICT = {
   jan: "01", apr: "04", aug: "08", dec: "12"
 };
 
+// Convertir cualquier formato numérico de Excel/texto a Number preservando signo y decimales
+export const parsearNumeroExcel = (rawVal) => {
+  if (rawVal === null || rawVal === undefined || rawVal === "") return 0;
+  if (typeof rawVal === "number") return isNaN(rawVal) ? 0 : rawVal;
+
+  let s = String(rawVal).trim();
+  if (!s || s === "-" || s === "—" || /^(\$?\s*-+)$/.test(s)) return 0;
+
+  let isNeg = false;
+  if (s.includes("(") && s.includes(")")) isNeg = true;
+  if (/^\s*-|-\s*\$|\$\s*-/.test(s)) isNeg = true;
+
+  s = s
+    .replace(/USD|U\$D|U\$S|ARS/gi, "")
+    .replace(/[$\s()-]/g, "")
+    .trim();
+
+  if (!s) return 0;
+
+  const hasDot = s.includes(".");
+  const hasComma = s.includes(",");
+
+  if (hasDot && hasComma) {
+    // El último separador define el decimal (ej: 1.231.788,76 vs 1,231,788.76)
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      s = s.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    const parts = s.split(",");
+    if (parts.length > 2) {
+      s = parts.join("");
+    } else if (parts[1].length <= 2) {
+      s = parts[0] + "." + parts[1];
+    } else if (parts[1].length === 3 && parts[0].length <= 3 && parts[0] !== "0") {
+      // Ej: 123,456 en formato US sin decimales vs 0,123
+      s = parts.join("");
+    } else {
+      s = parts[0] + "." + parts[1];
+    }
+  } else if (hasDot) {
+    const parts = s.split(".");
+    if (parts.length > 2) {
+      // Múltiples puntos -> separadores de miles (ej: 178.918.000 o 1.231.788.767)
+      s = parts.join("");
+    } else if (parts[1].length === 3 && parts[0].length >= 1) {
+      // Un punto con 3 dígitos exactos después -> separador de miles AR (ej: 900.000)
+      s = parts.join("");
+    }
+    // Caso contrario (1 o 2 decimales, ej: 10158723.50) se mantiene el punto decimal
+  }
+
+  const num = parseFloat(s);
+  if (isNaN(num)) return 0;
+  return isNeg ? -Math.abs(num) : num;
+};
+
+const INGRESO_KEYS = new Set([
+  "cuposNeuquen",
+  "cuposBoulevard",
+  "cupoDuo",
+  "cupos300",
+  "otrosIngresos",
+  "posiblesVentas",
+  "cobranzasCuotas",
+  "honorarios",
+  "sigmaPropios",
+  "sigmaSocios",
+  "comercializacion"
+]);
+
 // Convertir cualquier formato de fecha de Excel a AAAA-MM-DD
 export const parsearFechaUniversal = (val, anioDefecto = 2026) => {
   if (val === null || val === undefined || val === "") return null;
 
-  // 1. Objeto Date nativo de JS
+  // 1. Objeto Date nativo de JS (compensar redondeos 23:59 UTC de SheetJS independientemente de la zona horaria)
   if (val instanceof Date && !isNaN(val.getTime())) {
-    const y = val.getUTCFullYear();
-    const m = String(val.getUTCMonth() + 1).padStart(2, "0");
-    const d = String(val.getUTCDate()).padStart(2, "0");
-    if (val.getUTCHours() >= 20) {
-      const ly = val.getFullYear();
-      const lm = String(val.getMonth() + 1).padStart(2, "0");
-      const ld = String(val.getDate()).padStart(2, "0");
-      return `${ly}-${lm}-${ld}`;
-    }
+    const adjusted = val.getUTCHours() >= 20
+      ? new Date(val.getTime() + 5 * 3600 * 1000)
+      : val;
+    const y = adjusted.getUTCFullYear();
+    const m = String(adjusted.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(adjusted.getUTCDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   }
 
@@ -181,6 +250,9 @@ export default function ImportadorMatrizExcel({
   const [soloDesdeHoy, setSoloDesdeHoy] = useState(false); // Carga completa por defecto para no excluir días
   const [fechaCorte, setFechaCorte] = useState(todayISO());
   const [modoReemplazo, setModoReemplazo] = useState("completo"); // "completo" | "conceptos" | "fusionar"
+  const [reemplazarParaAdelante, setReemplazarParaAdelante] = useState(true);
+  const [ignorarOcultas, setIgnorarOcultas] = useState(true);
+  const [corregirSaltoAnio, setCorregirSaltoAnio] = useState(true);
   const [rawParsedData, setRawParsedData] = useState(null);
   const [saldoManual, setSaldoManual] = useState(null);
   const [hojasDisponibles, setHojasDisponibles] = useState([]);
@@ -384,23 +456,36 @@ export default function ImportadorMatrizExcel({
 
     if (mapaSinonimos[norm]) {
       const key = mapaSinonimos[norm];
-      const esIngreso = incomeCats.some(c => c.key === key);
+      const esIngreso = INGRESO_KEYS.has(key) || incomeCats.some(c => c.key === key);
       return { key, tipo: esIngreso ? "ingreso" : "egreso", label: nombreFila };
     }
 
-    const catIng = incomeCats.find(c => {
-      const nKey = normalizar(c.key);
-      const nLab = normalizar(c.label);
-      return nKey === norm || nLab === norm || (norm.length >= 4 && (nLab.includes(norm) || norm.includes(nLab)));
-    });
-    if (catIng) return { key: catIng.key, tipo: "ingreso", label: catIng.label };
+    // 1. Priorizar coincidencias exactas en ambas listas
+    const catIngExact = incomeCats.find(c => normalizar(c.key) === norm || normalizar(c.label) === norm);
+    if (catIngExact) return { key: catIngExact.key, tipo: "ingreso", label: catIngExact.label };
 
-    const catEg = expenseCats.find(c => {
-      const nKey = normalizar(c.key);
-      const nLab = normalizar(c.label);
-      return nKey === norm || nLab === norm || (norm.length >= 4 && (nLab.includes(norm) || norm.includes(nLab)));
-    });
-    if (catEg) return { key: catEg.key, tipo: "egreso", label: catEg.label };
+    const catEgExact = expenseCats.find(c => normalizar(c.key) === norm || normalizar(c.label) === norm);
+    if (catEgExact) return { key: catEgExact.key, tipo: "egreso", label: catEgExact.label };
+
+    // 2. Coincidencia parcial respetando primero la sección activa
+    const buscarParcial = (cats) =>
+      cats.find(c => {
+        const nLab = normalizar(c.label);
+        return norm.length >= 4 && nLab.length >= 4 && (nLab.includes(norm) || norm.includes(nLab));
+      });
+
+    if (seccionContexto === "egreso") {
+      const catEgParcial = buscarParcial(expenseCats);
+      if (catEgParcial) return { key: catEgParcial.key, tipo: "egreso", label: catEgParcial.label };
+    } else if (seccionContexto === "ingreso") {
+      const catIngParcial = buscarParcial(incomeCats);
+      if (catIngParcial) return { key: catIngParcial.key, tipo: "ingreso", label: catIngParcial.label };
+    }
+
+    const fallbackIng = buscarParcial(incomeCats);
+    if (fallbackIng) return { key: fallbackIng.key, tipo: "ingreso", label: fallbackIng.label };
+    const fallbackEg = buscarParcial(expenseCats);
+    if (fallbackEg) return { key: fallbackEg.key, tipo: "egreso", label: fallbackEg.label };
 
     // Si no está en el mapa, pero tenemos la sección detectada, lo creamos automáticamente como categoría personalizada
     if (seccionContexto) {
@@ -471,12 +556,7 @@ export default function ImportadorMatrizExcel({
         if (!fIso) continue;
 
         const rawVal = fila[colMontoIdx];
-        let monto = 0;
-        if (typeof rawVal === "number") monto = rawVal;
-        else if (rawVal) {
-          const cleanStr = String(rawVal).replace(/\$/g, "").replace(/\./g, "").replace(/,/g, ".").replace(/\s/g, "").trim();
-          monto = parseFloat(cleanStr);
-        }
+        const monto = parsearNumeroExcel(rawVal);
         if (isNaN(monto) || monto === 0) continue;
 
         const conceptoStr = colConceptoIdx !== -1 && fila[colConceptoIdx] ? String(fila[colConceptoIdx]).trim() : "Varios";
@@ -512,6 +592,7 @@ export default function ImportadorMatrizExcel({
     // B. FORMATO MATRICIAL (CASH EMPRESA - FECHAS EN COLUMNAS, CONCEPTOS EN FILAS)
     let mejorFilaFechasIdx = -1;
     let mejoresColumnasFechas = [];
+    const hiddenColsMeta = sheet['!cols'] || [];
 
     // Escanear hasta 50 filas buscando la fila de fechas
     for (let r = 0; r < Math.min(data.length, 50); r++) {
@@ -519,11 +600,21 @@ export default function ImportadorMatrizExcel({
       if (!fila || !Array.isArray(fila)) continue;
 
       const fechasEnFila = [];
-      // Escanear todas las columnas (desde 0)
       for (let c = 0; c < fila.length; c++) {
+        // Si es un número plano en celda sin formato fecha, no confundirlo con fecha de cabecera
+        const cellAddr = XLSX.utils.encode_cell({ r, c });
+        const cellMeta = sheet[cellAddr];
+        if (typeof fila[c] === "number" && cellMeta && cellMeta.t === "n" && (!cellMeta.z || !/[dmy]/i.test(cellMeta.z))) {
+          continue;
+        }
         const fIso = parsearFechaUniversal(fila[c]);
         if (fIso) {
-          fechasEnFila.push({ colIdx: c, fechaIso: fIso, original: fila[c] });
+          fechasEnFila.push({
+            colIdx: c,
+            fechaIso: fIso,
+            original: fila[c],
+            isHidden: Boolean(hiddenColsMeta[c]?.hidden)
+          });
         }
       }
 
@@ -657,36 +748,71 @@ export default function ImportadorMatrizExcel({
 
     const { isTabular, data, filasData, filaFechasIdx, columnasFechas, hoja } = rawParsedData;
 
-    // Fechas ordenadas
-    const todasFechasIso = columnasFechas.map(c => c.fechaIso).sort();
-    const minFechaArchivo = todasFechasIso[0];
-    const maxFechaArchivo = todasFechasIso[todasFechasIso.length - 1];
-
-    // Filtrar fechas según corte si soloDesdeHoy está activo
-    let columnasAProcesar = soloDesdeHoy
-      ? columnasFechas.filter(cf => cf.fechaIso >= fechaCorte)
+    // 1. Descartar columnas ocultas de Excel si está activada la opción
+    const columnasOcultasDetectadas = !isTabular ? columnasFechas.filter(cf => cf.isHidden) : [];
+    const columnasVisiblesExcel = (!isTabular && ignorarOcultas && columnasOcultasDetectadas.length < columnasFechas.length)
+      ? columnasFechas.filter(cf => !cf.isHidden)
       : columnasFechas;
+
+    // 2. Detección cronológica de salto de año (ej: 30/12/2026 seguido de 30/1/2026 en vez de 30/1/2027)
+    const fechasAjustadasAnio = [];
+    let lastChronoFecha = null;
+    const columnasNormalizadas = columnasVisiblesExcel.map(cf => {
+      let fechaIso = cf.fechaIso;
+      let originalFechaIso = null;
+      if (!isTabular && corregirSaltoAnio && lastChronoFecha && fechaIso < lastChronoFecha) {
+        const [yStr, mStr, dStr] = fechaIso.split("-");
+        let yNum = Number(yStr);
+        let candidate = fechaIso;
+        for (let bump = 1; bump <= 2 && candidate < lastChronoFecha; bump++) {
+          candidate = `${yNum + bump}-${mStr}-${dStr}`;
+        }
+        if (candidate >= lastChronoFecha) {
+          originalFechaIso = fechaIso;
+          fechaIso = candidate;
+          fechasAjustadasAnio.push({ de: originalFechaIso, a: fechaIso });
+        }
+      }
+      lastChronoFecha = fechaIso;
+      return { ...cf, fechaIso, originalFechaIso };
+    });
+
+    // 3. Filtrar fechas según corte si soloDesdeHoy está activo
+    let columnasAProcesar = soloDesdeHoy
+      ? columnasNormalizadas.filter(cf => cf.fechaIso >= fechaCorte)
+      : [...columnasNormalizadas];
     const columnasOmitidas = soloDesdeHoy
-      ? columnasFechas.filter(cf => cf.fechaIso < fechaCorte)
+      ? columnasNormalizadas.filter(cf => cf.fechaIso < fechaCorte)
       : [];
 
     // Si el filtro de corte excluyó todas las fechas, auto-ajustar al mínimo en lugar de bloquear
     if (columnasAProcesar.length === 0) {
-      columnasAProcesar = columnasFechas;
+      columnasAProcesar = [...columnasNormalizadas];
     }
+
+    // Ordenar cronológicamente para garantizar primeraFecha, ultimaFecha y apertura exacta
+    columnasAProcesar.sort((a, b) => a.fechaIso.localeCompare(b.fechaIso));
 
     const semanasDict = {};
     const conceptosDetectados = new Set();
     const conceptosIgnorados = new Set();
     const mapaConceptosTipo = {};
-    let saldoInicialDetectado = null;
-    let fechaSaldoInicial = columnasAProcesar[0]?.fechaIso;
+    const primeraCol = columnasAProcesar[0];
+    const fechaSaldoInicial = primeraCol?.fechaIso;
     let totalMovimientosProcesados = 0;
+
+    // Desglose de saldos del primer día importado
+    let saldosPrimerDia = {
+      saldoInicial: null,
+      saldoCredimas: 0,
+      saldoBancos: 0,
+      saldoCaja: 0
+    };
 
     // Precargar semanas y aplicar política de reemplazo
     columnasAProcesar.forEach(cf => {
       const wExistente = weeks.find(w => w.week_start === cf.fechaIso);
-      if (wExistente) {
+      if (wExistente && modoReemplazo !== "completo") {
         semanasDict[cf.fechaIso] = {
           ...wExistente,
           income: { ...(wExistente.income || {}) },
@@ -697,17 +823,13 @@ export default function ImportadorMatrizExcel({
           id: cf.fechaIso,
           week_start: cf.fechaIso,
           status: "proyectado",
+          saldo_inicial: 0,
+          saldo_bancos: 0,
+          saldo_credimas: 0,
           income: {},
           expense: {},
           notes: "{}"
         };
-      }
-
-      // Aplicar política de reemplazo sobre las fechas a procesar
-      if (modoReemplazo === "completo") {
-        // Reemplazo total: vacía completamente los movimientos en esta fecha para reflejar 100% el Excel
-        semanasDict[cf.fechaIso].income = {};
-        semanasDict[cf.fechaIso].expense = {};
       }
     });
 
@@ -743,7 +865,8 @@ export default function ImportadorMatrizExcel({
       // ══════════════════════════════════════════════════════════════
       // FORMATO MATRICIAL (CASH EMPRESA)
       // ══════════════════════════════════════════════════════════════
-      const primeraColIdx = columnasAProcesar[0]?.colIdx;
+      const primeraColIdx = primeraCol?.colIdx;
+      const minAllDateColIdx = Math.min(...columnasFechas.map(c => typeof c.colIdx === "number" ? c.colIdx : 1));
       const filasConceptos = [];
       let seccionActual = "ingreso"; // "ingreso" o "egreso"
 
@@ -751,13 +874,12 @@ export default function ImportadorMatrizExcel({
         const fila = data[r];
         if (!fila || !Array.isArray(fila)) continue;
 
-        // Buscar el nombre del concepto en las primeras columnas antes de las fechas
+        // Buscar el nombre del concepto únicamente en columnas previas a las columnas de fechas
         let nombreFila = "";
-        const maxColText = typeof primeraColIdx === "number" ? Math.max(primeraColIdx, 1) : 3;
+        const maxColText = Math.max(minAllDateColIdx, 1);
         for (let c = 0; c < maxColText; c++) {
           if (fila[c] !== null && fila[c] !== undefined && String(fila[c]).trim().length > 0) {
             const strVal = String(fila[c]).trim();
-            // Ignorar números puros como IDs o índices de fila
             if (isNaN(Number(strVal.replace(/[^0-9]/g, ""))) || strVal.length > 5 || /[a-zA-Z]/.test(strVal)) {
               nombreFila = strVal;
               break;
@@ -768,7 +890,14 @@ export default function ImportadorMatrizExcel({
         if (!nombreFila) continue;
         const norm = normalizar(nombreFila);
 
-        // Detectar cambio de sección en el Excel
+        // Detectar cambio de sección en el Excel (explícito o al cruzar "Total ingresos")
+        if (norm.includes("totalingreso")) {
+          seccionActual = "egreso";
+          continue;
+        }
+        if (norm.includes("totalegreso") || norm.includes("posiciondeldia") || norm.includes("saldoacumulado") || norm === "total") {
+          continue;
+        }
         if (norm.includes("ingreso") && !norm.includes("total") && !norm.includes("otro")) {
           seccionActual = "ingreso";
           continue;
@@ -778,19 +907,27 @@ export default function ImportadorMatrizExcel({
           continue;
         }
 
-        // Saldo inicial / bancos
-        if (norm.includes("saldoinicial") || norm.includes("saldobancos") || norm.includes("saldocredimas") || norm.includes("saldocaja")) {
-          if (primeraColIdx !== undefined && fila[primeraColIdx] !== null && fila[primeraColIdx] !== undefined) {
-            const num = Number(String(fila[primeraColIdx]).replace(/[^0-9.-]+/g, ""));
-            if (!isNaN(num) && num !== 0 && saldoInicialDetectado === null) {
-              saldoInicialDetectado = num;
-            }
-          }
-          continue;
-        }
+        // Capturar saldos iniciales, bancos y Credimas por cada columna de fecha
+        const esSaldoInicial = norm.includes("saldoinicial") || norm.includes("saldocaja");
+        const esSaldoBancos = norm.includes("saldobancos") || norm === "bancos";
+        const esSaldoCredimas = norm.includes("saldocredimas") || norm === "credimas";
 
-        // Totales o balances de fila (ignorar para no duplicar sumas)
-        if (norm.includes("totalingresos") || norm.includes("totalegresos") || norm.includes("posiciondeldia") || norm.includes("saldoacumulado") || norm === "total") {
+        if (esSaldoInicial || esSaldoBancos || esSaldoCredimas) {
+          columnasAProcesar.forEach(cf => {
+            const semanaObj = semanasDict[cf.fechaIso];
+            if (!semanaObj) return;
+            const num = parsearNumeroExcel(fila[cf.colIdx]);
+            if (esSaldoInicial) semanaObj.saldo_inicial = num;
+            if (esSaldoBancos) semanaObj.saldo_bancos = num;
+            if (esSaldoCredimas) semanaObj.saldo_credimas = num;
+          });
+
+          if (primeraColIdx !== undefined) {
+            const numPrimera = parsearNumeroExcel(fila[primeraColIdx]);
+            if (esSaldoInicial) saldosPrimerDia.saldoInicial = (saldosPrimerDia.saldoInicial || 0) + numPrimera;
+            if (esSaldoBancos) saldosPrimerDia.saldoBancos += numPrimera;
+            if (esSaldoCredimas) saldosPrimerDia.saldoCredimas += numPrimera;
+          }
           continue;
         }
 
@@ -815,21 +952,6 @@ export default function ImportadorMatrizExcel({
         });
       }
 
-      // En modo reemplazo completo, limpiar fechas intermedias dentro del rango si no están en el nuevo Excel
-      if (modoReemplazo === "completo" && columnasAProcesar.length > 0) {
-        const pFecha = columnasAProcesar[0].fechaIso;
-        const uFecha = columnasAProcesar[columnasAProcesar.length - 1].fechaIso;
-        weeks.forEach(w => {
-          if (w.week_start >= pFecha && w.week_start <= uFecha && !semanasDict[w.week_start]) {
-            semanasDict[w.week_start] = {
-              ...w,
-              income: {},
-              expense: {}
-            };
-          }
-        });
-      }
-
       // Procesar importes de cada celda
       const yaAsignadoEnCorrida = {};
       filasConceptos.forEach(({ fila, match }) => {
@@ -837,14 +959,7 @@ export default function ImportadorMatrizExcel({
           const rawVal = fila[cf.colIdx];
           if (rawVal === null || rawVal === undefined || rawVal === "") return;
 
-          let monto = 0;
-          if (typeof rawVal === "number") {
-            monto = rawVal;
-          } else {
-            const cleanStr = String(rawVal).replace(/\$/g, "").replace(/\./g, "").replace(/,/g, ".").replace(/\s/g, "").trim();
-            monto = parseFloat(cleanStr);
-          }
-
+          const monto = parsearNumeroExcel(rawVal);
           if (isNaN(monto) || monto === 0) return;
 
           const semanaObj = semanasDict[cf.fechaIso];
@@ -875,35 +990,62 @@ export default function ImportadorMatrizExcel({
       });
     }
 
-    const saldoFinal = saldoManual !== null ? Number(saldoManual) : saldoInicialDetectado;
+    const tieneAlgunSaldoDetectado =
+      saldosPrimerDia.saldoInicial !== null ||
+      saldosPrimerDia.saldoBancos !== 0 ||
+      saldosPrimerDia.saldoCredimas !== 0;
+
+    const saldoInicialDetectadoAuto = tieneAlgunSaldoDetectado
+      ? (saldosPrimerDia.saldoInicial || 0) + saldosPrimerDia.saldoCredimas + saldosPrimerDia.saldoBancos
+      : null;
+
+    const saldoFinal = saldoManual !== null ? Number(saldoManual) : saldoInicialDetectadoAuto;
+    const primeraFechaOrdenada = columnasAProcesar[0]?.fechaIso;
+    const fechaCorteReemplazo = soloDesdeHoy && fechaCorte ? fechaCorte : primeraFechaOrdenada;
 
     return {
       corteDesfasado: false,
       hoja,
       fechasTotal: columnasAProcesar.length,
-      primeraFecha: columnasAProcesar[0]?.fechaIso,
+      primeraFecha: primeraFechaOrdenada,
       ultimaFecha: columnasAProcesar[columnasAProcesar.length - 1]?.fechaIso,
+      fechaCorteReemplazo,
       columnasAProcesar,
       columnasOmitidas,
+      columnasOcultasDetectadas,
+      fechasAjustadasAnio,
       totalMovimientos: totalMovimientosProcesados,
       conceptosDetectados: Array.from(conceptosDetectados),
       conceptosIgnorados: Array.from(conceptosIgnorados),
+      saldosPrimerDia,
       saldoInicialDetectado: saldoFinal,
       fechaSaldoInicial,
       modoReemplazo,
-      semanasActualizadas: Object.values(semanasDict)
+      reemplazarParaAdelante,
+      semanasActualizadas: Object.values(semanasDict).sort((a, b) => a.week_start.localeCompare(b.week_start))
     };
-  }, [rawParsedData, soloDesdeHoy, fechaCorte, modoReemplazo, saldoManual, weeks]);
+  }, [rawParsedData, soloDesdeHoy, fechaCorte, modoReemplazo, reemplazarParaAdelante, ignorarOcultas, corregirSaltoAnio, saldoManual, weeks]);
 
   const confirmarImportacion = async () => {
     if (!resumen || !resumen.semanasActualizadas) return;
     setCargando(true);
     setErrorMsg(null);
     try {
+      const sp = resumen.saldosPrimerDia || {};
+      const saldoEfectivoCalc = saldoManual !== null
+        ? Number(saldoManual) - (sp.saldoBancos || 0)
+        : (sp.saldoInicial || 0) + (sp.saldoCredimas || 0);
+      const saldoBancosCalc = sp.saldoBancos || 0;
+
       await onImportarMatriz({
         semanas: resumen.semanasActualizadas,
         saldoInicial: resumen.saldoInicialDetectado,
-        fechaSaldoInicial: resumen.fechaSaldoInicial
+        saldoEfectivo: saldoManual !== null && sp.saldoBancos === 0 ? 0 : saldoEfectivoCalc,
+        saldoBancos: saldoManual !== null && sp.saldoBancos === 0 ? Number(saldoManual) : saldoBancosCalc,
+        fechaSaldoInicial: resumen.fechaSaldoInicial,
+        modoReemplazo: resumen.modoReemplazo,
+        reemplazarParaAdelante: resumen.modoReemplazo === "completo" && resumen.reemplazarParaAdelante,
+        fechaCorteReemplazo: resumen.fechaCorteReemplazo
       });
       setSuccessMsg({
         movimientos: resumen.totalMovimientos,
@@ -1087,6 +1229,20 @@ export default function ImportadorMatrizExcel({
                 <span><strong>Solo fusionar / sumar</strong> <span style={{ color: tokens.textMuted }}>(Suma sin borrar nada)</span></span>
               </label>
             </div>
+
+            {modoReemplazo === "completo" && (
+              <div style={{ marginTop: 4, paddingTop: 8, borderTop: "1px dashed #86EFAC", display: "flex", flexWrap: "wrap", gap: 16 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", fontSize: 12, color: "#14532D", fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={reemplazarParaAdelante}
+                    onChange={(e) => setReemplazarParaAdelante(e.target.checked)}
+                    style={{ width: 14, height: 14, accentColor: "#15803D", cursor: "pointer" }}
+                  />
+                  <span>Reemplazar todo para adelante (elimina fechas/arqueos posteriores previos que no estén en el Excel)</span>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* SELECTOR DE HOJA Y FILTRO OPCIONAL DE CORTE */}
@@ -1102,7 +1258,7 @@ export default function ImportadorMatrizExcel({
             alignItems: "center",
             gap: 12
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12.5, fontWeight: 600, color: tokens.ink }}>
                 <input
                   type="checkbox"
@@ -1113,8 +1269,28 @@ export default function ImportadorMatrizExcel({
                 <span>Limitar importación desde una fecha de corte</span>
               </label>
 
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={ignorarOcultas}
+                  onChange={(e) => setIgnorarOcultas(e.target.checked)}
+                  style={{ width: 14, height: 14, accentColor: tokens.gold, cursor: "pointer" }}
+                />
+                <span>Omitir columnas ocultas de Excel</span>
+              </label>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, color: tokens.textMuted, fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={corregirSaltoAnio}
+                  onChange={(e) => setCorregirSaltoAnio(e.target.checked)}
+                  style={{ width: 14, height: 14, accentColor: tokens.gold, cursor: "pointer" }}
+                />
+                <span>Ajustar salto de año secuencial (ej: 30/1 tras 30/12 → año sig.)</span>
+              </label>
+
               {hojasDisponibles.length > 1 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginLeft: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginLeft: 4 }}>
                   <Layers size={14} color={tokens.gold} />
                   <span style={{ color: tokens.textMuted, fontWeight: 600 }}>Pestaña Excel:</span>
                   <select
@@ -1256,28 +1432,52 @@ export default function ImportadorMatrizExcel({
                   </div>
                 </div>
 
-                {/* Ajuste opcional de saldo inicial detectado */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                  <span style={{ color: tokens.ink, fontWeight: 600 }}>Saldo inicial ({formatDate(resumen.fechaSaldoInicial)}):</span>
-                  <input
-                    type="number"
-                    value={resumen.saldoInicialDetectado !== null && resumen.saldoInicialDetectado !== undefined ? resumen.saldoInicialDetectado : ""}
-                    placeholder="0"
-                    onChange={(e) => setSaldoManual(e.target.value ? Number(e.target.value) : 0)}
-                    style={{
-                      width: 130,
-                      padding: "4px 8px",
-                      border: "1px solid #CBD5E1",
-                      borderRadius: 5,
-                      fontFamily: tokens.fontMono,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: tokens.positive,
-                      textAlign: "right"
-                    }}
-                  />
+                {/* Ajuste opcional de saldo inicial + bancos detectado */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                    <span style={{ color: tokens.ink, fontWeight: 600 }}>Apertura total ({formatDate(resumen.fechaSaldoInicial)}):</span>
+                    <input
+                      type="number"
+                      value={resumen.saldoInicialDetectado !== null && resumen.saldoInicialDetectado !== undefined ? resumen.saldoInicialDetectado : ""}
+                      placeholder="0"
+                      onChange={(e) => setSaldoManual(e.target.value ? Number(e.target.value) : 0)}
+                      style={{
+                        width: 145,
+                        padding: "4px 8px",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: 5,
+                        fontFamily: tokens.fontMono,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: tokens.positive,
+                        textAlign: "right"
+                      }}
+                    />
+                  </div>
+                  {(resumen.saldosPrimerDia?.saldoBancos !== 0 || resumen.saldosPrimerDia?.saldoCredimas !== 0) && (
+                    <div style={{ fontSize: 10.5, color: tokens.textMuted, fontFamily: tokens.fontMono }}>
+                      Inicial: $ {fmt(resumen.saldosPrimerDia?.saldoInicial || 0)}
+                      {resumen.saldosPrimerDia?.saldoCredimas ? ` + Credimas: $ ${fmt(resumen.saldosPrimerDia.saldoCredimas)}` : ""}
+                      {resumen.saldosPrimerDia?.saldoBancos ? ` + Bancos: $ ${fmt(resumen.saldosPrimerDia.saldoBancos)}` : ""}
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {(resumen.fechasAjustadasAnio?.length > 0 || resumen.columnasOcultasDetectadas?.length > 0) && (
+                <div style={{ padding: "8px 12px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 6, fontSize: 11.5, color: "#1E40AF", display: "flex", flexDirection: "column", gap: 3 }}>
+                  {resumen.fechasAjustadasAnio?.length > 0 && (
+                    <div>
+                      <strong>Cambio de año detectado:</strong> {resumen.fechasAjustadasAnio.map(x => `${formatDate(x.de)} → ${formatDate(x.a)}`).join(", ")} (se conserva el orden cronológico del Excel).
+                    </div>
+                  )}
+                  {resumen.columnasOcultasDetectadas?.length > 0 && (
+                    <div>
+                      <strong>Columnas ocultas en Excel:</strong> {ignorarOcultas ? `Se omitieron ${resumen.columnasOcultasDetectadas.length} columnas ocultas` : `Se incluyeron ${resumen.columnasOcultasDetectadas.length} columnas ocultas`}.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* TARJETAS KPI DE DIAGNÓSTICO */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
@@ -1311,10 +1511,12 @@ export default function ImportadorMatrizExcel({
                     Modo Activo
                   </div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: modoReemplazo === "completo" ? "#15803D" : modoReemplazo === "conceptos" ? "#A16207" : tokens.ink, marginTop: 2 }}>
-                    {modoReemplazo === "completo" ? "Reemplazo Total (100%)" : modoReemplazo === "conceptos" ? "Reemplazo Parcial" : "Fusión"}
+                    {modoReemplazo === "completo" ? (reemplazarParaAdelante ? "Reemplazo Total (→ adelante)" : "Reemplazo Total (100%)") : modoReemplazo === "conceptos" ? "Reemplazo Parcial" : "Fusión"}
                   </div>
                   <div style={{ fontSize: 11, color: modoReemplazo === "completo" ? "#166534" : modoReemplazo === "conceptos" ? "#854D0E" : tokens.textMuted, marginTop: 2 }}>
-                    {modoReemplazo === "completo" ? "Sobrescribe y reemplaza los movimientos" : modoReemplazo === "conceptos" ? "Solo conceptos presentes" : "Suma a lo preexistente"}
+                    {modoReemplazo === "completo"
+                      ? (reemplazarParaAdelante ? `Sobrescribe desde ${formatDate(resumen.fechaCorteReemplazo)} en adelante` : "Sobrescribe y reemplaza los movimientos")
+                      : modoReemplazo === "conceptos" ? "Solo conceptos presentes" : "Suma a lo preexistente"}
                   </div>
                 </div>
 
@@ -1339,17 +1541,17 @@ export default function ImportadorMatrizExcel({
                     <span
                       key={cf.fechaIso}
                       style={{
-                        background: "#fff",
-                        border: "1px solid #CBD5E1",
+                        background: cf.originalFechaIso ? "#EFF6FF" : "#fff",
+                        border: `1px solid ${cf.originalFechaIso ? "#93C5FD" : "#CBD5E1"}`,
                         borderRadius: 4,
                         padding: "2px 8px",
                         fontSize: 11,
                         fontFamily: tokens.fontMono,
                         fontWeight: 600,
-                        color: tokens.ink
+                        color: cf.originalFechaIso ? "#1D4ED8" : tokens.ink
                       }}
                     >
-                      {formatDate(cf.fechaIso)}
+                      {formatDate(cf.fechaIso)}{cf.originalFechaIso ? "*" : ""}
                     </span>
                   ))}
                 </div>

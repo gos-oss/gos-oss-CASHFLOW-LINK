@@ -768,17 +768,63 @@ export default function App() {
     fetchData();
   };
 
-  const handleImportarMatrizExcel = async ({ semanas, saldoInicial, fechaSaldoInicial }) => {
+  const handleImportarMatrizExcel = async ({
+    semanas,
+    saldoInicial,
+    saldoEfectivo,
+    saldoBancos,
+    fechaSaldoInicial,
+    modoReemplazo,
+    reemplazarParaAdelante,
+    fechaCorteReemplazo
+  }) => {
     try {
+      const fechasNuevasSet = new Set((semanas || []).map(w => w.week_start).filter(Boolean));
+      const desdeCorte = fechaCorteReemplazo || (semanas && semanas.length > 0
+        ? [...semanas].map(s => s.week_start).sort()[0]
+        : null);
+
+      // Si es Reemplazo Total hacia adelante, eliminar semanas y arqueos posteriores previos que no figuren en el nuevo Excel
+      if (modoReemplazo === "completo" && reemplazarParaAdelante && desdeCorte) {
+        const idsWeeksAEliminar = (weeks || [])
+          .filter(w => w.week_start >= desdeCorte && !fechasNuevasSet.has(w.week_start))
+          .map(w => w.id || w.week_start)
+          .filter(Boolean);
+
+        if (idsWeeksAEliminar.length > 0) {
+          for (let i = 0; i < idsWeeksAEliminar.length; i += 50) {
+            await supabase.from("cashflow_weeks").delete().in("id", idsWeeksAEliminar.slice(i, i + 50));
+          }
+        }
+
+        const targetArqueoId = fechaSaldoInicial ? `arqueo_${fechaSaldoInicial}` : null;
+        const idsArqueosAEliminar = (arqueosList || [])
+          .filter(a =>
+            a.id &&
+            a.id.startsWith("arqueo_") &&
+            a.fecha_corte &&
+            a.fecha_corte >= desdeCorte &&
+            a.id !== targetArqueoId
+          )
+          .map(a => a.id);
+
+        if (idsArqueosAEliminar.length > 0) {
+          await supabase.from("cashflow_settings").delete().in("id", idsArqueosAEliminar);
+        }
+      }
+
       if (saldoInicial !== null && saldoInicial !== undefined && fechaSaldoInicial) {
+        const efeVal = saldoEfectivo !== undefined ? Number(saldoEfectivo) || 0 : 0;
+        const bcoVal = saldoBancos !== undefined ? Number(saldoBancos) || 0 : (Number(saldoInicial) || 0);
         await supabase.from("cashflow_settings").upsert({
           id: "arqueo_" + fechaSaldoInicial,
           fecha_corte: fechaSaldoInicial,
-          saldo_efectivo: 0,
-          saldo_banco: Number(saldoInicial) || 0,
-          tipo_cambio: 1250
+          saldo_efectivo: efeVal,
+          saldo_banco: bcoVal,
+          tipo_cambio: getTC(fechaSaldoInicial) || 1550
         });
       }
+
       if (semanas && semanas.length > 0) {
         const sanitized = semanas.map(w => ({
           id: w.id || w.week_start,
@@ -1202,6 +1248,11 @@ export default function App() {
       let esArqueo = false; let ajuste = 0;
       if (arqueosDict[fecha] !== undefined) {
           esArqueo = true; ajuste = arqueosDict[fecha] - currentSaldo; currentSaldo = arqueosDict[fecha];
+      } else {
+          const inyeccionSaldos = Number(w.saldo_bancos || 0) + Number(w.saldo_credimas || 0);
+          if (inyeccionSaldos !== 0) {
+              currentSaldo += inyeccionSaldos;
+          }
       }
       currentSaldo += pos;
 
@@ -3619,6 +3670,39 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
     return `${mNames[parseInt(m, 10)-1]} ${y}`;
   };
 
+  const totalesPeriodo = useMemo(() => {
+    const inc = {};
+    const exp = {};
+    let totalIngresos = 0;
+    let totalEgresos = 0;
+    let posicion = 0;
+
+    procesadasFiltradas.forEach(w => {
+      const rawWeek = weeks.find(r => r.week_start === w.week_start) || {};
+      const tc = getTC(w.week_start);
+
+      Object.entries(rawWeek.income || {}).forEach(([k, v]) => {
+        const val = (typeof v === 'object' && v !== null) ? (Number(v.ars || 0) + Number(v.usd || 0) * tc) : Number(v || 0);
+        inc[k] = (inc[k] || 0) + val;
+      });
+      Object.entries(rawWeek.expense || {}).forEach(([k, v]) => {
+        const val = (typeof v === 'object' && v !== null) ? (Number(v.ars || 0) + Number(v.usd || 0) * tc) : Number(v || 0);
+        exp[k] = (exp[k] || 0) + val;
+      });
+
+      totalIngresos += Number(w.totalIngresos || 0);
+      totalEgresos += Number(w.totalEgresos || 0);
+      posicion += Number(w.posicion || 0);
+    });
+
+    const first = procesadasFiltradas[0];
+    const last = procesadasFiltradas[procesadasFiltradas.length - 1];
+    const saldoInicial = first ? (first.saldoAcumulado - first.posicion) : 0;
+    const saldoFinal = last ? last.saldoAcumulado : 0;
+
+    return { income: inc, expense: exp, totalIngresos, totalEgresos, posicion, saldoInicial, saldoFinal };
+  }, [procesadasFiltradas, weeks, tcList]);
+
   const handleDragStart = (e, origenFecha, tipo, key, ars, usd) => {
     e.dataTransfer.setData("application/json", JSON.stringify({ origenFecha, tipo, key, ars, usd }));
   };
@@ -3703,8 +3787,8 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
           <thead>
             <tr style={{ height: "36px", color: tokens.text, borderBottom: `1px solid ${colorLineaFuerte}` }}>
               <th className="sticky-col" rowSpan={2} style={{ padding: 14, textAlign: "left", minWidth: 200, background: colorTablaBg, borderBottom: `2px solid ${colorLineaFuerte}` }}>Concepto Diario</th>
-              {monthGroups.map((g, i) => (
-                <th key={g.mesKey} colSpan={g.span} style={{ padding: "8px 14px", textAlign: "center", background: colorTotalBg, borderRight: i === monthGroups.length - 1 ? 'none' : `1px solid ${colorLineaFuerte}` }}>
+              {monthGroups.map((g) => (
+                <th key={g.mesKey} colSpan={g.span} style={{ padding: "8px 14px", textAlign: "center", background: colorTotalBg, borderRight: `1px solid ${colorLineaFuerte}` }}>
                   <div 
                     style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px" }} 
                     onClick={() => toggleMonth(g.mesKey)}
@@ -3715,6 +3799,9 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
                   </div>
                 </th>
               ))}
+              <th rowSpan={2} style={{ padding: "10px 14px", textAlign: "right", minWidth: 124, background: "#DDE4EC", color: tokens.ink, fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `2px solid ${colorLineaFuerte}` }}>
+                TOTAL PERÍODO
+              </th>
             </tr>
             <tr style={{ color: tokens.textFaint, borderBottom: `2px solid ${colorLineaFuerte}` }}>
               {columnasVisibles.map((w, i) => (
@@ -3737,22 +3824,36 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
               </td>
               {columnasVisibles.map((w, i) => {
                 const saldoIni = w.saldoAcumulado - w.posicion;
+                const tieneDesglose = !w.isMonth && (Number(w.saldo_bancos || 0) !== 0 || Number(w.saldo_credimas || 0) !== 0);
+                const tipDesglose = tieneDesglose
+                  ? `Inicial: $ ${fmt(w.saldo_inicial || 0)}${w.saldo_credimas ? ` + Credimas: $ ${fmt(w.saldo_credimas)}` : ""}${w.saldo_bancos ? ` + Bancos: $ ${fmt(w.saldo_bancos)}` : ""}`
+                  : undefined;
                 return (
-                  <td key={i} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: saldoIni >= 0 ? tokens.ink : tokens.negative, background: w.isMonth ? colorTotalBg : '#F8FAFC' }}>
-                    {fmt(saldoIni)}
+                  <td key={i} title={tipDesglose} style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: saldoIni >= 0 ? tokens.ink : tokens.negative, background: w.isMonth ? colorTotalBg : '#F8FAFC' }}>
+                    <div>{fmt(saldoIni)}</div>
+                    {tieneDesglose && (
+                      <div style={{ fontSize: 9.5, fontWeight: 500, color: tokens.textFaint, marginTop: 2 }}>
+                        Bcos: {fmt(w.saldo_bancos)}
+                      </div>
+                    )}
                   </td>
                 );
               })}
+              <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, color: totalesPeriodo.saldoInicial >= 0 ? tokens.ink : tokens.negative, background: "#EDF1F6" }}>
+                {fmt(totalesPeriodo.saldoInicial)}
+              </td>
             </tr>
             
             <tr onClick={() => setVerIngresos(!verIngresos)} style={{ cursor: "pointer", background: colorTablaBg }}>
               <td className="sticky-col" style={{ padding: "20px 14px 8px", fontWeight: 800, color: tokens.positive, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
                 {verIngresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} INGRESOS
               </td>
-              <td colSpan={columnasVisibles.length}></td>
+              <td colSpan={columnasVisibles.length + 1}></td>
             </tr>
 
-            {verIngresos && incomeCats.map((c) => (
+            {verIngresos && incomeCats.map((c) => {
+              const totCat = totalesPeriodo.income[c.key] || 0;
+              return (
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                 <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                 {columnasVisibles.map((w, i) => {
@@ -3798,18 +3899,24 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
                     </td>
                   );
                 })}
+                <td style={{ padding: "6px 14px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: totCat > 0 ? tokens.positive : colorLineaFuerte, background: "#EDF1F6" }}>
+                  {totCat > 0 ? fmt(totCat) : "-"}
+                </td>
               </tr>
-            ))}
-            <TotalRow label="Total ingresos" data={columnasVisibles} field="totalIngresos" color={tokens.positive} fmt={fmt} />
+              );
+            })}
+            <TotalRow label="Total ingresos" data={columnasVisibles} totalPeriodoVal={totalesPeriodo.totalIngresos} field="totalIngresos" color={tokens.positive} fmt={fmt} />
 
             <tr onClick={() => setVerEgresos(!verEgresos)} style={{ cursor: "pointer", background: colorTablaBg }}>
               <td className="sticky-col" style={{ padding: "28px 14px 8px", fontWeight: 800, color: tokens.negative, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
                 {verEgresos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} EGRESOS
               </td>
-              <td colSpan={columnasVisibles.length}></td>
+              <td colSpan={columnasVisibles.length + 1}></td>
             </tr>
 
-            {verEgresos && expenseCats.map((c) => (
+            {verEgresos && expenseCats.map((c) => {
+              const totCat = totalesPeriodo.expense[c.key] || 0;
+              return (
               <tr key={c.key} className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaSuave}` }}>
                 <td className="sticky-col" style={{ padding: "9px 14px 9px 34px", color: tokens.textMuted, background: colorTablaBg }}>{c.label}</td>
                 {columnasVisibles.map((w, i) => {
@@ -3855,24 +3962,34 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
                     </td>
                   );
                 })}
+                <td style={{ padding: "6px 14px", textAlign: "right", fontFamily: tokens.fontMono, fontWeight: 700, color: totCat > 0 ? tokens.negative : colorLineaFuerte, background: "#EDF1F6" }}>
+                  {totCat > 0 ? fmt(totCat) : "-"}
+                </td>
               </tr>
-            ))}
-            <TotalRow label="Total egresos" data={columnasVisibles} field="totalEgresos" color={tokens.negative} fmt={fmt} />
+              );
+            })}
+            <TotalRow label="Total egresos" data={columnasVisibles} totalPeriodoVal={totalesPeriodo.totalEgresos} field="totalEgresos" color={tokens.negative} fmt={fmt} />
 
             <tr className="flujo-row" style={{ borderBottom: `1px solid ${colorLineaFuerte}` }}>
               <td className="sticky-col" style={{ padding: "16px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>Flujo neto</td>
               {columnasVisibles.map((w, i) => (
                 <td key={i} style={{ padding: "16px 14px", textAlign: "right", fontWeight: 700, fontFamily: tokens.fontMono, background: colorTotalBg, color: w.posicion >= 0 ? tokens.positive : tokens.negative }}>{fmt(w.posicion)}</td>
               ))}
+              <td style={{ padding: "16px 14px", textAlign: "right", fontWeight: 800, fontFamily: tokens.fontMono, background: "#DDE4EC", color: totalesPeriodo.posicion >= 0 ? tokens.positive : tokens.negative }}>
+                {fmt(totalesPeriodo.posicion)}
+              </td>
             </tr>
             <tr className="flujo-row">
               <td className="sticky-col" style={{ padding: "18px 14px", fontWeight: 700, background: tokens.ink, color: "#fff" }}>Saldo final al cierre</td>
               {columnasVisibles.map((w, i) => (
-                <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: w.isMonth ? "#0B1120" : tokens.ink, color: "#fff", fontFamily: tokens.fontMono }}>
+                <td key={i} style={{ padding: "18px 14px", textAlign: "right", fontWeight: 700, background: w.isMonth ? "#0B1120" : tokens.ink, color: w.saldoAcumulado < 0 ? "#FCA5A5" : "#fff", fontFamily: tokens.fontMono }}>
                   {w.esArqueo && !w.isMonth && <span title={`Día con Arqueo de Apertura. Ajuste automático previo a pagos: $ ${fmt(w.ajuste)}`} style={{ color: tokens.gold, marginRight: 6 }}>★</span>}
                   {fmt(w.saldoAcumulado)}
                 </td>
               ))}
+              <td style={{ padding: "18px 14px", textAlign: "right", fontWeight: 800, background: "#0B1120", color: totalesPeriodo.saldoFinal < 0 ? "#FCA5A5" : "#86EFAC", fontFamily: tokens.fontMono }}>
+                {fmt(totalesPeriodo.saldoFinal)}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -3881,13 +3998,14 @@ function FlujoTable({ procesadas, weeks, tcList, incomeCats, expenseCats, fmt, o
   );
 }
 
-function TotalRow({ label, data, field, color, fmt }) {
+function TotalRow({ label, data, totalPeriodoVal, field, color, fmt }) {
   return (
     <tr className="flujo-row" style={{ borderBottom: `2px solid ${colorLineaFuerte}` }}>
       <td className="sticky-col" style={{ padding: "12px 14px", fontWeight: 700, color: tokens.text, background: colorTotalBg }}>{label}</td>
       {data.map((w, i) => (
         <td key={i} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color, background: colorTotalBg, fontFamily: tokens.fontMono }}>{fmt(w[field])}</td>
       ))}
+      <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color, background: "#DDE4EC", fontFamily: tokens.fontMono }}>{fmt(totalPeriodoVal)}</td>
     </tr>
   );
 }

@@ -376,6 +376,19 @@ function createMockQueryBuilder(table) {
           setTableData(table, filtered);
           return { data: null, error: null };
         },
+        async gte(col, val) {
+          const existing = getTableData(table);
+          const filtered = existing.filter((item) => (item[col] ?? '') < val);
+          setTableData(table, filtered);
+          return { data: null, error: null };
+        },
+        async in(col, vals) {
+          const set = new Set(Array.isArray(vals) ? vals : []);
+          const existing = getTableData(table);
+          const filtered = existing.filter((item) => !set.has(item[col]));
+          setTableData(table, filtered);
+          return { data: null, error: null };
+        },
       };
     },
   };
@@ -464,33 +477,58 @@ export const supabase = {
         const delObj = realTable.delete ? realTable.delete() : null;
         return {
           async eq(col, val) {
-            if (!delObj) return createMockQueryBuilder(table).delete().eq(col, val);
+            await createMockQueryBuilder(table).delete().eq(col, val);
+            if (!delObj) return { data: null, error: null };
             try {
               const res = await delObj.eq(col, val);
-              if (res.error) return createMockQueryBuilder(table).delete().eq(col, val);
+              if (res.error) return { data: null, error: null };
               return res;
             } catch {
-              return createMockQueryBuilder(table).delete().eq(col, val);
+              return { data: null, error: null };
             }
           },
           async not(col, op, val) {
-            if (!delObj) return createMockQueryBuilder(table).delete().not(col, op, val);
+            await createMockQueryBuilder(table).delete().not(col, op, val);
+            if (!delObj) return { data: null, error: null };
             try {
               const res = await delObj.not(col, op, val);
-              if (res.error) return createMockQueryBuilder(table).delete().not(col, op, val);
+              if (res.error) return { data: null, error: null };
               return res;
             } catch {
-              return createMockQueryBuilder(table).delete().not(col, op, val);
+              return { data: null, error: null };
             }
           },
           async lt(col, val) {
-            if (!delObj) return createMockQueryBuilder(table).delete().lt(col, val);
+            await createMockQueryBuilder(table).delete().lt(col, val);
+            if (!delObj) return { data: null, error: null };
             try {
               const res = await delObj.lt(col, val);
-              if (res.error) return createMockQueryBuilder(table).delete().lt(col, val);
+              if (res.error) return { data: null, error: null };
               return res;
             } catch {
-              return createMockQueryBuilder(table).delete().lt(col, val);
+              return { data: null, error: null };
+            }
+          },
+          async gte(col, val) {
+            await createMockQueryBuilder(table).delete().gte(col, val);
+            if (!delObj) return { data: null, error: null };
+            try {
+              const res = await delObj.gte(col, val);
+              if (res.error) return { data: null, error: null };
+              return res;
+            } catch {
+              return { data: null, error: null };
+            }
+          },
+          async in(col, vals) {
+            await createMockQueryBuilder(table).delete().in(col, vals);
+            if (!delObj || !Array.isArray(vals) || vals.length === 0) return { data: null, error: null };
+            try {
+              const res = await delObj.in(col, vals);
+              if (res.error) return { data: null, error: null };
+              return res;
+            } catch {
+              return { data: null, error: null };
             }
           },
         };
